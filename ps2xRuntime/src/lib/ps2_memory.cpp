@@ -1068,8 +1068,8 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                         const uint64_t bytes64 = static_cast<uint64_t>(qwCount) * 16ull;
                         uint32_t bytes = (bytes64 > 0xFFFFFFFFull) ? 0xFFFFFFFFu : static_cast<uint32_t>(bytes64);
                         const bool scratch = isScratchpad(srcAddr);
-                        uint32_t src = 0; 
-                        src = translateAddress(srcAddr); 
+                        uint32_t src = 0;
+                        src = translateAddress(srcAddr);
                         const uint8_t *base2;
                         uint32_t maxSz2;
                         if (scratch)
@@ -1082,21 +1082,27 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                             base2 = m_rdram;
                             maxSz2 = PS2_RAM_SIZE;
                         }
-                        if (src >= maxSz2)
-                            return;
-                        if (src + bytes > maxSz2)
-                            bytes = maxSz2 - src;
-                        if (bytes == 0)
-                            return;
-                        chainBuf.insert(chainBuf.end(), base2 + src, base2 + src + bytes);
+                        while (bytes > 0)
+                        {
+                            if (src >= maxSz2)
+                                src = 0;
+                            uint32_t chunk = bytes;
+                            if (src + chunk > maxSz2)
+                                chunk = maxSz2 - src;
+                            if (chunk == 0)
+                                break;
+                            chainBuf.insert(chainBuf.end(), base2 + src, base2 + src + chunk);
+                            bytes -= chunk;
+                            src += chunk;
+                        }
                     };
 
                     auto appendCompactVif1TagData = [&](uint32_t localTagAddr, uint32_t qwCount)
                     {
                         uint32_t tagPhys = 0u;
-                        const bool tagScratch = isScratchpad(localTagAddr); 
+                        const bool tagScratch = isScratchpad(localTagAddr);
                         tagPhys = translateAddress(localTagAddr);
-                        
+
                         const uint8_t *localBase = tagScratch ? m_scratchpad : m_rdram;
                         const uint32_t localMax = tagScratch ? PS2_SCRATCHPAD_SIZE : PS2_RAM_SIZE;
                         if (tagPhys + 16u > localMax)
@@ -1339,8 +1345,16 @@ void PS2Memory::processPendingTransfers()
             }
             if (p.fromScratchpad)
             {
-                if (srcPhys + sizeBytes <= PS2_SCRATCHPAD_SIZE && sizeBytes >= 16)
+                uint32_t bytesLeft = sizeBytes;
+                while (bytesLeft >= 16)
                 {
+                    if (srcPhys >= PS2_SCRATCHPAD_SIZE)
+                        srcPhys = 0;
+                    uint32_t chunk = bytesLeft;
+                    if (srcPhys + chunk > PS2_SCRATCHPAD_SIZE)
+                        chunk = PS2_SCRATCHPAD_SIZE - srcPhys;
+                    if (chunk == 0)
+                        break;
                     m_seenGifCopy = true;
                     m_gifCopyCount.fetch_add(1, std::memory_order_relaxed);
                     traceGifDmaPacketSource("submit",
@@ -1348,18 +1362,26 @@ void PS2Memory::processPendingTransfers()
                                             p.srcAddr,
                                             srcPhys,
                                             p.qwc,
-                                            sizeBytes,
+                                            chunk,
                                             true,
                                             m_scratchpad + srcPhys);
-                    submitGifPacket(GifPathId::Path3, m_scratchpad + srcPhys, sizeBytes, false);
+                    submitGifPacket(GifPathId::Path3, m_scratchpad + srcPhys, chunk, false);
+                    bytesLeft -= chunk;
+                    srcPhys += chunk;
                 }
             }
-            else if (srcPhys < PS2_RAM_SIZE)
+            else
             {
-                if (static_cast<uint64_t>(srcPhys) + sizeBytes > PS2_RAM_SIZE)
-                    sizeBytes = PS2_RAM_SIZE - srcPhys;
-                if (sizeBytes >= 16)
+                uint32_t bytesLeft = sizeBytes;
+                while (bytesLeft >= 16)
                 {
+                    if (srcPhys >= PS2_RAM_SIZE)
+                        srcPhys = 0;
+                    uint32_t chunk = bytesLeft;
+                    if (srcPhys + chunk > PS2_RAM_SIZE)
+                        chunk = PS2_RAM_SIZE - srcPhys;
+                    if (chunk == 0)
+                        break;
                     m_seenGifCopy = true;
                     m_gifCopyCount.fetch_add(1, std::memory_order_relaxed);
                     traceGifDmaPacketSource("submit",
@@ -1367,10 +1389,12 @@ void PS2Memory::processPendingTransfers()
                                             p.srcAddr,
                                             srcPhys,
                                             p.qwc,
-                                            sizeBytes,
+                                            chunk,
                                             false,
                                             m_rdram + srcPhys);
-                    submitGifPacket(GifPathId::Path3, m_rdram + srcPhys, sizeBytes, false);
+                    submitGifPacket(GifPathId::Path3, m_rdram + srcPhys, chunk, false);
+                    bytesLeft -= chunk;
+                    srcPhys += chunk;
                 }
             }
         }
@@ -1399,15 +1423,37 @@ void PS2Memory::processPendingTransfers()
             }
             if (p.fromScratchpad)
             {
-                if (srcPhys + sizeBytes <= PS2_SCRATCHPAD_SIZE && sizeBytes > 0u)
-                    processVIF1Data(m_scratchpad + srcPhys, sizeBytes);
+                uint32_t bytesLeft = sizeBytes;
+                while (bytesLeft > 0)
+                {
+                    if (srcPhys >= PS2_SCRATCHPAD_SIZE)
+                        srcPhys = 0;
+                    uint32_t chunk = bytesLeft;
+                    if (srcPhys + chunk > PS2_SCRATCHPAD_SIZE)
+                        chunk = PS2_SCRATCHPAD_SIZE - srcPhys;
+                    if (chunk == 0)
+                        break;
+                    processVIF1Data(m_scratchpad + srcPhys, chunk);
+                    bytesLeft -= chunk;
+                    srcPhys += chunk;
+                }
             }
-            else if (srcPhys < PS2_RAM_SIZE)
+            else
             {
-                if (srcPhys + sizeBytes > PS2_RAM_SIZE)
-                    sizeBytes = PS2_RAM_SIZE - srcPhys;
-                if (sizeBytes > 0)
-                    processVIF1Data(srcPhys, sizeBytes);
+                uint32_t bytesLeft = sizeBytes;
+                while (bytesLeft > 0)
+                {
+                    if (srcPhys >= PS2_RAM_SIZE)
+                        srcPhys = 0;
+                    uint32_t chunk = bytesLeft;
+                    if (srcPhys + chunk > PS2_RAM_SIZE)
+                        chunk = PS2_RAM_SIZE - srcPhys;
+                    if (chunk == 0)
+                        break;
+                    processVIF1Data(srcPhys, chunk);
+                    bytesLeft -= chunk;
+                    srcPhys += chunk;
+                }
             }
         }
     }
@@ -1503,15 +1549,24 @@ void PS2Memory::processGIFPacket(uint32_t srcPhysAddr, uint32_t qwCount)
         return;
     const uint64_t bytes64 = static_cast<uint64_t>(qwCount) * 16ull;
     uint32_t sizeBytes = (bytes64 > 0xFFFFFFFFull) ? 0xFFFFFFFFu : static_cast<uint32_t>(bytes64);
-    if (srcPhysAddr >= PS2_RAM_SIZE)
-        return;
-    if (static_cast<uint64_t>(srcPhysAddr) + static_cast<uint64_t>(sizeBytes) > static_cast<uint64_t>(PS2_RAM_SIZE))
-        sizeBytes = PS2_RAM_SIZE - srcPhysAddr;
-    if (sizeBytes < 16)
-        return;
-    m_seenGifCopy = true;
-    m_gifCopyCount.fetch_add(1, std::memory_order_relaxed);
-    submitGifPacket(GifPathId::Path3, m_rdram + srcPhysAddr, sizeBytes);
+    uint32_t bytesLeft = sizeBytes;
+    while (bytesLeft >= 16)
+    {
+        if (srcPhysAddr >= PS2_RAM_SIZE)
+            srcPhysAddr = 0;
+        uint32_t chunk = bytesLeft;
+        if (srcPhysAddr + chunk > PS2_RAM_SIZE)
+            chunk = PS2_RAM_SIZE - srcPhysAddr;
+        if (chunk == 0)
+            break;
+
+        m_seenGifCopy = true;
+        m_gifCopyCount.fetch_add(1, std::memory_order_relaxed);
+        submitGifPacket(GifPathId::Path3, m_rdram + srcPhysAddr, chunk);
+
+        bytesLeft -= chunk;
+        srcPhysAddr += chunk;
+    }
 }
 
 void PS2Memory::processGIFPacket(const uint8_t *data, uint32_t sizeBytes)

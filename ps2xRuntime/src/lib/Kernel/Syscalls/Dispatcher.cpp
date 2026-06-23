@@ -223,10 +223,10 @@ namespace ps2_syscalls
             iReferEventFlagStatus(rdram, ctx, runtime);
             return true;
         case 0x5A:
-            QueryBootMode(rdram, ctx, runtime);
+            Copy(rdram, ctx, runtime);
             return true;
         case 0x5B:
-            GetThreadTLS(rdram, ctx, runtime);
+            GetEntryAddress(rdram, ctx, runtime);
             return true;
         case 0x5C:
         case static_cast<uint32_t>(-0x5C):
@@ -318,6 +318,12 @@ namespace ps2_syscalls
             return true;
         case 0x7F:
             GetMemorySize(rdram, ctx, runtime);
+            return true;
+        case 0x82:
+            InitTLB(rdram, ctx, runtime);
+            return true;
+        case static_cast<uint32_t>(-0x7C):
+            Deci2Call(rdram, ctx, runtime);
             return true;
         case 0x83:
             FindAddress(rdram, ctx, runtime);
