@@ -6,6 +6,7 @@
 #include <vector>
 #include <cstdint>
 #include <string>
+#include <cstdlib>
 
 
 namespace
@@ -61,6 +62,22 @@ namespace
     {
         const uint8_t *data = rdram.data() + kPadDataAddr;
         return static_cast<uint16_t>(data[2] | (data[3] << 8));
+    }
+
+    void setTestEnv(const char *name, const char *value)
+    {
+#if defined(_WIN32)
+        _putenv_s(name, value ? value : "");
+#else
+        if (value && value[0] != '\0')
+        {
+            setenv(name, value, 1);
+        }
+        else
+        {
+            unsetenv(name);
+        }
+#endif
     }
 }
 
@@ -137,6 +154,41 @@ void register_pad_input_tests()
             }
 
             ps2_stubs::clearPadOverrideState();
+            closePadPort(ctx, rdram);
+        });
+
+        tc.Run("scePadRead applies scripted pad input from environment", [](TestCase &t)
+               {
+            std::vector<uint8_t> rdram(PS2_RAM_SIZE, 0);
+            R5900Context ctx;
+
+            ps2_stubs::scePadInit(rdram.data(), &ctx, nullptr);
+            ps2_stubs::clearPadOverrideState();
+            openPadPort(ctx, rdram);
+            setTestEnv("PS2X_PAD_SCRIPT", "1:left+circle:2;4:start:1");
+
+            runPadRead(ctx, rdram);
+            uint16_t buttons = readButtons(rdram);
+            t.IsTrue((buttons & kPadBtnLeft) == 0u, "first scripted read should press left");
+            t.IsTrue((buttons & kPadBtnCircle) == 0u, "first scripted read should press circle");
+            t.IsTrue((buttons & kPadBtnStart) != 0u, "first scripted read should leave start released");
+
+            runPadRead(ctx, rdram);
+            buttons = readButtons(rdram);
+            t.IsTrue((buttons & kPadBtnLeft) == 0u, "second scripted read should keep left pressed");
+            t.IsTrue((buttons & kPadBtnCircle) == 0u, "second scripted read should keep circle pressed");
+
+            runPadRead(ctx, rdram);
+            buttons = readButtons(rdram);
+            t.IsTrue((buttons & kPadBtnLeft) != 0u, "third scripted read should release left");
+            t.IsTrue((buttons & kPadBtnCircle) != 0u, "third scripted read should release circle");
+
+            runPadRead(ctx, rdram);
+            buttons = readButtons(rdram);
+            t.IsTrue((buttons & kPadBtnStart) == 0u, "fourth scripted read should press start");
+            t.IsTrue((buttons & kPadBtnCircle) != 0u, "fourth scripted read should leave circle released");
+
+            setTestEnv("PS2X_PAD_SCRIPT", "");
             closePadPort(ctx, rdram);
         });
 

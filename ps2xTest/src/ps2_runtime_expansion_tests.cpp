@@ -37,6 +37,25 @@ namespace
     constexpr uint32_t EXCEPTION_VECTOR_BOOT = 0xBFC00200u;
 
     constexpr int KE_OK = 0;
+    constexpr int THS_DORMANT = 0x10;
+
+    struct EeThreadStatus
+    {
+        int32_t status;
+        uint32_t func;
+        uint32_t stack;
+        int32_t stack_size;
+        uint32_t gp_reg;
+        int32_t initial_priority;
+        int32_t current_priority;
+        uint32_t attr;
+        uint32_t option;
+        uint32_t waitType;
+        uint32_t waitId;
+        uint32_t wakeupCount;
+    };
+
+    static_assert(sizeof(EeThreadStatus) == 0x30u, "Unexpected ee_thread_status_t size.");
 
     void setRegU32(R5900Context &ctx, int reg, uint32_t value)
     {
@@ -106,6 +125,18 @@ namespace
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
+    std::atomic<bool> gLowPcReturnThreadRan{false};
+
+    void testLowPcReturnThreadEntry(uint8_t *, R5900Context *ctx, PS2Runtime *)
+    {
+        gLowPcReturnThreadRan.store(true, std::memory_order_release);
+        if (ctx)
+        {
+            setRegU32(*ctx, 31, 1u);
+            ctx->pc = 1u;
+        }
+    }
+
     std::atomic<int32_t> gSerializedGuestActive{0};
     std::atomic<int32_t> gSerializedGuestMaxActive{0};
     std::atomic<int32_t> gPreemptionPolicyEntryCount{0};
@@ -168,6 +199,18 @@ namespace
 
     constexpr uint32_t kAsyncCounterAddr = 0x2400u;
 
+    uint32_t readAsyncCounter(const uint8_t *rdram)
+    {
+        auto *word = reinterpret_cast<uint32_t *>(const_cast<uint8_t *>(rdram + kAsyncCounterAddr));
+        return std::atomic_ref<uint32_t>(*word).load(std::memory_order_acquire);
+    }
+
+    void writeAsyncCounter(uint8_t *rdram, uint32_t value)
+    {
+        auto *word = reinterpret_cast<uint32_t *>(rdram + kAsyncCounterAddr);
+        std::atomic_ref<uint32_t>(*word).store(value, std::memory_order_release);
+    }
+
     void testWaitForAsyncCounter(uint8_t *rdram, R5900Context *ctx, PS2Runtime *)
     {
         if (!rdram || !ctx)
@@ -178,7 +221,7 @@ namespace
         uint32_t counter = 0u;
         do
         {
-            std::memcpy(&counter, rdram + kAsyncCounterAddr, sizeof(counter));
+            counter = readAsyncCounter(rdram);
             if (counter == 0u)
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -192,8 +235,7 @@ namespace
     {
         if (rdram)
         {
-            const uint32_t counter = 1u;
-            std::memcpy(rdram + kAsyncCounterAddr, &counter, sizeof(counter));
+            writeAsyncCounter(rdram, 1u);
         }
 
         if (ctx)
@@ -223,6 +265,14 @@ void register_ps2_runtime_expansion_tests()
 {
     MiniTest::Case("PS2RuntimeExpansion", [](TestCase &tc)
     {
+        tc.Run("runtime CPU starts with guest interrupt state enabled", [](TestCase &t)
+        {
+            PS2Runtime runtime;
+            constexpr uint32_t kInterruptStateBits = 0x10001u;
+            t.Equals(runtime.cpu().cop0_status & kInterruptStateBits, kInterruptStateBits,
+                     "runtime boot context should expose enabled EE interrupt state");
+        });
+
         tc.Run("differential decoder/codegen gpr-write contract for MULT and DIV families", [](TestCase &t)
         {
             R5900Decoder decoder;
@@ -374,6 +424,7 @@ void register_ps2_runtime_expansion_tests()
             setRegU32(addCtx, 5, kIntcHandlerEntry);
             setRegU32(addCtx, 6, 0u);
             setRegU32(addCtx, 7, 0u);
+            writeAsyncCounter(rdram.data(), 0u);
             AddIntcHandler(rdram.data(), &addCtx, &runtime);
             t.IsTrue(getRegS32(addCtx, 2) > 0, "AddIntcHandler should register a VBlank handler");
 
@@ -400,12 +451,11 @@ void register_ps2_runtime_expansion_tests()
             const bool finished = waitUntil([&]()
             {
                 return workerDone.load(std::memory_order_acquire);
-            }, std::chrono::milliseconds(250));
+            }, std::chrono::milliseconds(1000));
 
             if (!finished)
             {
-                const uint32_t counter = 1u;
-                std::memcpy(rdram.data() + kAsyncCounterAddr, &counter, sizeof(counter));
+                writeAsyncCounter(rdram.data(), 1u);
             }
 
             if (worker.joinable())
@@ -417,7 +467,7 @@ void register_ps2_runtime_expansion_tests()
             notifyRuntimeStop();
 
             uint32_t counter = 0u;
-            std::memcpy(&counter, rdram.data() + kAsyncCounterAddr, sizeof(counter));
+            counter = readAsyncCounter(rdram.data());
 
             t.IsFalse(workerThrew.load(std::memory_order_acquire),
                       "busy dispatch worker should not throw while VBlank handlers fire");
@@ -628,6 +678,122 @@ void register_ps2_runtime_expansion_tests()
                      "sprintf should read the third variadic integer from t0 and honor %02d");
             t.Equals(getRegS32(ctx, 2), static_cast<int32_t>(rendered.size()),
                      "sprintf should return the rendered length");
+        });
+
+        tc.Run("vfprintf writes newlib string FILE buffers used by vsprintf wrappers", [](TestCase &t)
+        {
+            PS2Runtime runtime;
+            std::vector<uint8_t> rdram(PS2_RAM_SIZE, 0u);
+            R5900Context ctx{};
+
+            constexpr uint32_t kFileAddr = 0x00002000u;
+            constexpr uint32_t kFormatAddr = 0x00002100u;
+            constexpr uint32_t kStringAddr = 0x00002200u;
+            constexpr uint32_t kVaListAddr = 0x00002300u;
+            constexpr uint32_t kDestAddr = 0x00002400u;
+            constexpr char kFormat[] = "err %s %02d";
+            constexpr char kString[] = "ok";
+
+            auto writeU32 = [&](uint32_t addr, uint32_t value)
+            {
+                std::memcpy(rdram.data() + addr, &value, sizeof(value));
+            };
+
+            std::memcpy(rdram.data() + kFormatAddr, kFormat, sizeof(kFormat));
+            std::memcpy(rdram.data() + kStringAddr, kString, sizeof(kString));
+            writeU32(kVaListAddr + 0x0u, kStringAddr);
+            writeU32(kVaListAddr + 0x4u, 7u);
+
+            writeU32(kFileAddr + 0x00u, kDestAddr);    // _p
+            writeU32(kFileAddr + 0x08u, 0x7FFFFFFFu);  // _w
+            writeU32(kFileAddr + 0x0Cu, 0x00000208u);  // __SSTR | __SWR
+            writeU32(kFileAddr + 0x10u, kDestAddr);    // _bf._base
+            writeU32(kFileAddr + 0x14u, 0x7FFFFFFFu);  // _bf._size
+
+            setRegU32(ctx, 4, kFileAddr);
+            setRegU32(ctx, 5, kFormatAddr);
+            setRegU32(ctx, 6, kVaListAddr);
+
+            ps2_stubs::vfprintf(rdram.data(), &ctx, &runtime);
+
+            const std::string rendered(reinterpret_cast<const char *>(rdram.data() + kDestAddr));
+            t.Equals(rendered, std::string("err ok 07"),
+                     "vfprintf should render through a guest newlib string FILE");
+            t.Equals(getRegU32(&ctx, 2), static_cast<uint32_t>(rendered.size()),
+                     "vfprintf should return the rendered length");
+
+            uint32_t nextCursor = 0u;
+            std::memcpy(&nextCursor, rdram.data() + kFileAddr, sizeof(nextCursor));
+            t.Equals(nextCursor, kDestAddr + static_cast<uint32_t>(rendered.size()),
+                     "vfprintf should advance FILE._p for the caller's terminator write");
+        });
+
+        tc.Run("vfprintf accepts guest stdout FILE handles as log sinks", [](TestCase &t)
+        {
+            PS2Runtime runtime;
+            std::vector<uint8_t> rdram(PS2_RAM_SIZE, 0u);
+            R5900Context ctx{};
+
+            constexpr uint32_t kFileAddr = 0x00002000u;
+            constexpr uint32_t kFormatAddr = 0x00002100u;
+            constexpr uint32_t kStringAddr = 0x00002200u;
+            constexpr uint32_t kVaListAddr = 0x00002300u;
+            constexpr char kFormat[] = "log %s %d";
+            constexpr char kString[] = "ok";
+
+            auto writeU32 = [&](uint32_t addr, uint32_t value)
+            {
+                std::memcpy(rdram.data() + addr, &value, sizeof(value));
+            };
+
+            std::memcpy(rdram.data() + kFormatAddr, kFormat, sizeof(kFormat));
+            std::memcpy(rdram.data() + kStringAddr, kString, sizeof(kString));
+            writeU32(kVaListAddr + 0x0u, kStringAddr);
+            writeU32(kVaListAddr + 0x4u, 9u);
+            writeU32(kFileAddr + 0x0Cu, 0x00000008u); // __SWR
+
+            setRegU32(ctx, 4, kFileAddr);
+            setRegU32(ctx, 5, kFormatAddr);
+            setRegU32(ctx, 6, kVaListAddr);
+
+            ps2_stubs::vfprintf(rdram.data(), &ctx, &runtime);
+
+            t.Equals(getRegU32(&ctx, 2), 8u,
+                     "vfprintf should return rendered length for guest stdout FILE sinks");
+        });
+
+        tc.Run("vfprintf accepts guest newlib std stream FILE handles as log sinks", [](TestCase &t)
+        {
+            PS2Runtime runtime;
+            std::vector<uint8_t> rdram(PS2_RAM_SIZE, 0u);
+            R5900Context ctx{};
+
+            constexpr uint32_t kFileAddr = 0x00002000u;
+            constexpr uint32_t kReentAddr = 0x00001dc4u;
+            constexpr uint32_t kFormatAddr = 0x00002100u;
+            constexpr uint32_t kStringAddr = 0x00002200u;
+            constexpr uint32_t kVaListAddr = 0x00002300u;
+            constexpr char kFormat[] = "SOUND : %s\n";
+            constexpr char kString[] = "ok";
+
+            auto writeU32 = [&](uint32_t addr, uint32_t value)
+            {
+                std::memcpy(rdram.data() + addr, &value, sizeof(value));
+            };
+
+            std::memcpy(rdram.data() + kFormatAddr, kFormat, sizeof(kFormat));
+            std::memcpy(rdram.data() + kStringAddr, kString, sizeof(kString));
+            writeU32(kVaListAddr, kStringAddr);
+            writeU32(kFileAddr + 0x54u, kReentAddr);
+
+            setRegU32(ctx, 4, kFileAddr);
+            setRegU32(ctx, 5, kFormatAddr);
+            setRegU32(ctx, 6, kVaListAddr);
+
+            ps2_stubs::vfprintf(rdram.data(), &ctx, &runtime);
+
+            t.Equals(getRegU32(&ctx, 2), 11u,
+                     "vfprintf should return rendered length for guest newlib std stream sinks");
         });
 
         tc.Run("multiply-add matrix writes rd only when R5900 requires it", [](TestCase &t)
@@ -901,6 +1067,66 @@ void register_ps2_runtime_expansion_tests()
                 return g_activeThreads.load(std::memory_order_relaxed) == 0;
             }, std::chrono::milliseconds(2000));
             t.IsTrue(drained, "requestStop should drain all guest worker threads");
+
+            notifyRuntimeStop();
+        });
+
+        tc.Run("guest worker thread treats low self-return PC as thread exit", [](TestCase &t)
+        {
+            notifyRuntimeStop();
+            PS2Runtime runtime;
+            std::vector<uint8_t> rdram(PS2_RAM_SIZE, 0u);
+
+            constexpr uint32_t kEntry = 0x251000u;
+            constexpr uint32_t kThreadParamAddr = 0x2700u;
+            constexpr uint32_t kStatusAddr = 0x2800u;
+            const uint32_t threadParam[7] = {
+                0u,
+                kEntry,
+                0x00102000u,
+                0x00000400u,
+                0x00110000u,
+                8u,
+                0u
+            };
+
+            gLowPcReturnThreadRan.store(false, std::memory_order_release);
+            runtime.registerFunction(kEntry, &testLowPcReturnThreadEntry);
+            std::memcpy(rdram.data() + kThreadParamAddr, threadParam, sizeof(threadParam));
+
+            R5900Context createCtx{};
+            setRegU32(createCtx, 4, kThreadParamAddr);
+            CreateThread(rdram.data(), &createCtx, &runtime);
+            const int32_t tid = getRegS32(createCtx, 2);
+            t.IsTrue(tid > 0, "CreateThread should succeed for low-PC return test");
+
+            R5900Context startCtx{};
+            setRegU32(startCtx, 4, static_cast<uint32_t>(tid));
+            setRegU32(startCtx, 5, 0u);
+            StartThread(rdram.data(), &startCtx, &runtime);
+            t.Equals(getRegS32(startCtx, 2), KE_OK, "StartThread should launch low-PC return worker");
+
+            const bool ran = waitUntil([&]()
+            {
+                return gLowPcReturnThreadRan.load(std::memory_order_acquire);
+            }, std::chrono::milliseconds(500));
+            t.IsTrue(ran, "worker should run before returning to the low sentinel");
+
+            const bool drained = waitUntil([&]()
+            {
+                return g_activeThreads.load(std::memory_order_relaxed) == 0;
+            }, std::chrono::milliseconds(1000));
+            t.IsTrue(drained, "low self-return PC should terminate the guest worker thread");
+
+            R5900Context statusCtx{};
+            setRegU32(statusCtx, 4, static_cast<uint32_t>(tid));
+            setRegU32(statusCtx, 5, kStatusAddr);
+            ReferThreadStatus(rdram.data(), &statusCtx, &runtime);
+            t.Equals(getRegS32(statusCtx, 2), KE_OK, "ReferThreadStatus should succeed after low-PC return");
+
+            EeThreadStatus status{};
+            std::memcpy(&status, rdram.data() + kStatusAddr, sizeof(status));
+            t.Equals(status.status, THS_DORMANT, "low-PC return worker should become dormant");
 
             notifyRuntimeStop();
         });

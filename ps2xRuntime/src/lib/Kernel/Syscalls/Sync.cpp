@@ -1,8 +1,30 @@
 #include "Common.h"
 #include "Sync.h"
 
+#include <cstdlib>
+#include <cstring>
+
 namespace ps2_syscalls
 {
+    static bool traceSyncEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_SYNC");
+            if (!value || value[0] == '\0')
+            {
+                return false;
+            }
+
+            return std::strcmp(value, "0") != 0 &&
+                   std::strcmp(value, "false") != 0 &&
+                   std::strcmp(value, "FALSE") != 0 &&
+                   std::strcmp(value, "off") != 0 &&
+                   std::strcmp(value, "OFF") != 0;
+        }();
+        return enabled;
+    }
+
     static bool looksLikeGuestPointerOrNull(uint32_t value)
     {
         if (value == 0u)
@@ -191,7 +213,10 @@ namespace ps2_syscalls
 
             g_semas.emplace(id, info);
         }
-        RUNTIME_LOG("[CreateSema] id=" << id << " init=" << init << " max=" << max);
+        if (traceSyncEnabled())
+        {
+            RUNTIME_LOG("[CreateSema] id=" << id << " init=" << init << " max=" << max);
+        }
         setReturnS32(ctx, id);
     }
 
@@ -254,15 +279,18 @@ namespace ps2_syscalls
             afterCount = sema->count;
         }
 
-        static std::atomic<uint32_t> s_signalSemaLogs{0};
-        const uint32_t sigLog = s_signalSemaLogs.fetch_add(1, std::memory_order_relaxed);
-        if (sigLog < 256u)
+        if (traceSyncEnabled())
         {
-            RUNTIME_LOG("[SignalSema] tid=" << g_currentThreadId
-                                            << " sid=" << sid
-                                            << " count=" << beforeCount << "->" << afterCount
-                                            << " ret=" << ret
-                                            << std::endl);
+            static std::atomic<uint32_t> s_signalSemaLogs{0};
+            const uint32_t sigLog = s_signalSemaLogs.fetch_add(1, std::memory_order_relaxed);
+            if (sigLog < 256u)
+            {
+                RUNTIME_LOG("[SignalSema] tid=" << g_currentThreadId
+                                                << " sid=" << sid
+                                                << " count=" << beforeCount << "->" << afterCount
+                                                << " ret=" << ret
+                                                << std::endl);
+            }
         }
 
         setReturnS32(ctx, ret);
@@ -290,16 +318,19 @@ namespace ps2_syscalls
 
         if (sema->count == 0)
         {
-            static std::atomic<uint32_t> s_waitSemaBlockLogs{0};
-            const uint32_t blockLog = s_waitSemaBlockLogs.fetch_add(1, std::memory_order_relaxed);
-            if (blockLog < 256u)
+            if (traceSyncEnabled())
             {
-                RUNTIME_LOG("[WaitSema:block] tid=" << g_currentThreadId
-                                                    << " sid=" << sid
-                                                    << " pc=0x" << std::hex << ctx->pc
-                                                    << " ra=0x" << getRegU32(ctx, 31)
-                                                    << std::dec
-                                                    << std::endl);
+                static std::atomic<uint32_t> s_waitSemaBlockLogs{0};
+                const uint32_t blockLog = s_waitSemaBlockLogs.fetch_add(1, std::memory_order_relaxed);
+                if (blockLog < 256u)
+                {
+                    RUNTIME_LOG("[WaitSema:block] tid=" << g_currentThreadId
+                                                        << " sid=" << sid
+                                                        << " pc=0x" << std::hex << ctx->pc
+                                                        << " ra=0x" << getRegU32(ctx, 31)
+                                                        << std::dec
+                                                        << std::endl);
+                }
             }
 
             if (info)
@@ -351,15 +382,18 @@ namespace ps2_syscalls
             sema->count--;
         }
 
-        static std::atomic<uint32_t> s_waitSemaWakeLogs{0};
-        const uint32_t wakeLog = s_waitSemaWakeLogs.fetch_add(1, std::memory_order_relaxed);
-        if (wakeLog < 256u)
+        if (traceSyncEnabled())
         {
-            RUNTIME_LOG("[WaitSema:wake] tid=" << g_currentThreadId
-                                               << " sid=" << sid
-                                               << " ret=" << ret
-                                               << " count=" << sema->count
-                                               << std::endl);
+            static std::atomic<uint32_t> s_waitSemaWakeLogs{0};
+            const uint32_t wakeLog = s_waitSemaWakeLogs.fetch_add(1, std::memory_order_relaxed);
+            if (wakeLog < 256u)
+            {
+                RUNTIME_LOG("[WaitSema:wake] tid=" << g_currentThreadId
+                                                   << " sid=" << sid
+                                                   << " ret=" << ret
+                                                   << " count=" << sema->count
+                                                   << std::endl);
+            }
         }
         lock.unlock();
         waitWhileSuspended(info, runtime);

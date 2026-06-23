@@ -10,10 +10,13 @@
 #include <atomic>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <mutex>
 #include <sstream>
+#include <unordered_map>
 
 namespace
 {
@@ -355,6 +358,178 @@ namespace
     std::atomic<uint32_t> s_debugTexaWriteCount{0};
     std::atomic<uint32_t> s_debugCvFontUploadCount{0};
     std::atomic<uint32_t> s_debugLocalCopyCount{0};
+    std::atomic<uint32_t> s_traceGsPacketCount{0};
+    std::atomic<uint32_t> s_traceGsPackedRegCount{0};
+    std::atomic<uint32_t> s_traceGsRegCount{0};
+    std::atomic<uint32_t> s_traceGsImageCount{0};
+    std::atomic<uint32_t> s_traceGsLocalCopyCount{0};
+    std::atomic<uint32_t> s_traceGsKickCount{0};
+    std::mutex s_pendingGifImageMutex;
+    std::unordered_map<const GS *, uint32_t> s_pendingGifImageBytes;
+
+    constexpr uint8_t GIF_PACKED_REG_AD = 0x0E;
+
+    uint32_t pendingGifImageBytesFor(const GS *gs)
+    {
+        std::lock_guard<std::mutex> lock(s_pendingGifImageMutex);
+        const auto it = s_pendingGifImageBytes.find(gs);
+        return (it != s_pendingGifImageBytes.end()) ? it->second : 0u;
+    }
+
+    void setPendingGifImageBytesFor(const GS *gs, uint32_t bytes)
+    {
+        std::lock_guard<std::mutex> lock(s_pendingGifImageMutex);
+        if (bytes == 0u)
+        {
+            s_pendingGifImageBytes.erase(gs);
+            return;
+        }
+        s_pendingGifImageBytes[gs] = bytes;
+    }
+
+    bool startsWithTaggedGifImagePacket(const uint8_t *data, uint32_t sizeBytes)
+    {
+        if (!data || sizeBytes < 16u)
+        {
+            return false;
+        }
+
+        const uint64_t tagLo = loadLE64(data);
+        const uint32_t nloop = static_cast<uint32_t>(tagLo & 0x7FFFu);
+        const uint8_t flg = static_cast<uint8_t>((tagLo >> 58) & 0x3u);
+        return (flg == GIF_FMT_IMAGE || flg == GIF_FMT_DISABLED) && nloop != 0u;
+    }
+
+    bool traceGsPacketEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_PACKET");
+            return value && value[0] != '\0' && value[0] != '0';
+        }();
+        return enabled;
+    }
+
+    uint32_t traceGsPacketLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_PACKET_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 512u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 512u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 8192ul));
+        }();
+        return limit;
+    }
+
+    const char *gsRegName(uint8_t reg)
+    {
+        switch (reg)
+        {
+        case GS_REG_PRIM: return "PRIM";
+        case GS_REG_RGBAQ: return "RGBAQ";
+        case GS_REG_ST: return "ST";
+        case GS_REG_UV: return "UV";
+        case GS_REG_XYZF2: return "XYZF2";
+        case GS_REG_XYZ2: return "XYZ2";
+        case GS_REG_TEX0_1: return "TEX0_1";
+        case GS_REG_TEX0_2: return "TEX0_2";
+        case GS_REG_XYOFFSET_1: return "XYOFFSET_1";
+        case GS_REG_XYOFFSET_2: return "XYOFFSET_2";
+        case GS_REG_PRMODECONT: return "PRMODECONT";
+        case GS_REG_PRMODE: return "PRMODE";
+        case GS_REG_TEXCLUT: return "TEXCLUT";
+        case GS_REG_TEXA: return "TEXA";
+        case GS_REG_TEXFLUSH: return "TEXFLUSH";
+        case GS_REG_SCISSOR_1: return "SCISSOR_1";
+        case GS_REG_SCISSOR_2: return "SCISSOR_2";
+        case GS_REG_ALPHA_1: return "ALPHA_1";
+        case GS_REG_ALPHA_2: return "ALPHA_2";
+        case GS_REG_TEST_1: return "TEST_1";
+        case GS_REG_TEST_2: return "TEST_2";
+        case GS_REG_FRAME_1: return "FRAME_1";
+        case GS_REG_FRAME_2: return "FRAME_2";
+        case GS_REG_ZBUF_1: return "ZBUF_1";
+        case GS_REG_ZBUF_2: return "ZBUF_2";
+        case GS_REG_BITBLTBUF: return "BITBLTBUF";
+        case GS_REG_TRXPOS: return "TRXPOS";
+        case GS_REG_TRXREG: return "TRXREG";
+        case GS_REG_TRXDIR: return "TRXDIR";
+        case GS_REG_HWREG: return "HWREG";
+        case GS_REG_FINISH: return "FINISH";
+        default: return "?";
+        }
+    }
+
+    bool shouldTracePackedReg(uint8_t regDesc)
+    {
+        if (regDesc == GS_REG_RGBAQ ||
+            regDesc == GS_REG_ST ||
+            regDesc == GS_REG_UV ||
+            regDesc == GS_REG_XYZF2 ||
+            regDesc == GS_REG_XYZ2 ||
+            regDesc == GS_REG_XYZF3 ||
+            regDesc == GS_REG_XYZ3 ||
+            regDesc == GIF_PACKED_REG_AD)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    void traceGsGifPacket(const uint8_t *data, uint32_t sizeBytes)
+    {
+        if (!traceGsPacketEnabled() || !data || sizeBytes < 16u)
+        {
+            return;
+        }
+
+        const uint32_t index = s_traceGsPacketCount.fetch_add(1u, std::memory_order_relaxed);
+        if (index >= traceGsPacketLimit())
+        {
+            return;
+        }
+
+        const uint64_t tagLo = loadLE64(data);
+        const uint64_t tagHi = loadLE64(data + 8u);
+        const uint32_t nloop = static_cast<uint32_t>(tagLo & 0x7FFFu);
+        const bool eop = ((tagLo >> 15) & 0x1ull) != 0ull;
+        const uint8_t flg = static_cast<uint8_t>((tagLo >> 58) & 0x3u);
+        uint32_t nreg = static_cast<uint32_t>((tagLo >> 60) & 0xFu);
+        if (nreg == 0u)
+        {
+            nreg = 16u;
+        }
+
+        std::cout << "[gs:packet-trace] idx=" << index
+                  << " size=" << std::dec << sizeBytes
+                  << " nloop=" << nloop
+                  << " eop=" << static_cast<uint32_t>(eop ? 1u : 0u)
+                  << " flg=" << static_cast<uint32_t>(flg)
+                  << " nreg=" << nreg
+                  << " regs=";
+        for (uint32_t i = 0u; i < nreg; ++i)
+        {
+            const uint8_t reg = static_cast<uint8_t>((tagHi >> (i * 4u)) & 0xFu);
+            if (i != 0u)
+            {
+                std::cout << ",";
+            }
+            std::cout << "0x" << std::hex << static_cast<uint32_t>(reg);
+        }
+        std::cout << std::dec << std::endl;
+    }
 
     bool supportsFormatAwareLocalCopy(uint8_t psm)
     {
@@ -531,6 +706,7 @@ void GS::init(uint8_t *vram, uint32_t vramSize, GSRegisters *privRegs)
 void GS::reset()
 {
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
+    setPendingGifImageBytesFor(this, 0u);
     std::memset(m_ctx, 0, sizeof(m_ctx));
     m_prim = {};
     m_curR = 0x80;
@@ -1109,21 +1285,175 @@ bool GS::copyLatchedHostPresentationFrame(std::vector<uint8_t> &outPixels,
 void GS::processGIFPacket(const uint8_t *data, uint32_t sizeBytes)
 {
     std::lock_guard<std::recursive_mutex> lock(m_stateMutex);
-    if (!data || sizeBytes < 16 || !m_vram)
+    if (!data || sizeBytes == 0u || !m_vram)
         return;
+
+    uint32_t offset = 0u;
+
+    auto inferImageBytesRemaining = [&]() -> uint32_t
+    {
+        if (m_trxdir != 0u || m_trxreg.rrw == 0u || m_trxreg.rrh == 0u || m_hwregY >= m_trxreg.rrh)
+            return 0u;
+
+        const uint64_t totalPixels = static_cast<uint64_t>(m_trxreg.rrw) * static_cast<uint64_t>(m_trxreg.rrh);
+        uint64_t completedPixels =
+            static_cast<uint64_t>(m_hwregY) * static_cast<uint64_t>(m_trxreg.rrw) + m_hwregX;
+        if (completedPixels > totalPixels)
+            completedPixels = totalPixels;
+
+        const uint64_t remainingPixels = totalPixels - completedPixels;
+        uint64_t bytes = 0u;
+        switch (m_bitbltbuf.dpsm)
+        {
+        case GS_PSM_T4:
+        case GS_PSM_T4HL:
+        case GS_PSM_T4HH:
+            bytes = (remainingPixels + 1u) / 2u;
+            break;
+        case GS_PSM_T8:
+        case GS_PSM_T8H:
+            bytes = remainingPixels;
+            break;
+        case GS_PSM_CT16:
+        case GS_PSM_CT16S:
+        case GS_PSM_Z16:
+        case GS_PSM_Z16S:
+            bytes = remainingPixels * 2u;
+            break;
+        case GS_PSM_CT24:
+        case GS_PSM_Z24:
+            bytes = remainingPixels * 3u;
+            break;
+        default:
+            bytes = remainingPixels * 4u;
+            break;
+        }
+
+        bytes = (bytes + 15u) & ~15ull;
+        return static_cast<uint32_t>(std::min<uint64_t>(bytes, 0xFFFFFFFFull));
+    };
+
+    auto looksLikeCompleteTaggedGifPacket = [](const uint8_t *packetData, uint32_t packetSize) -> bool
+    {
+        if (!packetData || packetSize < 16u)
+        {
+            return false;
+        }
+
+        const uint64_t tagLo = loadLE64(packetData);
+        const uint32_t nloop = static_cast<uint32_t>(tagLo & 0x7FFFu);
+        const uint8_t flg = static_cast<uint8_t>((tagLo >> 58) & 0x3u);
+        uint32_t nreg = static_cast<uint32_t>((tagLo >> 60) & 0xFu);
+        if (nreg == 0u)
+            nreg = 16u;
+
+        if (flg == GIF_FMT_IMAGE || flg == GIF_FMT_DISABLED)
+        {
+            if (nloop == 0u)
+            {
+                const uint64_t tagHi = loadLE64(packetData + 8u);
+                return tagHi == 0u;
+            }
+
+            const uint64_t requiredBytes = 16ull + static_cast<uint64_t>(nloop) * 16ull;
+            return requiredBytes <= packetSize;
+        }
+
+        if (nloop == 0u)
+        {
+            return false;
+        }
+
+        uint64_t payloadBytes = 0u;
+        if (flg == GIF_FMT_PACKED)
+        {
+            payloadBytes = static_cast<uint64_t>(nloop) * static_cast<uint64_t>(nreg) * 16ull;
+        }
+        else if (flg == GIF_FMT_REGLIST)
+        {
+            payloadBytes = static_cast<uint64_t>(nloop) * static_cast<uint64_t>(nreg) * 8ull;
+            payloadBytes = (payloadBytes + 15ull) & ~15ull;
+        }
+
+        const uint64_t requiredBytes = 16ull + payloadBytes;
+        return requiredBytes <= packetSize;
+    };
+
+    auto startsWithIncompleteImageTag = [](const uint8_t *packetData, uint32_t packetSize) -> bool
+    {
+        if (!packetData || packetSize < 16u)
+        {
+            return false;
+        }
+
+        const uint64_t tagLo = loadLE64(packetData);
+        const uint64_t tagHi = loadLE64(packetData + 8u);
+        const uint32_t nloop = static_cast<uint32_t>(tagLo & 0x7FFFu);
+        const uint8_t flg = static_cast<uint8_t>((tagLo >> 58) & 0x3u);
+        if ((flg != GIF_FMT_IMAGE && flg != GIF_FMT_DISABLED) || nloop == 0u || tagHi != 0u)
+        {
+            return false;
+        }
+
+        const uint64_t requiredBytes = 16ull + static_cast<uint64_t>(nloop) * 16ull;
+        return requiredBytes > packetSize;
+    };
+
+    const uint32_t pendingImageBytes = pendingGifImageBytesFor(this);
+    if (pendingImageBytes != 0u)
+    {
+        if (startsWithTaggedGifImagePacket(data, sizeBytes) &&
+            looksLikeCompleteTaggedGifPacket(data, sizeBytes))
+        {
+            setPendingGifImageBytesFor(this, 0u);
+        }
+        else
+        {
+            const uint32_t chunkBytes = std::min<uint32_t>(pendingImageBytes, sizeBytes);
+            processImageData(data, chunkBytes);
+            offset += chunkBytes;
+            setPendingGifImageBytesFor(this, pendingImageBytes - chunkBytes);
+            if (offset >= sizeBytes)
+                return;
+            if (!looksLikeCompleteTaggedGifPacket(data + offset, sizeBytes - offset))
+                return;
+        }
+    }
+
+    const uint32_t remainingImageBytes = inferImageBytesRemaining();
+    if (remainingImageBytes != 0u && offset < sizeBytes &&
+        !looksLikeCompleteTaggedGifPacket(data + offset, sizeBytes - offset) &&
+        !startsWithIncompleteImageTag(data + offset, sizeBytes - offset))
+    {
+        const uint32_t chunkBytes = std::min<uint32_t>(remainingImageBytes, sizeBytes - offset);
+        processImageData(data + offset, chunkBytes);
+        offset += chunkBytes;
+        if (offset >= sizeBytes)
+            return;
+        if (!looksLikeCompleteTaggedGifPacket(data + offset, sizeBytes - offset))
+            return;
+    }
+
+    if (sizeBytes - offset < 16u)
+        return;
+
+    const uint8_t *packetData = data + offset;
+    const uint32_t packetSize = sizeBytes - offset;
+
+    traceGsGifPacket(packetData, packetSize);
 
     PS2_IF_AGRESSIVE_LOGS({
         const uint32_t packetIndex = s_debugGifPacketCount.fetch_add(1, std::memory_order_relaxed);
         if (packetIndex < 48u)
         {
-            const uint64_t tagLo = loadLE64(data);
+            const uint64_t tagLo = loadLE64(packetData);
             const uint32_t nloop = static_cast<uint32_t>(tagLo & 0x7FFFu);
             const uint8_t flg = static_cast<uint8_t>((tagLo >> 58) & 0x3u);
             uint32_t nreg = static_cast<uint32_t>((tagLo >> 60) & 0xFu);
             if (nreg == 0u)
                 nreg = 16u;
             RUNTIME_LOG("[gs:gif] idx=" << packetIndex
-                                        << " size=" << sizeBytes
+                                        << " size=" << packetSize
                                         << " nloop=" << nloop
                                         << " flg=" << static_cast<uint32_t>(flg)
                                         << " nreg=" << nreg
@@ -1133,18 +1463,14 @@ void GS::processGIFPacket(const uint8_t *data, uint32_t sizeBytes)
         }
     });
 
-    if (sizeBytes >= 16)
+    const uint64_t firstTagLo = loadLE64(packetData);
+    const uint8_t firstFlg = static_cast<uint8_t>((firstTagLo >> 58) & 0x3);
+    if (firstFlg == GIF_FMT_PACKED)
     {
-        const uint64_t tagLo = loadLE64(data);
-        const uint8_t flg = static_cast<uint8_t>((tagLo >> 58) & 0x3);
-        if (flg == GIF_FMT_PACKED)
-        {
-            m_hwregX = 0;
-            m_hwregY = 0;
-        }
+        m_hwregX = 0;
+        m_hwregY = 0;
     }
 
-    uint32_t offset = 0;
     while (offset + 16 <= sizeBytes)
     {
         uint64_t tagLo = loadLE64(data + offset);
@@ -1154,6 +1480,7 @@ void GS::processGIFPacket(const uint8_t *data, uint32_t sizeBytes)
         m_curQ = 1.0f;
 
         uint32_t nloop = static_cast<uint32_t>(tagLo & 0x7FFF);
+        const bool eop = ((tagLo >> 15) & 0x1ull) != 0ull;
         uint8_t flg = static_cast<uint8_t>((tagLo >> 58) & 0x3);
         uint32_t nreg = static_cast<uint32_t>((tagLo >> 60) & 0xF);
         if (nreg == 0)
@@ -1199,19 +1526,54 @@ void GS::processGIFPacket(const uint8_t *data, uint32_t sizeBytes)
             if ((nloop * nreg) & 1)
                 offset += 8;
         }
-        else if (flg == GIF_FMT_IMAGE)
+        else if (flg == GIF_FMT_IMAGE || flg == GIF_FMT_DISABLED)
         {
             uint32_t imageBytes = nloop * 16;
-            if (offset + imageBytes > sizeBytes)
-                imageBytes = sizeBytes - offset;
-            processImageData(data + offset, imageBytes);
-            offset += imageBytes;
+            if (imageBytes == 0u)
+            {
+                imageBytes = inferImageBytesRemaining();
+            }
+
+            const uint32_t availableBytes = sizeBytes - offset;
+            const uint32_t copiedBytes = std::min<uint32_t>(imageBytes, availableBytes);
+            processImageData(data + offset, copiedBytes);
+            offset += copiedBytes;
+
+            if (imageBytes > copiedBytes)
+            {
+                setPendingGifImageBytesFor(this, imageBytes - copiedBytes);
+            }
         }
     }
 }
 
 void GS::writeRegisterPacked(uint8_t regDesc, uint64_t lo, uint64_t hi)
 {
+    if (traceGsPacketEnabled() && shouldTracePackedReg(regDesc))
+    {
+        const uint32_t index = s_traceGsPackedRegCount.fetch_add(1u, std::memory_order_relaxed);
+        if (index < traceGsPacketLimit())
+        {
+            std::cout << "[gs:packed-trace] idx=" << index
+                      << " desc=0x" << std::hex << static_cast<uint32_t>(regDesc)
+                      << " lo=0x" << lo
+                      << " hi=0x" << hi;
+            if (regDesc == GIF_PACKED_REG_AD)
+            {
+                const uint8_t addr = static_cast<uint8_t>(hi & 0xFFu);
+                std::cout << " ad=" << gsRegName(addr)
+                          << "(0x" << static_cast<uint32_t>(addr) << ")";
+            }
+            std::cout << std::dec
+                      << " prim=" << static_cast<uint32_t>(m_prim.type)
+                      << " rgba=(" << static_cast<uint32_t>(m_curR)
+                      << "," << static_cast<uint32_t>(m_curG)
+                      << "," << static_cast<uint32_t>(m_curB)
+                      << "," << static_cast<uint32_t>(m_curA) << ")"
+                      << std::endl;
+        }
+    }
+
     switch (regDesc)
     {
     case 0x00:
@@ -1441,6 +1803,28 @@ void GS::writeRegister(uint8_t regAddr, uint64_t value)
             }
         }
     });
+
+    if (traceGsPacketEnabled() && interestingReg)
+    {
+        const uint32_t index = s_traceGsRegCount.fetch_add(1u, std::memory_order_relaxed);
+        if (index < traceGsPacketLimit())
+        {
+            std::cout << "[gs:reg-trace] idx=" << index
+                      << " reg=" << gsRegName(regAddr)
+                      << "(0x" << std::hex << static_cast<uint32_t>(regAddr) << ")"
+                      << " value=0x" << value
+                      << std::dec
+                      << " prim=" << static_cast<uint32_t>(m_prim.type)
+                      << " ctxt=" << static_cast<uint32_t>(m_prim.ctxt ? 1u : 0u)
+                      << " ctx0fbp=" << m_ctx[0].frame.fbp
+                      << " ctx0fbw=" << m_ctx[0].frame.fbw
+                      << " ctx0psm=0x" << std::hex << static_cast<uint32_t>(m_ctx[0].frame.psm)
+                      << " ctx1fbp=0x" << m_ctx[1].frame.fbp
+                      << " ctx1fbw=0x" << m_ctx[1].frame.fbw
+                      << " ctx1psm=0x" << static_cast<uint32_t>(m_ctx[1].frame.psm)
+                      << std::dec << std::endl;
+        }
+    }
 
     const bool isCopyRelevantReg =
         regAddr == GS_REG_PRIM ||
@@ -1678,6 +2062,7 @@ void GS::writeRegister(uint8_t regAddr, uint64_t value)
     }
     case GS_REG_BITBLTBUF:
     {
+        setPendingGifImageBytesFor(this, 0u);
         m_bitbltbuf.sbp = static_cast<uint32_t>(value & 0x3FFF);
         m_bitbltbuf.sbw = static_cast<uint8_t>((value >> 16) & 0x3F);
         m_bitbltbuf.spsm = static_cast<uint8_t>((value >> 24) & 0x3F);
@@ -1688,6 +2073,7 @@ void GS::writeRegister(uint8_t regAddr, uint64_t value)
     }
     case GS_REG_TRXPOS:
     {
+        setPendingGifImageBytesFor(this, 0u);
         m_trxpos.ssax = static_cast<uint16_t>(value & 0x7FF);
         m_trxpos.ssay = static_cast<uint16_t>((value >> 16) & 0x7FF);
         m_trxpos.dsax = static_cast<uint16_t>((value >> 32) & 0x7FF);
@@ -1697,12 +2083,14 @@ void GS::writeRegister(uint8_t regAddr, uint64_t value)
     }
     case GS_REG_TRXREG:
     {
+        setPendingGifImageBytesFor(this, 0u);
         m_trxreg.rrw = static_cast<uint16_t>(value & 0xFFF);
         m_trxreg.rrh = static_cast<uint16_t>((value >> 32) & 0xFFF);
         break;
     }
     case GS_REG_TRXDIR:
     {
+        setPendingGifImageBytesFor(this, 0u);
         m_trxdir = static_cast<uint32_t>(value & 0x3);
         m_hwregX = 0;
         m_hwregY = 0;
@@ -1845,6 +2233,28 @@ void GS::performLocalToLocalTransfer()
         return;
     }
 
+    if (traceGsPacketEnabled())
+    {
+        const uint32_t index = s_traceGsLocalCopyCount.fetch_add(1u, std::memory_order_relaxed);
+        if (index < traceGsPacketLimit())
+        {
+            std::cout << "[gs:l2l-trace] idx=" << index
+                      << " sbp=0x" << std::hex << sbp
+                      << " dbp=0x" << dbp
+                      << " spsm=0x" << static_cast<uint32_t>(spsm)
+                      << " dpsm=0x" << static_cast<uint32_t>(dpsm)
+                      << std::dec
+                      << " sbw=" << static_cast<uint32_t>(sbw)
+                      << " dbw=" << static_cast<uint32_t>(dbw)
+                      << " ss=(" << ssax << "," << ssay << ")"
+                      << " ds=(" << dsax << "," << dsay << ")"
+                      << " rr=(" << rrw << "," << rrh << ")"
+                      << " dir=" << static_cast<uint32_t>(m_trxpos.dir)
+                      << " formatAware=" << static_cast<uint32_t>(formatAware ? 1u : 0u)
+                      << std::endl;
+        }
+    }
+
     PS2_IF_AGRESSIVE_LOGS({
         if ((spsm == GS_PSM_T4 || dpsm == GS_PSM_T4) &&
             s_debugLocalCopyCount.fetch_add(1u, std::memory_order_relaxed) < 96u)
@@ -1942,6 +2352,33 @@ void GS::vertexKick(bool drawing)
     if (!drawing)
         return;
 
+    if (traceGsPacketEnabled())
+    {
+        const uint32_t index = s_traceGsKickCount.fetch_add(1u, std::memory_order_relaxed);
+        if (index < traceGsPacketLimit())
+        {
+            const GSContext &ctx = activeContext();
+            std::cout << "[gs:kick-trace] idx=" << index
+                      << " prim=" << static_cast<uint32_t>(m_prim.type)
+                      << " vtxCount=" << m_vtxCount
+                      << " ctxt=" << static_cast<uint32_t>(m_prim.ctxt ? 1u : 0u)
+                      << " tme=" << static_cast<uint32_t>(m_prim.tme ? 1u : 0u)
+                      << " abe=" << static_cast<uint32_t>(m_prim.abe ? 1u : 0u)
+                      << " fst=" << static_cast<uint32_t>(m_prim.fst ? 1u : 0u)
+                      << " fbp=0x" << std::hex << ctx.frame.fbp
+                      << " fbw=0x" << ctx.frame.fbw
+                      << " psm=0x" << static_cast<uint32_t>(ctx.frame.psm)
+                      << std::dec
+                      << " v0=(" << m_vtxQueue[0].x << "," << m_vtxQueue[0].y << ")"
+                      << " v1=(" << m_vtxQueue[1].x << "," << m_vtxQueue[1].y << ")"
+                      << " rgba=(" << static_cast<uint32_t>(m_curR)
+                      << "," << static_cast<uint32_t>(m_curG)
+                      << "," << static_cast<uint32_t>(m_curB)
+                      << "," << static_cast<uint32_t>(m_curA) << ")"
+                      << std::endl;
+        }
+    }
+
     int needed = 0;
     switch (m_prim.type)
     {
@@ -2004,7 +2441,7 @@ void GS::vertexKick(bool drawing)
 
 void GS::processImageData(const uint8_t *data, uint32_t sizeBytes)
 {
-    if (m_trxdir != 0 || !m_vram)
+    if (!m_vram)
         return;
 
     uint32_t dbp = m_bitbltbuf.dbp;
@@ -2021,6 +2458,28 @@ void GS::processImageData(const uint8_t *data, uint32_t sizeBytes)
     uint32_t rrh = m_trxreg.rrh;
     uint32_t dsax = m_trxpos.dsax;
     uint32_t dsay = m_trxpos.dsay;
+
+    if (traceGsPacketEnabled())
+    {
+        const uint32_t index = s_traceGsImageCount.fetch_add(1u, std::memory_order_relaxed);
+        if (index < traceGsPacketLimit())
+        {
+            std::cout << "[gs:image-trace] idx=" << index
+                      << " size=" << sizeBytes
+                      << " trxdir=" << static_cast<uint32_t>(m_trxdir)
+                      << " dbp=0x" << std::hex << dbp
+                      << " dpsm=0x" << static_cast<uint32_t>(dpsm)
+                      << std::dec
+                      << " dbw=" << static_cast<uint32_t>(dbw)
+                      << " ds=(" << dsax << "," << dsay << ")"
+                      << " rr=(" << rrw << "," << rrh << ")"
+                      << " hw=(" << m_hwregX << "," << m_hwregY << ")"
+                      << std::endl;
+        }
+    }
+
+    if (m_trxdir != 0)
+        return;
 
     if (bpp == 4)
     {

@@ -22,11 +22,18 @@
 #include <atomic>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <sstream>
+#include <cstdlib>
+#include <optional>
+#include <iomanip>
+
+#include "Kernel/Syscalls/Helpers/State.h"
 
 namespace ps2_stubs
 {
     void resetSifState();
+    void pumpSifPadScriptInput(uint8_t *rdram);
 }
 
 #define ELF_MAGIC 0x464C457F // "\x7FELF" in little endian
@@ -38,6 +45,207 @@ static constexpr int FB_WIDTH = 640;
 static constexpr int FB_HEIGHT = 512;
 static constexpr int DEFAULT_DISPLAY_HEIGHT = 448;
 static constexpr uint32_t DEFAULT_FB_SIZE = FB_WIDTH * FB_HEIGHT * 4;
+
+namespace
+{
+    bool isRuntimeEnvEnabled(const char *name)
+    {
+        const char *value = std::getenv(name);
+        if (!value || value[0] == '\0')
+        {
+            return false;
+        }
+
+        return std::strcmp(value, "0") != 0 &&
+               std::strcmp(value, "false") != 0 &&
+               std::strcmp(value, "FALSE") != 0 &&
+               std::strcmp(value, "off") != 0 &&
+               std::strcmp(value, "OFF") != 0;
+    }
+
+    bool serialGuestThreadsEnabled()
+    {
+        static const bool enabled = isRuntimeEnvEnabled("PS2X_SERIAL_GUEST_THREADS");
+        return enabled;
+    }
+
+    uint32_t serialGuestContendedYieldInterval()
+    {
+        static const uint32_t interval = []()
+        {
+            const char *value = std::getenv("PS2X_SERIAL_CONTENDED_YIELD_INTERVAL");
+            if (!value || value[0] == '\0')
+            {
+                return 1u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 1u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 65536ul));
+        }();
+        return interval;
+    }
+
+    uint32_t serialGuestContendedPreemptInterval()
+    {
+        static const uint32_t interval = []()
+        {
+            const char *value = std::getenv("PS2X_SERIAL_CONTENDED_PREEMPT_INTERVAL");
+            if (!value || value[0] == '\0')
+            {
+                return 1u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 1u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 65536ul));
+        }();
+        return interval;
+    }
+
+    uint32_t serialGuestYieldHandoffMicros()
+    {
+        static const uint32_t micros = []()
+        {
+            const char *value = std::getenv("PS2X_SERIAL_YIELD_HANDOFF_US");
+            if (!value || value[0] == '\0')
+            {
+                return 1000u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 1000u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 0ul, 100000ul));
+        }();
+        return micros;
+    }
+
+    void yieldSerialGuestExecutionIfContended(PS2Runtime *runtime)
+    {
+        if (!runtime || runtime->guestExecutionWaiterCountForTesting() == 0u)
+        {
+            return;
+        }
+
+        thread_local uint32_t s_serialYieldCounter = 0u;
+        const uint32_t interval = serialGuestContendedYieldInterval();
+        if ((++s_serialYieldCounter % interval) != 0u)
+        {
+            return;
+        }
+
+        PS2Runtime::GuestExecutionReleaseScope releaseGuestExecution(runtime);
+        const uint32_t handoffMicros = serialGuestYieldHandoffMicros();
+        if (handoffMicros != 0u)
+        {
+            std::this_thread::sleep_for(std::chrono::microseconds(handoffMicros));
+        }
+        else
+        {
+            std::this_thread::yield();
+        }
+    }
+
+    bool traceThreadHeartbeatEnabled()
+    {
+        static const bool enabled = isRuntimeEnvEnabled("PS2X_TRACE_THREAD_HEARTBEAT");
+        return enabled;
+    }
+
+    bool traceMainThreadEnabled()
+    {
+        static const bool enabled = isRuntimeEnvEnabled("PS2X_TRACE_MAIN_THREAD");
+        return enabled;
+    }
+
+    bool traceKofxiFrameStateEnabled()
+    {
+        static const bool enabled = isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_FRAME_STATE");
+        return enabled;
+    }
+
+    std::shared_ptr<ThreadInfo> lookupCurrentThreadInfoForDebug()
+    {
+        std::lock_guard<std::mutex> lock(g_thread_map_mutex);
+        auto it = g_threads.find(g_currentThreadId);
+        if (it == g_threads.end())
+        {
+            return nullptr;
+        }
+        return it->second;
+    }
+
+    void updateThreadDebugState(const std::shared_ptr<ThreadInfo> &info, const R5900Context *ctx, uint64_t step)
+    {
+        if (!info || !ctx)
+        {
+            return;
+        }
+
+        info->debugPc.store(ctx->pc, std::memory_order_relaxed);
+        info->debugRa.store(static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0)), std::memory_order_relaxed);
+        info->debugSp.store(static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0)), std::memory_order_relaxed);
+        info->debugGp.store(static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0)), std::memory_order_relaxed);
+        info->debugStep.store(step, std::memory_order_relaxed);
+    }
+
+    void maybeTraceThreadHeartbeat(int tid,
+                                   const std::shared_ptr<ThreadInfo> &info,
+                                   const R5900Context *ctx,
+                                   uint64_t step)
+    {
+        if (!traceThreadHeartbeatEnabled() || !info || !ctx)
+        {
+            return;
+        }
+
+        if ((step & 0xFFFFFu) != 0u)
+        {
+            return;
+        }
+
+        int status = 0;
+        int waitType = 0;
+        int waitId = 0;
+        int wakeupCount = 0;
+        {
+            std::lock_guard<std::mutex> lock(info->m);
+            status = info->status;
+            waitType = info->waitType;
+            waitId = info->waitId;
+            wakeupCount = info->wakeupCount;
+        }
+
+        std::cout << "[ThreadHeartbeat] tid=" << tid
+                  << " step=" << step
+                  << " pc=0x" << std::hex << ctx->pc
+                  << " ra=0x" << static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0))
+                  << " sp=0x" << static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0))
+                  << " gp=0x" << static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0))
+                  << std::dec
+                  << " status=0x" << std::hex << status
+                  << " waitType=0x" << waitType
+                  << " waitId=0x" << waitId
+                  << std::dec
+                  << " wakeupCount=" << wakeupCount
+                  << std::endl;
+    }
+}
 static constexpr uint32_t DEFAULT_FB_ADDR = (PS2_RAM_SIZE - DEFAULT_FB_SIZE - 0x10000u);
 #if defined(PLATFORM_VITA)
 static constexpr int HOST_WINDOW_WIDTH = 960;
@@ -136,6 +344,262 @@ namespace
                (static_cast<uint32_t>(pixels[offset + 3u]) << 24);
     }
 
+    struct HostFrameRgbBounds
+    {
+        uint32_t rgbCount = 0u;
+        uint32_t minX = 0u;
+        uint32_t minY = 0u;
+        uint32_t maxX = 0u;
+        uint32_t maxY = 0u;
+    };
+
+    HostFrameRgbBounds measureHostFrameRgbBounds(const std::vector<uint8_t> &pixels,
+                                                 uint32_t width,
+                                                 uint32_t height)
+    {
+        HostFrameRgbBounds bounds{};
+        uint32_t minX = std::numeric_limits<uint32_t>::max();
+        uint32_t minY = std::numeric_limits<uint32_t>::max();
+        uint32_t maxX = 0u;
+        uint32_t maxY = 0u;
+
+        for (uint32_t y = 0u; y < height; ++y)
+        {
+            for (uint32_t x = 0u; x < width; ++x)
+            {
+                const size_t offset = (static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)) * 4u;
+                if (offset + 4u > pixels.size())
+                {
+                    return bounds;
+                }
+
+                const uint8_t r = pixels[offset + 0u];
+                const uint8_t g = pixels[offset + 1u];
+                const uint8_t b = pixels[offset + 2u];
+                if (r == 0u && g == 0u && b == 0u)
+                {
+                    continue;
+                }
+
+                ++bounds.rgbCount;
+                minX = std::min(minX, x);
+                minY = std::min(minY, y);
+                maxX = std::max(maxX, x);
+                maxY = std::max(maxY, y);
+            }
+        }
+
+        if (bounds.rgbCount != 0u)
+        {
+            bounds.minX = minX;
+            bounds.minY = minY;
+            bounds.maxX = maxX;
+            bounds.maxY = maxY;
+        }
+
+        return bounds;
+    }
+
+    uint32_t runtimeEnvU32(const char *name, uint32_t defaultValue, uint32_t minValue, uint32_t maxValue)
+    {
+        const char *value = std::getenv(name);
+        if (!value || value[0] == '\0')
+        {
+            return defaultValue;
+        }
+
+        char *end = nullptr;
+        const unsigned long parsed = std::strtoul(value, &end, 0);
+        if (end == value)
+        {
+            return defaultValue;
+        }
+
+        return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, minValue, maxValue));
+    }
+
+    std::filesystem::path runtimeScreenshotDirectory()
+    {
+        const char *value = std::getenv("PS2X_SCREENSHOT_DIR");
+        if (!value || value[0] == '\0')
+        {
+            return {};
+        }
+
+        std::error_code ec;
+        std::filesystem::path dir(value);
+        if (dir.is_relative())
+        {
+            dir = std::filesystem::current_path(ec) / dir;
+        }
+        return dir.lexically_normal();
+    }
+
+    std::string runtimeScreenshotPrefix()
+    {
+        const char *value = std::getenv("PS2X_SCREENSHOT_PREFIX");
+        if (!value || value[0] == '\0')
+        {
+            return "ps2x_frame";
+        }
+
+        std::string prefix(value);
+        for (char &ch : prefix)
+        {
+            const unsigned char uch = static_cast<unsigned char>(ch);
+            if (!std::isalnum(uch) && ch != '_' && ch != '-')
+            {
+                ch = '_';
+            }
+        }
+        return prefix.empty() ? std::string("ps2x_frame") : prefix;
+    }
+
+    void maybeSaveRuntimeScreenshot(const std::vector<uint8_t> &pixels,
+                                    uint32_t width,
+                                    uint32_t height,
+                                    uint64_t tick,
+                                    uint32_t displayFbp,
+                                    uint32_t sourceFbp)
+    {
+        if (pixels.empty() || width == 0u || height == 0u)
+        {
+            return;
+        }
+
+        static const std::filesystem::path s_dir = runtimeScreenshotDirectory();
+        if (s_dir.empty())
+        {
+            return;
+        }
+
+        static const uint32_t s_every = runtimeEnvU32("PS2X_SCREENSHOT_EVERY", 60u, 1u, 36000u);
+        static const uint32_t s_limit = runtimeEnvU32("PS2X_SCREENSHOT_LIMIT", 16u, 1u, 100000u);
+        static const uint32_t s_start = runtimeEnvU32("PS2X_SCREENSHOT_START", 0u, 0u, 1000000000u);
+        static const std::string s_prefix = runtimeScreenshotPrefix();
+        static uint64_t s_seenFrames = 0u;
+        static uint32_t s_savedFrames = 0u;
+        static bool s_loggedConfig = false;
+        static bool s_loggedDone = false;
+
+        const uint64_t frameIndex = s_seenFrames++;
+        if (!s_loggedConfig)
+        {
+            std::error_code ec;
+            std::filesystem::create_directories(s_dir, ec);
+            std::cout << "[screenshot] dir=\"" << s_dir.string()
+                      << "\" every=" << s_every
+                      << " start=" << s_start
+                      << " limit=" << s_limit
+                      << (ec ? " create_failed=1" : "")
+                      << std::endl;
+            s_loggedConfig = true;
+        }
+
+        if (s_savedFrames >= s_limit)
+        {
+            if (!s_loggedDone)
+            {
+                std::cout << "[screenshot] limit reached saved=" << s_savedFrames << std::endl;
+                s_loggedDone = true;
+            }
+            return;
+        }
+
+        if (frameIndex < s_start || ((frameIndex - s_start) % s_every) != 0u)
+        {
+            return;
+        }
+
+        std::error_code ec;
+        std::filesystem::create_directories(s_dir, ec);
+        if (ec)
+        {
+            std::cerr << "[screenshot] failed to create dir \"" << s_dir.string()
+                      << "\": " << ec.message() << std::endl;
+            return;
+        }
+
+        std::ostringstream name;
+        name << s_prefix
+             << "_" << std::setw(6) << std::setfill('0') << s_savedFrames
+             << "_frame" << frameIndex
+             << "_tick" << tick
+             << "_dfb" << displayFbp
+             << "_sfb" << sourceFbp
+             << ".png";
+
+        const std::filesystem::path path = s_dir / name.str();
+        Image image{};
+        image.data = const_cast<uint8_t *>(pixels.data());
+        image.width = static_cast<int>(width);
+        image.height = static_cast<int>(height);
+        image.mipmaps = 1;
+        image.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+
+        if (ExportImage(image, path.string().c_str()))
+        {
+            std::cout << "[screenshot] saved=\"" << path.string()
+                      << "\" frame=" << frameIndex
+                      << " tick=" << tick
+                      << " size=" << width << "x" << height
+                      << " displayFbp=" << displayFbp
+                      << " sourceFbp=" << sourceFbp
+                      << std::endl;
+            ++s_savedFrames;
+        }
+        else
+        {
+            std::cerr << "[screenshot] failed path=\"" << path.string() << "\"" << std::endl;
+        }
+    }
+
+    struct RuntimeDispFbFields
+    {
+        uint32_t fbp = 0u;
+        uint32_t fbw = 0u;
+        uint32_t psm = 0u;
+        uint32_t dbx = 0u;
+        uint32_t dby = 0u;
+    };
+
+    RuntimeDispFbFields decodeRuntimeDispFb(uint64_t value)
+    {
+        RuntimeDispFbFields fields{};
+        fields.fbp = static_cast<uint32_t>(value & 0x1FFu);
+        fields.fbw = static_cast<uint32_t>((value >> 9) & 0x3Fu);
+        fields.psm = static_cast<uint32_t>((value >> 15) & 0x1Fu);
+        fields.dbx = static_cast<uint32_t>((value >> 32) & 0x7FFu);
+        fields.dby = static_cast<uint32_t>((value >> 43) & 0x7FFu);
+        return fields;
+    }
+
+    struct RuntimeDisplayFields
+    {
+        uint32_t dx = 0u;
+        uint32_t dy = 0u;
+        uint32_t magh = 0u;
+        uint32_t magv = 0u;
+        uint32_t dw = 0u;
+        uint32_t dh = 0u;
+        uint32_t width = 0u;
+        uint32_t height = 0u;
+    };
+
+    RuntimeDisplayFields decodeRuntimeDisplay(uint64_t value)
+    {
+        RuntimeDisplayFields fields{};
+        fields.dx = static_cast<uint32_t>((value >> 0) & 0x0FFFu);
+        fields.dy = static_cast<uint32_t>((value >> 12) & 0x07FFu);
+        fields.magh = static_cast<uint32_t>((value >> 23) & 0x0Fu);
+        fields.magv = static_cast<uint32_t>((value >> 27) & 0x03u);
+        fields.dw = static_cast<uint32_t>((value >> 32) & 0x0FFFu);
+        fields.dh = static_cast<uint32_t>((value >> 44) & 0x07FFu);
+        fields.width = (fields.dw + 1u) / (fields.magh + 1u);
+        fields.height = fields.dh + 1u;
+        return fields;
+    }
+
     struct DispatchHistory
     {
         std::array<uint32_t, 64> pcs{};
@@ -143,7 +607,53 @@ namespace
         bool wrapped = false;
     };
 
+    struct KofxiObjectPoolSnapshot
+    {
+        uint32_t w0 = 0u;
+        uint32_t w8 = 0u;
+        uint32_t w14 = 0u;
+        uint32_t w24 = 0u;
+        uint32_t w34 = 0u;
+        uint32_t w4c = 0u;
+        uint32_t w58 = 0u;
+        uint32_t w5c = 0u;
+        uint8_t b0 = 0u;
+        uint8_t b1 = 0u;
+        uint8_t b2 = 0u;
+        uint8_t b3 = 0u;
+        uint8_t b45 = 0u;
+        uint8_t b46 = 0u;
+        uint8_t b47 = 0u;
+        uint8_t b48 = 0u;
+        uint8_t b49 = 0u;
+    };
+
     thread_local DispatchHistory g_dispatchHistory;
+    thread_local R5900Context *g_activeLookupContext = nullptr;
+    thread_local uint8_t *g_activeLookupRdram = nullptr;
+    thread_local bool g_lookupWatchInitialized = false;
+    thread_local uint32_t g_lookupWatchAddr = 0u;
+    thread_local uint32_t g_lookupWatchLastValue = 0u;
+    thread_local uint32_t g_lookupWatchLogCount = 0u;
+    thread_local bool g_kofxiResourceSlotActive = false;
+    thread_local uint32_t g_kofxiResourceSlotAddr = 0u;
+    thread_local uint32_t g_kofxiResourceSlotLastValue = 0u;
+    thread_local uint32_t g_kofxiResourceSlotSession = 0u;
+    thread_local uint32_t g_kofxiResourceSlotLogCount = 0u;
+    thread_local uint32_t g_kofxiCallbackResourcePcLogCount = 0u;
+    thread_local uint32_t g_kofxiUpperResourcePcLogCount = 0u;
+    thread_local uint32_t g_kofxiUpperResourceScannerPcLogCount = 0u;
+    thread_local uint32_t g_kofxiUpperResourceCommandPcLogCount = 0u;
+    thread_local uint32_t g_kofxiResourceObjectPcLogCount = 0u;
+    thread_local uint32_t g_kofxiObjectManagerPcLogCount = 0u;
+    thread_local uint32_t g_kofxiChildResourcePcLogCount = 0u;
+    thread_local uint32_t g_kofxiResourceHandlePoolPcLogCount = 0u;
+    thread_local uint32_t g_kofxiActiveLoaderObjectPcLogCount = 0u;
+    thread_local uint32_t g_kofxiAdxStreamPcLogCount = 0u;
+    thread_local uint32_t g_kofxiMainFramePcLogCount = 0u;
+    thread_local bool g_kofxiObjectPoolChangeTraceInitialized = false;
+    thread_local std::array<KofxiObjectPoolSnapshot, 40> g_kofxiObjectPoolLastSnapshots{};
+    thread_local uint32_t g_kofxiObjectPoolChangeLogCount = 0u;
     thread_local std::unordered_map<PS2Runtime *, uint32_t> g_guestExecutionDepths;
 
     void pushDispatchPc(uint32_t pc)
@@ -307,11 +817,4071 @@ namespace
         return value;
     }
 
+    uint8_t readGuestU8Wrapped(const uint8_t *rdram, uint32_t addr)
+    {
+        if (!rdram)
+        {
+            return 0;
+        }
+
+        return rdram[addr & PS2_RAM_MASK];
+    }
+
+    bool isKofxiCallbackResourceSlotAddress(uint32_t addr);
+    void appendKofxiUpperResourceSlotDetail(std::ostream &out, const uint8_t *rdram, uint32_t slot);
+    uint32_t parseRuntimeEnvU32(const char *name, uint32_t defaultValue);
+
+    uint16_t readGuestU16Wrapped(const uint8_t *rdram, uint32_t addr)
+    {
+        if (!rdram)
+        {
+            return 0;
+        }
+
+        uint16_t value = 0;
+        value |= static_cast<uint16_t>(rdram[(addr + 0u) & PS2_RAM_MASK]) << 0;
+        value |= static_cast<uint16_t>(rdram[(addr + 1u) & PS2_RAM_MASK]) << 8;
+        return value;
+    }
+
+    bool hasKofxiUpperResourceSlotState(const uint8_t *rdram)
+    {
+        constexpr uint32_t kResourceSlotBase = 0x0037F1D0u;
+        constexpr uint32_t kResourceSlotStride = 0x238u;
+        constexpr uint32_t kResourceSlotCount = 32u;
+
+        for (uint32_t slot = 0u; slot < kResourceSlotCount; ++slot)
+        {
+            const uint32_t base = kResourceSlotBase + slot * kResourceSlotStride;
+            if (readGuestU8Wrapped(rdram, base) != 0u ||
+                readGuestU8Wrapped(rdram, base + 1u) != 0u ||
+                readGuestU8Wrapped(rdram, base + 2u) != 0u ||
+                readGuestU8Wrapped(rdram, base + 4u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x08u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x14u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x18u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x1Cu) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x20u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x24u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x28u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x2Cu) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x34u) != 0u)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool hasKofxiResourceCallbackSlotState(const uint8_t *rdram)
+    {
+        constexpr uint32_t kSlotBase = 0x00372368u;
+        constexpr uint32_t kSlotStride = 0xC8u;
+        constexpr uint32_t kSlotCount = 16u;
+
+        for (uint32_t slot = 0u; slot < kSlotCount; ++slot)
+        {
+            const uint32_t base = kSlotBase + slot * kSlotStride;
+            if (readGuestU8Wrapped(rdram, base) != 0u ||
+                readGuestU8Wrapped(rdram, base + 3u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 4u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 8u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x0Cu) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x10u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x14u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x20u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x24u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x2Cu) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x30u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x34u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0x94u) != 0u ||
+                readGuestU32Wrapped(rdram, base + 0xB0u) != 0u)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool hasKofxiResourceTraceState(const uint8_t *rdram)
+    {
+        return hasKofxiUpperResourceSlotState(rdram) || hasKofxiResourceCallbackSlotState(rdram);
+    }
+
+    void appendKofxiResourceSlotSummary(std::ostream &out, const uint8_t *rdram)
+    {
+        constexpr uint32_t kResourceSlotBase = 0x0037F1D0u;
+        constexpr uint32_t kResourceSlotStride = 0x238u;
+        constexpr uint32_t kResourceSlotCount = 32u;
+
+        const auto originalFlags = out.flags();
+        const char originalFill = out.fill();
+
+        uint32_t activeCount = 0u;
+        out << " resourceSlots=";
+        for (uint32_t slot = 0u; slot < kResourceSlotCount; ++slot)
+        {
+            const uint32_t base = kResourceSlotBase + slot * kResourceSlotStride;
+            const uint32_t state0 = readGuestU8Wrapped(rdram, base);
+            const uint32_t state1 = readGuestU8Wrapped(rdram, base + 1u);
+            const uint32_t state2 = readGuestU8Wrapped(rdram, base + 2u);
+            const uint32_t state4 = readGuestU8Wrapped(rdram, base + 4u);
+            const uint32_t source = readGuestU32Wrapped(rdram, base + 0x08u);
+            const uint32_t step = readGuestU32Wrapped(rdram, base + 0x14u);
+            const uint32_t total = readGuestU32Wrapped(rdram, base + 0x18u);
+            const uint32_t cursor1C = readGuestU32Wrapped(rdram, base + 0x1Cu);
+            const uint32_t cursor20 = readGuestU32Wrapped(rdram, base + 0x20u);
+            const uint32_t cursor24 = readGuestU32Wrapped(rdram, base + 0x24u);
+            const uint32_t child28 = readGuestU32Wrapped(rdram, base + 0x28u);
+            const uint32_t child2C = readGuestU32Wrapped(rdram, base + 0x2Cu);
+            const uint32_t child34 = readGuestU32Wrapped(rdram, base + 0x34u);
+            if (state0 == 0u && state1 == 0u && state2 == 0u && state4 == 0u &&
+                source == 0u && step == 0u && total == 0u &&
+                cursor1C == 0u && cursor20 == 0u && cursor24 == 0u &&
+                child28 == 0u && child2C == 0u && child34 == 0u)
+            {
+                continue;
+            }
+
+            if (activeCount != 0u)
+            {
+                out << ",";
+            }
+            out << std::hex << slot
+                << ":st=" << state0 << "/" << state1 << "/" << state2 << "/" << state4
+                << " src=" << source
+                << " amt=" << step << "/" << total
+                << " pos=" << cursor1C << "/" << cursor20 << "/" << cursor24
+                << " child=" << child28 << "/" << child2C << "/" << child34;
+            ++activeCount;
+            if (activeCount >= 8u)
+            {
+                out << ",...";
+                break;
+            }
+        }
+
+        if (activeCount == 0u)
+        {
+            out << "none";
+        }
+
+        out.flags(originalFlags);
+        out.fill(originalFill);
+    }
+
+    void appendKofxiResourceCallbackSlotSummary(std::ostream &out, const uint8_t *rdram)
+    {
+        constexpr uint32_t kSlotBase = 0x00372368u;
+        constexpr uint32_t kSlotStride = 0xC8u;
+        constexpr uint32_t kSlotCount = 16u;
+
+        const auto originalFlags = out.flags();
+        const char originalFill = out.fill();
+
+        uint32_t activeCount = 0u;
+        out << " resourceCbSlots=";
+        for (uint32_t slot = 0u; slot < kSlotCount; ++slot)
+        {
+            const uint32_t base = kSlotBase + slot * kSlotStride;
+            const uint32_t state0 = readGuestU8Wrapped(rdram, base);
+            const uint32_t mode3 = readGuestU8Wrapped(rdram, base + 3u);
+            const uint32_t queue4 = readGuestU32Wrapped(rdram, base + 4u);
+            const uint32_t queue8 = readGuestU32Wrapped(rdram, base + 8u);
+            const uint32_t queueC = readGuestU32Wrapped(rdram, base + 0xCu);
+            const uint32_t object10 = readGuestU32Wrapped(rdram, base + 0x10u);
+            const uint32_t object14 = readGuestU32Wrapped(rdram, base + 0x14u);
+            const uint32_t buffer20 = readGuestU32Wrapped(rdram, base + 0x20u);
+            const uint32_t cursor24 = readGuestU32Wrapped(rdram, base + 0x24u);
+            const uint32_t source2C = readGuestU32Wrapped(rdram, base + 0x2Cu);
+            const uint32_t step30 = readGuestU32Wrapped(rdram, base + 0x30u);
+            const uint32_t span34 = readGuestU32Wrapped(rdram, base + 0x34u);
+            const uint32_t event94 = readGuestU32Wrapped(rdram, base + 0x94u);
+            const uint32_t tailB0 = readGuestU32Wrapped(rdram, base + 0xB0u);
+            const uint32_t object10Flags = object10 ? readGuestU32Wrapped(rdram, object10) : 0u;
+            const uint32_t object10Link = object10 ? readGuestU32Wrapped(rdram, object10 + 0x4u) : 0u;
+            const uint32_t object10State48 = object10 ? readGuestU8Wrapped(rdram, object10 + 0x48u) : 0u;
+            const uint32_t object10Busy49 = object10 ? readGuestU8Wrapped(rdram, object10 + 0x49u) : 0u;
+            const uint32_t object14Flags = object14 ? readGuestU32Wrapped(rdram, object14) : 0u;
+            const uint32_t object14Link = object14 ? readGuestU32Wrapped(rdram, object14 + 0x4u) : 0u;
+            const uint32_t object14State48 = object14 ? readGuestU8Wrapped(rdram, object14 + 0x48u) : 0u;
+            const uint32_t object14Busy49 = object14 ? readGuestU8Wrapped(rdram, object14 + 0x49u) : 0u;
+            if (state0 == 0u && mode3 == 0u && queue4 == 0u && queue8 == 0u &&
+                queueC == 0u && object10 == 0u && object14 == 0u && buffer20 == 0u &&
+                cursor24 == 0u && source2C == 0u && step30 == 0u && span34 == 0u &&
+                event94 == 0u && tailB0 == 0u)
+            {
+                continue;
+            }
+
+            if (activeCount != 0u)
+            {
+                out << ",";
+            }
+            out << std::hex << slot << ":"
+                << state0 << "/" << mode3
+                << " q=" << queue4 << "/" << queue8 << "/" << queueC
+                << " obj=" << object10 << "/" << object14
+                << " obj10s=" << object10Flags << "/" << object10Link << "/"
+                << object10State48 << "/" << object10Busy49
+                << " obj14s=" << object14Flags << "/" << object14Link << "/"
+                << object14State48 << "/" << object14Busy49
+                << " buf=" << buffer20 << "/" << cursor24 << "/" << source2C
+                << " step=" << step30 << "/" << span34
+                << " ev=" << event94 << "/" << tailB0;
+            ++activeCount;
+            if (activeCount >= 6u)
+            {
+                out << ",...";
+                break;
+            }
+        }
+
+        if (activeCount == 0u)
+        {
+            out << "none";
+        }
+
+        out.flags(originalFlags);
+        out.fill(originalFill);
+    }
+
+    void appendKofxiRenderObjectQueueSummary(std::ostream &out, const uint8_t *rdram)
+    {
+        constexpr uint32_t kObjectQueueCount = 0x01D11530u;
+        constexpr uint32_t kObjectQueueBase = 0x01D11540u;
+        constexpr uint32_t kObjectQueueStride = 8u;
+
+        const auto originalFlags = out.flags();
+        const char originalFill = out.fill();
+
+        const uint32_t count16 = readGuestU16Wrapped(rdram, kObjectQueueCount);
+        const uint32_t countWord = readGuestU32Wrapped(rdram, kObjectQueueCount);
+        out << std::hex
+            << " objRenderQ=0x" << count16
+            << "/0x" << countWord
+            << " entries=";
+
+        for (uint32_t i = 0u; i < 4u; ++i)
+        {
+            if (i != 0u)
+            {
+                out << ",";
+            }
+
+            const uint32_t entry = kObjectQueueBase + i * kObjectQueueStride;
+            const uint32_t object = readGuestU32Wrapped(rdram, entry);
+            out << i << ":0x" << object
+                << "/0x" << readGuestU16Wrapped(rdram, entry + 4u);
+            const uint32_t objectPhys = object & PS2_RAM_MASK;
+            if (object != 0u && objectPhys + 0x2C0u <= PS2_RAM_SIZE)
+            {
+                out << ":f=0x" << readGuestU32Wrapped(rdram, object + 0x00u)
+                    << "/" << readGuestU32Wrapped(rdram, object + 0x04u)
+                    << "/0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x8Bu))
+                    << "/0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x2BCu))
+                    << " pos=0x" << readGuestU32Wrapped(rdram, object + 0x78u)
+                    << "/0x" << readGuestU32Wrapped(rdram, object + 0x7Cu)
+                    << "/0x" << readGuestU32Wrapped(rdram, object + 0x80u);
+            }
+        }
+
+        out << " objLoop=0x" << readGuestU32Wrapped(rdram, 0x009BFFD0u)
+            << "/0x" << readGuestU32Wrapped(rdram, 0x009BFFD4u)
+            << "/0x" << readGuestU32Wrapped(rdram, 0x0093F370u)
+            << " objCounters=0x" << readGuestU32Wrapped(rdram, 0x0093F770u)
+            << "/0x" << readGuestU32Wrapped(rdram, 0x0093F774u)
+            << "/0x" << readGuestU32Wrapped(rdram, 0x0093F778u);
+
+        out.flags(originalFlags);
+        out.fill(originalFill);
+    }
+
+    void appendKofxiMainFrameGlobals(std::ostream &out, const uint8_t *rdram)
+    {
+        const auto originalFlags = out.flags();
+        const char originalFill = out.fill();
+
+        out << std::hex
+            << " main=0x" << readGuestU32Wrapped(rdram, 0x009BDA70u)
+            << "/0x" << readGuestU32Wrapped(rdram, 0x009BDA28u)
+            << " loop=0x" << readGuestU32Wrapped(rdram, 0x009BE498u)
+            << "/0x" << readGuestU32Wrapped(rdram, 0x009BE680u)
+            << " flags=0x" << readGuestU32Wrapped(rdram, 0x009BE470u)
+            << "/0x" << readGuestU32Wrapped(rdram, 0x009BE490u)
+            << " gates=0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, 0x009E9738u))
+            << "/0x" << readGuestU32Wrapped(rdram, 0x009E9478u)
+            << "/0x" << readGuestU32Wrapped(rdram, 0x009E9728u)
+            << "/0x" << readGuestU32Wrapped(rdram, 0x009E9768u)
+            << "/0x" << readGuestU32Wrapped(rdram, 0x009E9778u)
+            << " render=0x" << readGuestU32Wrapped(rdram, 0x01DA29E0u)
+            << "/0x" << readGuestU32Wrapped(rdram, 0x0092F0F8u)
+            << "/0x" << readGuestU32Wrapped(rdram, 0x0092F0F0u)
+            << "/0x" << readGuestU32Wrapped(rdram, 0x0092EFF0u);
+
+        out << " mainSlots=";
+        for (uint32_t slot = 0; slot < 2u; ++slot)
+        {
+            if (slot != 0u)
+            {
+                out << ",";
+            }
+
+            const uint32_t wordOffset = slot * sizeof(uint32_t);
+            const uint32_t mainStruct = 0x009BE8C0u + slot * 0xA0u;
+            out << slot
+                << ":p=0x" << readGuestU32Wrapped(rdram, 0x009BEA38u + wordOffset)
+                << " st=0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, 0x009BEA10u + wordOffset))
+                << "/0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, 0x009BEA18u + wordOffset))
+                << "/0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, 0x009BEA08u + wordOffset))
+                << " w=0x" << readGuestU32Wrapped(rdram, 0x009BEA00u + wordOffset)
+                << "/0x" << readGuestU32Wrapped(rdram, 0x009BEA20u + wordOffset)
+                << " obj=0x" << readGuestU32Wrapped(rdram, mainStruct)
+                << "/0x" << readGuestU32Wrapped(rdram, mainStruct + 0x04u)
+                << "/0x" << readGuestU32Wrapped(rdram, mainStruct + 0x20u)
+                << "/0x" << readGuestU32Wrapped(rdram, mainStruct + 0x24u);
+        }
+
+        appendKofxiRenderObjectQueueSummary(out, rdram);
+
+        out.flags(originalFlags);
+        out.fill(originalFill);
+    }
+
+    void traceKofxiMainFramePc(uint32_t lookupAddress)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_MAIN_FRAME_PC") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext)
+        {
+            return;
+        }
+
+        const bool traceRenderObjectPc = isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_RENDER_OBJECT_PC");
+        switch (lookupAddress)
+        {
+        case 0x001A1600u:
+        case 0x001A1910u:
+        case 0x001A1918u:
+        case 0x001A1920u:
+        case 0x001A1928u:
+        case 0x001A1948u:
+        case 0x001A1954u:
+        case 0x001A1968u:
+        case 0x001A1970u:
+        case 0x001A1978u:
+        case 0x001A1998u:
+        case 0x001A19A0u:
+        case 0x001A19A8u:
+        case 0x001A19B0u:
+        case 0x001A19BCu:
+        case 0x001A19D0u:
+        case 0x001A19E4u:
+        case 0x001A19F4u:
+        case 0x001A19FCu:
+        case 0x001A1A14u:
+        case 0x001A1A1Cu:
+        case 0x001A1A34u:
+        case 0x001A1A3Cu:
+        case 0x001A1A44u:
+        case 0x001A1A4Cu:
+        case 0x001A1A54u:
+        case 0x001A1A5Cu:
+        case 0x001A1A64u:
+        case 0x001A1A74u:
+        case 0x0031F390u:
+        case 0x0031F3B0u:
+        case 0x0031F3C8u:
+        case 0x0031F3D0u:
+        case 0x0031F3E8u:
+        case 0x0031F3F0u:
+        case 0x0031F3F8u:
+        case 0x0031F400u:
+        case 0x0031F408u:
+        case 0x0031F420u:
+        case 0x0031F428u:
+        case 0x0031F430u:
+        case 0x0031F438u:
+        case 0x0031F450u:
+        case 0x00152220u:
+        case 0x00152290u:
+        case 0x001522E0u:
+        case 0x0031E590u:
+        case 0x0031B310u:
+            break;
+        case 0x00151CB0u:
+        case 0x001520E0u:
+        case 0x00152108u:
+        case 0x00152138u:
+        case 0x00155DD0u:
+        case 0x00155E08u:
+        case 0x00155E7Cu:
+        case 0x00155F14u:
+        case 0x00155FA0u:
+        case 0x00303750u:
+        case 0x003037C0u:
+        case 0x00303830u:
+        case 0x00324260u:
+        case 0x00324E0Cu:
+        case 0x00324E30u:
+        case 0x003250B0u:
+        case 0x003250B8u:
+        case 0x00327CA0u:
+        case 0x00328170u:
+        case 0x00328188u:
+        case 0x0032AA30u:
+        case 0x0032B174u:
+            if (!traceRenderObjectPc)
+            {
+                return;
+            }
+            break;
+        default:
+            return;
+        }
+
+        const uint32_t limit = std::max<uint32_t>(
+            1u, parseRuntimeEnvU32("PS2X_TRACE_KOFXI_MAIN_FRAME_PC_LIMIT", 512u));
+        if (g_kofxiMainFramePcLogCount >= limit)
+        {
+            return;
+        }
+        ++g_kofxiMainFramePcLogCount;
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx->pc;
+        const uint32_t ra = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
+        const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+        const uint32_t gp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0));
+        const uint32_t v0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0));
+        const uint32_t v1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0));
+        const uint32_t a0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0));
+        const uint32_t a1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0));
+        const uint32_t a2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0));
+        const uint32_t a3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0));
+        const uint32_t s0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0));
+        const uint32_t s1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0));
+        const uint32_t s2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0));
+        const uint32_t s3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[19], 0));
+
+        std::cerr << "[KOFXI:main-frame-pc] #" << g_kofxiMainFramePcLogCount
+                  << " lookup=0x" << std::hex << lookupAddress
+                  << " tid=" << std::dec << g_currentThreadId
+                  << " pc=0x" << std::hex << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " gp=0x" << gp
+                  << " v0/v1=0x" << v0 << "/0x" << v1
+                  << " a0-a3=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " s0-s3=0x" << s0 << "/0x" << s1 << "/0x" << s2 << "/0x" << s3
+                  << " stack0/8/10/18/20/28=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 8u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x10u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x18u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x20u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x28u);
+        appendKofxiMainFrameGlobals(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceSlotSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceCallbackSlotSummary(std::cerr, g_activeLookupRdram);
+        std::cerr << " trace=" << formatDispatchHistory() << std::dec << std::endl;
+    }
+
+    void appendKofxiResourceHandlePoolSummary(std::ostream &out, const uint8_t *rdram)
+    {
+        constexpr uint32_t kHandleBase = 0x0036F818u;
+        constexpr uint32_t kHandleStride = 0x48u;
+        constexpr uint32_t kHandleCount = 16u;
+
+        const auto originalFlags = out.flags();
+        const char originalFill = out.fill();
+
+        uint32_t activeCount = 0u;
+        out << " resourceHandles=";
+        for (uint32_t slot = 0u; slot < kHandleCount; ++slot)
+        {
+            const uint32_t base = kHandleBase + slot * kHandleStride;
+            const uint32_t state0 = readGuestU8Wrapped(rdram, base);
+            const uint32_t state1 = readGuestU8Wrapped(rdram, base + 1u);
+            const uint32_t state2 = readGuestU8Wrapped(rdram, base + 2u);
+            const uint32_t state3 = readGuestU8Wrapped(rdram, base + 3u);
+            const uint32_t object = readGuestU32Wrapped(rdram, base + 0x04u);
+            const uint32_t progress = readGuestU32Wrapped(rdram, base + 0x0Cu);
+            const uint32_t field18 = readGuestU32Wrapped(rdram, base + 0x18u);
+            const uint32_t field1C = readGuestU32Wrapped(rdram, base + 0x1Cu);
+            const uint32_t field20 = readGuestU32Wrapped(rdram, base + 0x20u);
+            const uint32_t field24 = readGuestU32Wrapped(rdram, base + 0x24u);
+            const uint32_t field30 = readGuestU32Wrapped(rdram, base + 0x30u);
+            const uint32_t objectWord0 = object ? readGuestU32Wrapped(rdram, object) : 0u;
+            const uint32_t objectState1 = object ? readGuestU8Wrapped(rdram, object + 0x01u) : 0u;
+            const uint32_t objectWait45 = object ? readGuestU8Wrapped(rdram, object + 0x45u) : 0u;
+            const uint32_t objectFlag47 = object ? readGuestU8Wrapped(rdram, object + 0x47u) : 0u;
+            const uint32_t objectFlag48 = object ? readGuestU8Wrapped(rdram, object + 0x48u) : 0u;
+            const uint32_t objectFlag49 = object ? readGuestU8Wrapped(rdram, object + 0x49u) : 0u;
+            const uint32_t objectWord8 = object ? readGuestU32Wrapped(rdram, object + 0x08u) : 0u;
+            const uint32_t objectWord58 = object ? readGuestU32Wrapped(rdram, object + 0x58u) : 0u;
+            const uint32_t objectWord5C = object ? readGuestU32Wrapped(rdram, object + 0x5Cu) : 0u;
+            if (state0 == 0u && state1 == 0u && state2 == 0u && state3 == 0u &&
+                object == 0u && progress == 0u && field18 == 0u && field1C == 0u &&
+                field20 == 0u && field24 == 0u && field30 == 0u)
+            {
+                continue;
+            }
+
+            if (activeCount != 0u)
+            {
+                out << ",";
+            }
+            out << std::hex << slot
+                << ":st=" << state0 << "/" << state1 << "/" << state2 << "/" << state3
+                << " obj=" << object
+                << " prog=" << progress
+                << " f18-24=" << field18 << "/" << field1C << "/" << field20 << "/" << field24
+                << " cap=" << field30
+                << " objf=" << objectWord0 << "/" << objectState1 << "/" << objectWait45
+                << "/" << objectFlag47 << "/" << objectFlag48 << "/" << objectFlag49
+                << " objp=" << objectWord8 << "/" << objectWord58 << "/" << objectWord5C;
+            ++activeCount;
+        }
+
+        if (activeCount == 0u)
+        {
+            out << "none";
+        }
+        else
+        {
+            out << " active=" << std::dec << activeCount << "/" << kHandleCount;
+        }
+
+        out.flags(originalFlags);
+        out.fill(originalFill);
+    }
+
+    bool isKofxiResourceHandleEntry(uint32_t addr)
+    {
+        constexpr uint32_t kHandleBase = 0x0036F818u;
+        constexpr uint32_t kHandleStride = 0x48u;
+        constexpr uint32_t kHandleCount = 16u;
+        if (addr < kHandleBase || addr >= kHandleBase + kHandleStride * kHandleCount)
+        {
+            return false;
+        }
+
+        return ((addr - kHandleBase) % kHandleStride) == 0u;
+    }
+
+    bool isKofxiResourceObjectCandidate(uint32_t addr)
+    {
+        const uint32_t phys = addr & 0x1FFFFFFFu;
+        return phys >= 0x00370000u && phys < 0x02000000u;
+    }
+
+    void appendKofxiObjectManagerSlotDetail(std::ostream &out, const uint8_t *rdram, const char *label, uint32_t slot)
+    {
+        if (!isKofxiCallbackResourceSlotAddress(slot))
+        {
+            return;
+        }
+
+        const uint32_t child = readGuestU32Wrapped(rdram, slot + 4u);
+        const uint32_t linked = readGuestU32Wrapped(rdram, slot + 0x0Cu);
+        const uint32_t source = readGuestU32Wrapped(rdram, slot + 0x10u);
+        const uint32_t source2 = readGuestU32Wrapped(rdram, slot + 0x14u);
+        const uint32_t upperSlot = readGuestU32Wrapped(rdram, slot + 0x94u);
+        const uint32_t childObject = child ? readGuestU32Wrapped(rdram, child + 4u) : 0u;
+
+        out << " " << label << "Cb=0x" << std::hex << slot
+            << ":st=0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, slot))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, slot + 1u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, slot + 2u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, slot + 3u))
+            << " child/link/src=0x" << child << "/0x" << linked << "/0x" << source
+            << " src2=0x" << source2
+            << " b6c/6d/ad=0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, slot + 0x6Cu))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, slot + 0x6Du))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, slot + 0xADu))
+            << " h40/42/44/46=0x" << readGuestU16Wrapped(rdram, slot + 0x40u)
+            << "/0x" << readGuestU16Wrapped(rdram, slot + 0x42u)
+            << "/0x" << readGuestU16Wrapped(rdram, slot + 0x44u)
+            << "/0x" << readGuestU16Wrapped(rdram, slot + 0x46u)
+            << " tail74/90/94/b0=0x" << readGuestU32Wrapped(rdram, slot + 0x74u)
+            << "/0x" << readGuestU32Wrapped(rdram, slot + 0x90u)
+            << "/0x" << upperSlot
+            << "/0x" << readGuestU32Wrapped(rdram, slot + 0xB0u);
+        if (child)
+        {
+            out << " child=0x" << child
+                << ":st=0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, child))
+                << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, child + 1u))
+                << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, child + 2u))
+                << " obj=0x" << childObject
+                << " w24/40/44=0x" << readGuestU32Wrapped(rdram, child + 0x24u)
+                << "/0x" << readGuestU32Wrapped(rdram, child + 0x40u)
+                << "/0x" << readGuestU32Wrapped(rdram, child + 0x44u);
+        }
+        if (childObject)
+        {
+            out << " childObj=0x" << childObject
+                << ":b0d/0e/0f=0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, childObject + 0x0Du))
+                << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, childObject + 0x0Eu))
+                << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, childObject + 0x0Fu))
+                << " w10/98/9c/cc/e8=0x" << readGuestU32Wrapped(rdram, childObject + 0x10u)
+                << "/0x" << readGuestU16Wrapped(rdram, childObject + 0x98u)
+                << "/0x" << readGuestU16Wrapped(rdram, childObject + 0x9Cu)
+                << "/0x" << readGuestU32Wrapped(rdram, childObject + 0xCCu)
+                << "/0x" << readGuestU32Wrapped(rdram, childObject + 0xE8u);
+        }
+        appendKofxiUpperResourceSlotDetail(out, rdram, upperSlot);
+    }
+
+    uint32_t selectKofxiObjectManagerCallbackSlot(const R5900Context *ctx)
+    {
+        if (!ctx)
+        {
+            return 0u;
+        }
+
+        const uint32_t regs[] = {
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[19], 0)),
+        };
+        for (uint32_t value : regs)
+        {
+            if (isKofxiCallbackResourceSlotAddress(value))
+            {
+                return value;
+            }
+        }
+        return 0u;
+    }
+
+    void appendKofxiResourceObjectDetail(std::ostream &out, const uint8_t *rdram, const char *label, uint32_t object)
+    {
+        if (!object || !isKofxiResourceObjectCandidate(object))
+        {
+            return;
+        }
+
+        const uint32_t source = readGuestU32Wrapped(rdram, object + 0x08u);
+        const uint32_t sourceVtable = isKofxiResourceObjectCandidate(source)
+            ? readGuestU32Wrapped(rdram, source)
+            : 0u;
+
+        out << " " << label << "Obj=0x" << std::hex << object
+            << ":w0/b1/b2/b45/b47/b48/b49=0x" << readGuestU32Wrapped(rdram, object)
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x01u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x02u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x45u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x47u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x48u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x49u))
+            << " w4/8/c/10/14/18/1c/20/24/2c/30/40/58/5c=0x"
+            << readGuestU32Wrapped(rdram, object + 0x04u)
+            << "/0x" << source
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x0Cu)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x10u)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x14u)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x18u)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x1Cu)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x20u)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x24u)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x2Cu)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x30u)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x40u)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x58u)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x5Cu);
+
+        if (source != 0u && isKofxiResourceObjectCandidate(source))
+        {
+            out << " src=0x" << source
+                << ":vt=0x" << sourceVtable
+                << " s4/8/c/10/14=0x" << readGuestU32Wrapped(rdram, source + 0x04u)
+                << "/0x" << readGuestU32Wrapped(rdram, source + 0x08u)
+                << "/0x" << readGuestU32Wrapped(rdram, source + 0x0Cu)
+                << "/0x" << readGuestU32Wrapped(rdram, source + 0x10u)
+                << "/0x" << readGuestU32Wrapped(rdram, source + 0x14u);
+        }
+
+        if (sourceVtable != 0u && isKofxiResourceObjectCandidate(sourceVtable))
+        {
+            out << " vt18/1c/24/2c/40/60=0x"
+                << readGuestU32Wrapped(rdram, sourceVtable + 0x18u)
+                << "/0x" << readGuestU32Wrapped(rdram, sourceVtable + 0x1Cu)
+                << "/0x" << readGuestU32Wrapped(rdram, sourceVtable + 0x24u)
+                << "/0x" << readGuestU32Wrapped(rdram, sourceVtable + 0x2Cu)
+                << "/0x" << readGuestU32Wrapped(rdram, sourceVtable + 0x40u)
+                << "/0x" << readGuestU32Wrapped(rdram, sourceVtable + 0x60u);
+        }
+    }
+
+    void appendKofxiResourceHandleDetail(std::ostream &out, const uint8_t *rdram, const char *label, uint32_t handle)
+    {
+        if (!isKofxiResourceHandleEntry(handle))
+        {
+            return;
+        }
+
+        const uint32_t object = readGuestU32Wrapped(rdram, handle + 0x04u);
+        out << " " << label << "Handle=0x" << std::hex << handle
+            << ":st=" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, handle + 0x00u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, handle + 0x01u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, handle + 0x02u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, handle + 0x03u))
+            << " h0c/18/24=0x" << readGuestU32Wrapped(rdram, handle + 0x0Cu)
+            << "/0x" << readGuestU32Wrapped(rdram, handle + 0x18u)
+            << "/0x" << readGuestU32Wrapped(rdram, handle + 0x24u)
+            << " obj=0x" << object;
+        if (object != 0u)
+        {
+            out << ":w0/b1/b45/b47/b48/b49/w8/w58=0x" << readGuestU32Wrapped(rdram, object)
+                << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x01u))
+                << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x45u))
+                << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x47u))
+                << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x48u))
+                << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x49u))
+                << "/0x" << readGuestU32Wrapped(rdram, object + 0x08u)
+                << "/0x" << readGuestU32Wrapped(rdram, object + 0x58u);
+            appendKofxiResourceObjectDetail(out, rdram, label, object);
+        }
+    }
+
+    bool isKofxiChildResourceAddress(uint32_t addr)
+    {
+        constexpr uint32_t kChildBase = 0x0037B428u;
+        constexpr uint32_t kChildStride = 0x60u;
+        constexpr uint32_t kChildCount = 40u;
+        return addr >= kChildBase && addr < kChildBase + kChildStride * kChildCount;
+    }
+
+    void appendKofxiChildResourceDetail(std::ostream &out, const uint8_t *rdram, uint32_t child)
+    {
+        if (!child || !isKofxiChildResourceAddress(child))
+        {
+            return;
+        }
+
+        out << " child=0x" << std::hex << child
+            << " st=0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, child))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, child + 1u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, child + 2u))
+            << " flags0=0x" << readGuestU32Wrapped(rdram, child)
+            << " async8=0x" << readGuestU32Wrapped(rdram, child + 0x08u)
+            << " range=0x" << readGuestU32Wrapped(rdram, child + 0x0Cu)
+            << "/0x" << readGuestU32Wrapped(rdram, child + 0x10u)
+            << "/0x" << readGuestU32Wrapped(rdram, child + 0x14u)
+            << " wait24=0x" << readGuestU32Wrapped(rdram, child + 0x24u)
+            << " obj44=0x" << readGuestU32Wrapped(rdram, child + 0x44u)
+            << " mode45-49=0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, child + 0x45u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, child + 0x46u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, child + 0x47u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, child + 0x48u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, child + 0x49u))
+            << " io=0x" << readGuestU32Wrapped(rdram, child + 0x50u)
+            << "/0x" << readGuestU32Wrapped(rdram, child + 0x54u);
+    }
+
+    void appendKofxiChildResourceSummary(std::ostream &out, const uint8_t *rdram)
+    {
+        constexpr uint32_t kChildBase = 0x0037B428u;
+        constexpr uint32_t kChildStride = 0x60u;
+        constexpr uint32_t kChildCount = 40u;
+
+        const auto originalFlags = out.flags();
+        const char originalFill = out.fill();
+
+        uint32_t activeCount = 0u;
+        out << " childResources=";
+        for (uint32_t index = 0u; index < kChildCount; ++index)
+        {
+            const uint32_t child = kChildBase + index * kChildStride;
+            const uint32_t flags0 = readGuestU32Wrapped(rdram, child);
+            const uint32_t async8 = readGuestU32Wrapped(rdram, child + 0x08u);
+            const uint32_t wait24 = readGuestU32Wrapped(rdram, child + 0x24u);
+            const uint32_t obj44 = readGuestU32Wrapped(rdram, child + 0x44u);
+            const uint32_t io50 = readGuestU32Wrapped(rdram, child + 0x50u);
+            const uint32_t io54 = readGuestU32Wrapped(rdram, child + 0x54u);
+            const uint32_t state0 = readGuestU8Wrapped(rdram, child);
+            const uint32_t state1 = readGuestU8Wrapped(rdram, child + 1u);
+            const uint32_t state2 = readGuestU8Wrapped(rdram, child + 2u);
+            const uint32_t mode45 = readGuestU8Wrapped(rdram, child + 0x45u);
+            const uint32_t mode46 = readGuestU8Wrapped(rdram, child + 0x46u);
+            const uint32_t mode47 = readGuestU8Wrapped(rdram, child + 0x47u);
+            const uint32_t mode48 = readGuestU8Wrapped(rdram, child + 0x48u);
+            const uint32_t mode49 = readGuestU8Wrapped(rdram, child + 0x49u);
+            if (flags0 == 0u && async8 == 0u && wait24 == 0u && obj44 == 0u &&
+                io50 == 0u && io54 == 0u && state0 == 0u && state1 == 0u &&
+                state2 == 0u && mode45 == 0u && mode46 == 0u && mode47 == 0u &&
+                mode48 == 0u && mode49 == 0u)
+            {
+                continue;
+            }
+
+            if (activeCount != 0u)
+            {
+                out << ",";
+            }
+            out << std::hex << index
+                << ":st=" << state0 << "/" << state1 << "/" << state2
+                << " async=" << async8
+                << " wait=" << wait24
+                << " m=" << mode45 << "/" << mode46 << "/" << mode47 << "/" << mode48 << "/" << mode49
+                << " io=" << io50 << "/" << io54;
+            ++activeCount;
+            if (activeCount >= 8u)
+            {
+                out << ",...";
+                break;
+            }
+        }
+
+        if (activeCount == 0u)
+        {
+            out << "none";
+        }
+
+        out.flags(originalFlags);
+        out.fill(originalFill);
+    }
+
+    uint32_t parseRuntimeEnvU32(const char *name, uint32_t defaultValue)
+    {
+        const char *value = std::getenv(name);
+        if (!value || value[0] == '\0')
+        {
+            return defaultValue;
+        }
+
+        char *end = nullptr;
+        const unsigned long parsed = std::strtoul(value, &end, 0);
+        if (end == value)
+        {
+            return defaultValue;
+        }
+        return static_cast<uint32_t>(parsed);
+    }
+
+    bool shouldTraceSyscall(uint32_t encodedSyscallId, uint32_t syscallFromV1)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_SYSCALL"))
+        {
+            return false;
+        }
+
+        const char *filter = std::getenv("PS2X_TRACE_SYSCALL_FILTER");
+        if (!filter || filter[0] == '\0')
+        {
+            return true;
+        }
+
+        char *end = nullptr;
+        const unsigned long parsed = std::strtoul(filter, &end, 0);
+        if (end == filter)
+        {
+            return true;
+        }
+
+        const uint32_t target = static_cast<uint32_t>(parsed);
+        const uint32_t chosenSyscall = encodedSyscallId != 0u ? encodedSyscallId : syscallFromV1;
+        return chosenSyscall == target;
+    }
+
+    KofxiObjectPoolSnapshot readKofxiObjectPoolSnapshot(const uint8_t *rdram, uint32_t object)
+    {
+        KofxiObjectPoolSnapshot snap{};
+        snap.w0 = readGuestU32Wrapped(rdram, object + 0x00u);
+        snap.w8 = readGuestU32Wrapped(rdram, object + 0x08u);
+        snap.w14 = readGuestU32Wrapped(rdram, object + 0x14u);
+        snap.w24 = readGuestU32Wrapped(rdram, object + 0x24u);
+        snap.w34 = readGuestU32Wrapped(rdram, object + 0x34u);
+        snap.w4c = readGuestU32Wrapped(rdram, object + 0x4Cu);
+        snap.w58 = readGuestU32Wrapped(rdram, object + 0x58u);
+        snap.w5c = readGuestU32Wrapped(rdram, object + 0x5Cu);
+        snap.b0 = readGuestU8Wrapped(rdram, object + 0x00u);
+        snap.b1 = readGuestU8Wrapped(rdram, object + 0x01u);
+        snap.b2 = readGuestU8Wrapped(rdram, object + 0x02u);
+        snap.b3 = readGuestU8Wrapped(rdram, object + 0x03u);
+        snap.b45 = readGuestU8Wrapped(rdram, object + 0x45u);
+        snap.b46 = readGuestU8Wrapped(rdram, object + 0x46u);
+        snap.b47 = readGuestU8Wrapped(rdram, object + 0x47u);
+        snap.b48 = readGuestU8Wrapped(rdram, object + 0x48u);
+        snap.b49 = readGuestU8Wrapped(rdram, object + 0x49u);
+        return snap;
+    }
+
+    bool kofxiObjectPoolSnapshotEquals(const KofxiObjectPoolSnapshot &lhs,
+                                       const KofxiObjectPoolSnapshot &rhs)
+    {
+        return lhs.w0 == rhs.w0 &&
+               lhs.w8 == rhs.w8 &&
+               lhs.w14 == rhs.w14 &&
+               lhs.w24 == rhs.w24 &&
+               lhs.w34 == rhs.w34 &&
+               lhs.w4c == rhs.w4c &&
+               lhs.w58 == rhs.w58 &&
+               lhs.w5c == rhs.w5c &&
+               lhs.b0 == rhs.b0 &&
+               lhs.b1 == rhs.b1 &&
+               lhs.b2 == rhs.b2 &&
+               lhs.b3 == rhs.b3 &&
+               lhs.b45 == rhs.b45 &&
+               lhs.b46 == rhs.b46 &&
+               lhs.b47 == rhs.b47 &&
+               lhs.b48 == rhs.b48 &&
+               lhs.b49 == rhs.b49;
+    }
+
+    bool kofxiObjectPoolSnapshotIsEmpty(const KofxiObjectPoolSnapshot &snap)
+    {
+        return snap.w0 == 0u &&
+               snap.w8 == 0u &&
+               snap.w14 == 0u &&
+               snap.w24 == 0u &&
+               snap.w34 == 0u &&
+               snap.w4c == 0u &&
+               snap.w58 == 0u &&
+               snap.w5c == 0u &&
+               snap.b0 == 0u &&
+               snap.b1 == 0u &&
+               snap.b2 == 0u &&
+               snap.b3 == 0u &&
+               snap.b45 == 0u &&
+               snap.b46 == 0u &&
+               snap.b47 == 0u &&
+               snap.b48 == 0u &&
+               snap.b49 == 0u;
+    }
+
+    void appendKofxiObjectPoolSnapshot(std::ostream &out, const KofxiObjectPoolSnapshot &snap)
+    {
+        out << " w0/8/14/24/34/4c/58/5c=0x" << std::hex
+            << snap.w0 << "/0x" << snap.w8
+            << "/0x" << snap.w14 << "/0x" << snap.w24
+            << "/0x" << snap.w34 << "/0x" << snap.w4c
+            << "/0x" << snap.w58 << "/0x" << snap.w5c
+            << " b0/1/2/3/45/46/47/48/49=0x"
+            << static_cast<uint32_t>(snap.b0)
+            << "/0x" << static_cast<uint32_t>(snap.b1)
+            << "/0x" << static_cast<uint32_t>(snap.b2)
+            << "/0x" << static_cast<uint32_t>(snap.b3)
+            << "/0x" << static_cast<uint32_t>(snap.b45)
+            << "/0x" << static_cast<uint32_t>(snap.b46)
+            << "/0x" << static_cast<uint32_t>(snap.b47)
+            << "/0x" << static_cast<uint32_t>(snap.b48)
+            << "/0x" << static_cast<uint32_t>(snap.b49);
+    }
+
+    void traceKofxiObjectPoolChanges(uint32_t address, const char *phase)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_OBJECT_POOL_CHANGES") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext)
+        {
+            return;
+        }
+
+        constexpr uint32_t kObjectBase = 0x0037B428u;
+        constexpr uint32_t kObjectStride = 0x60u;
+        constexpr uint32_t kObjectCount = 40u;
+
+        if (!g_kofxiObjectPoolChangeTraceInitialized)
+        {
+            for (uint32_t index = 0u; index < kObjectCount; ++index)
+            {
+                g_kofxiObjectPoolLastSnapshots[index] =
+                    readKofxiObjectPoolSnapshot(g_activeLookupRdram, kObjectBase + index * kObjectStride);
+            }
+            g_kofxiObjectPoolChangeTraceInitialized = true;
+        }
+
+        const uint32_t limit = std::max<uint32_t>(
+            1u, parseRuntimeEnvU32("PS2X_TRACE_KOFXI_OBJECT_POOL_CHANGES_LIMIT", 512u));
+        if (g_kofxiObjectPoolChangeLogCount >= limit)
+        {
+            return;
+        }
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx->pc;
+        const uint32_t ra = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
+        const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+        const uint32_t a0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0));
+        const uint32_t a1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0));
+        const uint32_t a2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0));
+        const uint32_t a3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0));
+
+        for (uint32_t index = 0u; index < kObjectCount && g_kofxiObjectPoolChangeLogCount < limit; ++index)
+        {
+            const uint32_t object = kObjectBase + index * kObjectStride;
+            const KofxiObjectPoolSnapshot snap = readKofxiObjectPoolSnapshot(g_activeLookupRdram, object);
+            KofxiObjectPoolSnapshot &previous = g_kofxiObjectPoolLastSnapshots[index];
+            if (kofxiObjectPoolSnapshotEquals(snap, previous))
+            {
+                continue;
+            }
+
+            ++g_kofxiObjectPoolChangeLogCount;
+            std::cerr << "[KOFXI:object-pool-change] #" << g_kofxiObjectPoolChangeLogCount
+                      << " phase=" << (phase ? phase : "?")
+                      << " addr=0x" << std::hex << address
+                      << " tid=" << std::dec << g_currentThreadId
+                      << " pc=0x" << std::hex << pc
+                      << " ra=0x" << ra
+                      << " sp=0x" << sp
+                      << " a0-a3=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                      << " obj=" << index << "@0x" << object
+                      << " prevEmpty=" << std::dec << (kofxiObjectPoolSnapshotIsEmpty(previous) ? 1 : 0)
+                      << " prev";
+            appendKofxiObjectPoolSnapshot(std::cerr, previous);
+            std::cerr << " now";
+            appendKofxiObjectPoolSnapshot(std::cerr, snap);
+            appendKofxiResourceHandlePoolSummary(std::cerr, g_activeLookupRdram);
+            std::cerr << " trace=" << formatDispatchHistory() << std::dec << std::endl;
+
+            previous = snap;
+        }
+    }
+
+    bool lookupWatchEnabled()
+    {
+        return std::getenv("PS2X_TRACE_GUEST_WORD_ADDR") != nullptr;
+    }
+
+    bool guestReadTraceEnabled()
+    {
+        return std::getenv("PS2X_TRACE_GUEST_READ_ADDR") != nullptr;
+    }
+
+    bool rangesOverlap(uint32_t lhsStart, uint32_t lhsSize, uint32_t rhsStart, uint32_t rhsSize)
+    {
+        const uint64_t lhsEnd = static_cast<uint64_t>(lhsStart) + std::max<uint32_t>(lhsSize, 1u);
+        const uint64_t rhsEnd = static_cast<uint64_t>(rhsStart) + std::max<uint32_t>(rhsSize, 1u);
+        return static_cast<uint64_t>(lhsStart) < rhsEnd && static_cast<uint64_t>(rhsStart) < lhsEnd;
+    }
+
+    void traceGuestReadAccess(const char *op,
+                              R5900Context *ctx,
+                              uint32_t vaddr,
+                              uint32_t byteCount,
+                              uint64_t valueLo,
+                              uint64_t valueHi)
+    {
+        if (!guestReadTraceEnabled())
+        {
+            return;
+        }
+
+        struct GuestReadTraceConfig
+        {
+            uint32_t watchAddr;
+            uint32_t watchSize;
+            uint32_t limit;
+        };
+
+        static const GuestReadTraceConfig config = []()
+        {
+            GuestReadTraceConfig parsed{};
+            parsed.watchAddr = parseRuntimeEnvU32("PS2X_TRACE_GUEST_READ_ADDR", 0u) & PS2_RAM_MASK;
+            parsed.watchSize = std::max<uint32_t>(1u, parseRuntimeEnvU32("PS2X_TRACE_GUEST_READ_SIZE", 4u));
+            parsed.limit = std::max<uint32_t>(1u, parseRuntimeEnvU32("PS2X_TRACE_GUEST_READ_LIMIT", 512u));
+
+            std::cout << "[watch:guest-read-init] addr=0x" << std::hex << parsed.watchAddr
+                      << " size=0x" << parsed.watchSize
+                      << " limit=" << std::dec << parsed.limit
+                      << std::endl;
+            return parsed;
+        }();
+        static std::atomic<uint32_t> logCount{0u};
+
+        const uint32_t phys = vaddr & PS2_RAM_MASK;
+        if (!rangesOverlap(phys, byteCount, config.watchAddr, config.watchSize))
+        {
+            return;
+        }
+
+        const uint32_t index = logCount.fetch_add(1u, std::memory_order_relaxed);
+        if (index >= config.limit)
+        {
+            return;
+        }
+
+        const uint32_t pc = ctx ? ctx->pc : 0u;
+        const uint32_t ra = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0)) : 0u;
+        const uint32_t sp = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0)) : 0u;
+        const uint32_t gp = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0)) : 0u;
+        const uint32_t a0 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0)) : 0u;
+        const uint32_t a1 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0)) : 0u;
+        const uint32_t a2 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0)) : 0u;
+        const uint32_t a3 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0)) : 0u;
+
+        std::cout << "[watch:guest-read] #" << (index + 1u)
+                  << " op=" << (op ? op : "?")
+                  << " vaddr=0x" << std::hex << vaddr
+                  << " phys=0x" << phys
+                  << " bytes=" << std::dec << byteCount
+                  << " value=0x" << std::hex << valueLo;
+        if (byteCount > 8u)
+        {
+            std::cout << "/0x" << valueHi;
+        }
+        std::cout << " pc=0x" << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " gp=0x" << gp
+                  << " a0-a3=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " trace=" << formatDispatchHistory()
+                  << std::dec << std::endl;
+    }
+
+    void traceLookupWatch(uint32_t lookupAddress)
+    {
+        if (!lookupWatchEnabled() || !g_activeLookupRdram)
+        {
+            return;
+        }
+
+        if (!g_lookupWatchInitialized)
+        {
+            g_lookupWatchAddr = parseRuntimeEnvU32("PS2X_TRACE_GUEST_WORD_ADDR", 0u) & PS2_RAM_MASK;
+            g_lookupWatchLastValue = readGuestU32Wrapped(g_activeLookupRdram, g_lookupWatchAddr);
+            g_lookupWatchInitialized = true;
+
+            std::cout << "[watch:lookup-init] addr=0x" << std::hex << g_lookupWatchAddr
+                      << " value=0x" << g_lookupWatchLastValue
+                      << std::dec << std::endl;
+        }
+
+        const uint32_t value = readGuestU32Wrapped(g_activeLookupRdram, g_lookupWatchAddr);
+        if (value == g_lookupWatchLastValue)
+        {
+            return;
+        }
+
+        if (g_lookupWatchLogCount < 256u)
+        {
+            const R5900Context *ctx = g_activeLookupContext;
+            const uint32_t pc = ctx ? ctx->pc : 0u;
+            const uint32_t ra = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0)) : 0u;
+            const uint32_t sp = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0)) : 0u;
+
+            std::cout << "[watch:lookup-change] #" << (g_lookupWatchLogCount + 1u)
+                      << " lookup=0x" << std::hex << lookupAddress
+                      << " ctxPc=0x" << pc
+                      << " ra=0x" << ra
+                      << " sp=0x" << sp
+                      << " addr=0x" << g_lookupWatchAddr
+                      << " value=0x" << g_lookupWatchLastValue << "->0x" << value
+                      << " trace=" << formatDispatchHistory()
+                      << std::dec << std::endl;
+        }
+        ++g_lookupWatchLogCount;
+        g_lookupWatchLastValue = value;
+    }
+
+    void logKofxiResourceSlot(const char *event,
+                              uint32_t lookupAddress,
+                              uint32_t value,
+                              uint32_t previousValue,
+                              bool hasPreviousValue)
+    {
+        if (g_kofxiResourceSlotLogCount >= 256u)
+        {
+            return;
+        }
+        ++g_kofxiResourceSlotLogCount;
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx ? ctx->pc : 0u;
+        const uint32_t ra = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0)) : 0u;
+        const uint32_t sp = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0)) : 0u;
+        const uint32_t gp = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0)) : 0u;
+        const uint32_t a0 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0)) : 0u;
+        const uint32_t a1 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0)) : 0u;
+        const uint32_t a2 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0)) : 0u;
+        const uint32_t a3 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0)) : 0u;
+        const uint32_t t0 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[8], 0)) : 0u;
+        const uint32_t t1 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[9], 0)) : 0u;
+        const uint32_t t2 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[10], 0)) : 0u;
+        const uint32_t t3 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[11], 0)) : 0u;
+        const uint32_t s0 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0)) : 0u;
+        const uint32_t s1 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0)) : 0u;
+        const uint32_t s4 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[20], 0)) : 0u;
+        const uint32_t s6 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[22], 0)) : 0u;
+        const uint32_t s7 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[23], 0)) : 0u;
+        const uint32_t fp = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[30], 0)) : 0u;
+
+        std::cerr << "[kofxi:resource-slot] #" << g_kofxiResourceSlotLogCount
+                  << " session=" << g_kofxiResourceSlotSession
+                  << " tid=" << g_currentThreadId
+                  << " event=" << (event ? event : "?")
+                  << " lookup=0x" << std::hex << lookupAddress
+                  << " ctxPc=0x" << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " gp=0x" << gp
+                  << " slot=0x" << g_kofxiResourceSlotAddr
+                  << " value=0x" << value
+                  << " a0=0x" << a0
+                  << " a1=0x" << a1
+                  << " a2=0x" << a2
+                  << " a3=0x" << a3
+                  << " t0=0x" << t0
+                  << " t1=0x" << t1
+                  << " t2=0x" << t2
+                  << " t3=0x" << t3
+                  << " s0=0x" << s0
+                  << " s1=0x" << s1
+                  << " s4=0x" << s4
+                  << " s6=0x" << s6
+                  << " s7=0x" << s7
+                  << " fp=0x" << fp;
+        if (hasPreviousValue)
+        {
+            std::cerr << " prev=0x" << previousValue;
+        }
+        std::cerr << " trace=" << formatDispatchHistory()
+                  << std::dec << std::endl;
+    }
+
+    void traceKofxiResourceSlot(uint32_t lookupAddress)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_RESOURCE_SLOT") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext)
+        {
+            return;
+        }
+
+        if (lookupAddress == 0x001AF5A8u)
+        {
+            const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(g_activeLookupContext->r[29], 0));
+            g_kofxiResourceSlotActive = true;
+            g_kofxiResourceSlotAddr = (sp + 0x20u) & PS2_RAM_MASK;
+            g_kofxiResourceSlotLastValue = readGuestU32Wrapped(g_activeLookupRdram, g_kofxiResourceSlotAddr);
+            ++g_kofxiResourceSlotSession;
+            logKofxiResourceSlot("start", lookupAddress, g_kofxiResourceSlotLastValue, 0u, false);
+            return;
+        }
+
+        if (!g_kofxiResourceSlotActive)
+        {
+            return;
+        }
+
+        const uint32_t value = readGuestU32Wrapped(g_activeLookupRdram, g_kofxiResourceSlotAddr);
+        const bool changed = value != g_kofxiResourceSlotLastValue;
+        const bool checkpoint =
+            lookupAddress == 0x001AE828u ||
+            lookupAddress == 0x001CDC78u ||
+            lookupAddress == 0x0012E610u ||
+            lookupAddress == 0x0012BEC8u ||
+            lookupAddress == 0x001AF77Cu ||
+            lookupAddress == 0x001AF330u;
+
+        if (changed)
+        {
+            const uint32_t previousValue = g_kofxiResourceSlotLastValue;
+            g_kofxiResourceSlotLastValue = value;
+            logKofxiResourceSlot("change", lookupAddress, value, previousValue, true);
+        }
+        else if (checkpoint)
+        {
+            logKofxiResourceSlot("checkpoint", lookupAddress, value, 0u, false);
+        }
+
+        if (lookupAddress == 0x001AF330u)
+        {
+            g_kofxiResourceSlotActive = false;
+        }
+    }
+
+    bool isKofxiCallbackResourceSlotAddress(uint32_t addr)
+    {
+        constexpr uint32_t kSlotBase = 0x00372368u;
+        constexpr uint32_t kSlotStride = 0xC8u;
+        constexpr uint32_t kSlotCount = 16u;
+        return addr >= kSlotBase && addr < kSlotBase + kSlotStride * kSlotCount;
+    }
+
+    bool isKofxiUpperResourceSlotAddress(uint32_t addr)
+    {
+        constexpr uint32_t kSlotBase = 0x0037F1D0u;
+        constexpr uint32_t kSlotStride = 0x238u;
+        constexpr uint32_t kSlotCount = 32u;
+        return addr >= kSlotBase && addr < kSlotBase + kSlotStride * kSlotCount;
+    }
+
+    uint32_t selectKofxiUpperResourceSlotFromContext(const R5900Context *ctx)
+    {
+        if (!ctx)
+        {
+            return 0u;
+        }
+
+        const uint32_t regs[] = {
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[19], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0)),
+        };
+        for (uint32_t value : regs)
+        {
+            if (isKofxiUpperResourceSlotAddress(value))
+            {
+                return value;
+            }
+        }
+        return 0u;
+    }
+
+    void appendKofxiUpperResourceSlotDetail(std::ostream &out, const uint8_t *rdram, uint32_t slot)
+    {
+        if (!slot || !isKofxiUpperResourceSlotAddress(slot))
+        {
+            return;
+        }
+
+        const auto appendWorkItem = [&](const char *label, uint32_t index)
+        {
+            if (index >= 16u)
+            {
+                return;
+            }
+
+            const uint32_t item = slot + 0x38u + index * 0x20u;
+            const uint32_t item0 = readGuestU32Wrapped(rdram, item + 0x00u);
+            const uint32_t item4 = readGuestU32Wrapped(rdram, item + 0x04u);
+            const uint32_t item8 = readGuestU32Wrapped(rdram, item + 0x08u);
+            const uint32_t itemC = readGuestU32Wrapped(rdram, item + 0x0Cu);
+            const uint32_t item10 = readGuestU32Wrapped(rdram, item + 0x10u);
+            const uint32_t item14 = readGuestU32Wrapped(rdram, item + 0x14u);
+            const uint32_t item18 = readGuestU32Wrapped(rdram, item + 0x18u);
+            const uint32_t item1C = readGuestU32Wrapped(rdram, item + 0x1Cu);
+            if (item0 == 0u && item4 == 0u && item8 == 0u && itemC == 0u &&
+                item10 == 0u && item14 == 0u && item18 == 0u && item1C == 0u)
+            {
+                return;
+            }
+
+            out << " " << label << index << "=0x" << item
+                << "[0/4/8/c/10/14/18/1c]=0x"
+                << item0 << "/0x" << item4 << "/0x" << item8 << "/0x" << itemC
+                << "/0x" << item10 << "/0x" << item14
+                << "/0x" << item18 << "/0x" << item1C;
+        };
+
+        const uint32_t source = readGuestU32Wrapped(rdram, slot + 0x08u);
+        const uint32_t sourceVtable = source ? readGuestU32Wrapped(rdram, source) : 0u;
+        const uint32_t sourceCallback24 = sourceVtable ? readGuestU32Wrapped(rdram, sourceVtable + 0x24u) : 0u;
+        const uint32_t cursor20 = readGuestU32Wrapped(rdram, slot + 0x20u);
+        const uint32_t pendingCount = readGuestU32Wrapped(rdram, slot + 0x24u);
+
+        out << " upperSlot=0x" << std::hex << slot
+            << " st=0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, slot))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, slot + 1u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, slot + 2u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, slot + 3u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, slot + 4u))
+            << " src=0x" << source
+            << " vtbl/cb24=0x" << sourceVtable << "/0x" << sourceCallback24
+            << " amt=0x" << readGuestU32Wrapped(rdram, slot + 0x14u)
+            << "/0x" << readGuestU32Wrapped(rdram, slot + 0x18u)
+            << " pos=0x" << readGuestU32Wrapped(rdram, slot + 0x1Cu)
+            << "/0x" << cursor20
+            << "/0x" << pendingCount
+            << " child=0x" << readGuestU32Wrapped(rdram, slot + 0x28u)
+            << "/0x" << readGuestU32Wrapped(rdram, slot + 0x2Cu)
+            << "/0x" << readGuestU32Wrapped(rdram, slot + 0x34u)
+            << " tail=0x" << readGuestU32Wrapped(rdram, slot + 0x230u);
+
+        if (cursor20 < 16u)
+        {
+            appendWorkItem(" curItem", cursor20);
+        }
+
+        for (uint32_t index = 0u; index < 4u; ++index)
+        {
+            if (index != cursor20)
+            {
+                appendWorkItem(" item", index);
+            }
+        }
+    }
+
+    void appendKofxiUpperResourceScannerStats(std::ostream &out, const uint8_t *rdram)
+    {
+        constexpr uint32_t kSlotBase = 0x0037F1D0u;
+        constexpr uint32_t kSlotStride = 0x238u;
+        constexpr uint32_t kSlotCount = 32u;
+
+        const auto originalFlags = out.flags();
+        const char originalFill = out.fill();
+
+        uint32_t activeCount = 0u;
+        uint32_t scanReadyCount = 0u;
+        uint32_t state11Count = 0u;
+        uint32_t state12Count = 0u;
+        uint32_t pendingWorkCount = 0u;
+        uint32_t childCount = 0u;
+        uint32_t emitted = 0u;
+
+        out << " upperScanSlots=";
+        for (uint32_t index = 0u; index < kSlotCount; ++index)
+        {
+            const uint32_t slot = kSlotBase + index * kSlotStride;
+            const uint32_t state0 = readGuestU8Wrapped(rdram, slot);
+            const uint32_t state1 = readGuestU8Wrapped(rdram, slot + 1u);
+            const uint32_t state2 = readGuestU8Wrapped(rdram, slot + 2u);
+            const uint32_t state4 = readGuestU8Wrapped(rdram, slot + 4u);
+            const uint32_t source = readGuestU32Wrapped(rdram, slot + 0x08u);
+            const uint32_t amount14 = readGuestU32Wrapped(rdram, slot + 0x14u);
+            const uint32_t amount18 = readGuestU32Wrapped(rdram, slot + 0x18u);
+            const uint32_t cursor1C = readGuestU32Wrapped(rdram, slot + 0x1Cu);
+            const uint32_t cursor20 = readGuestU32Wrapped(rdram, slot + 0x20u);
+            const uint32_t pending24 = readGuestU32Wrapped(rdram, slot + 0x24u);
+            const uint32_t child28 = readGuestU32Wrapped(rdram, slot + 0x28u);
+            const uint32_t child2C = readGuestU32Wrapped(rdram, slot + 0x2Cu);
+            const uint32_t child34 = readGuestU32Wrapped(rdram, slot + 0x34u);
+            if (state0 == 0u && state1 == 0u && state2 == 0u && state4 == 0u &&
+                source == 0u && amount14 == 0u && amount18 == 0u &&
+                cursor1C == 0u && cursor20 == 0u && pending24 == 0u &&
+                child28 == 0u && child2C == 0u && child34 == 0u)
+            {
+                continue;
+            }
+
+            ++activeCount;
+            if (state0 == 1u)
+            {
+                ++scanReadyCount;
+            }
+            if (state0 == 1u && state1 == 1u)
+            {
+                ++state11Count;
+            }
+            if (state0 == 1u && state1 == 2u)
+            {
+                ++state12Count;
+            }
+            if (pending24 != 0u)
+            {
+                ++pendingWorkCount;
+            }
+            if (child28 != 0u || child2C != 0u || child34 != 0u)
+            {
+                ++childCount;
+            }
+
+            if (emitted < 6u)
+            {
+                if (emitted != 0u)
+                {
+                    out << ",";
+                }
+                out << std::hex << index << ":0x" << slot
+                    << " st=" << state0 << "/" << state1 << "/" << state2 << "/" << state4
+                    << " src=" << source
+                    << " amt=" << amount14 << "/" << amount18
+                    << " pos=" << cursor1C << "/" << cursor20 << "/" << pending24
+                    << " child=" << child28 << "/" << child2C << "/" << child34;
+                ++emitted;
+            }
+        }
+
+        if (emitted == 0u)
+        {
+            out << "none";
+        }
+        out << " upperScanTotals=0x" << std::hex
+            << activeCount << "/" << scanReadyCount << "/" << state11Count
+            << "/" << state12Count << "/" << pendingWorkCount << "/" << childCount;
+
+        out.flags(originalFlags);
+        out.fill(originalFill);
+    }
+
+    bool isKofxiLikelyDataPointer(uint32_t addr)
+    {
+        return addr >= 0x00100000u && addr <= (PS2_RAM_MASK - 0x200u);
+    }
+
+    void appendKofxiPointerFields(std::ostream &out, const uint8_t *rdram, const char *name, uint32_t addr)
+    {
+        if (!isKofxiLikelyDataPointer(addr))
+        {
+            return;
+        }
+
+        out << " " << name << "=0x" << std::hex << addr
+            << "[0/4/8/c/10/14/34/40/94/b0]=0x"
+            << readGuestU32Wrapped(rdram, addr + 0x00u)
+            << "/0x" << readGuestU32Wrapped(rdram, addr + 0x04u)
+            << "/0x" << readGuestU32Wrapped(rdram, addr + 0x08u)
+            << "/0x" << readGuestU32Wrapped(rdram, addr + 0x0Cu)
+            << "/0x" << readGuestU32Wrapped(rdram, addr + 0x10u)
+            << "/0x" << readGuestU32Wrapped(rdram, addr + 0x14u)
+            << "/0x" << readGuestU32Wrapped(rdram, addr + 0x34u)
+            << "/0x" << readGuestU32Wrapped(rdram, addr + 0x40u)
+            << "/0x" << readGuestU32Wrapped(rdram, addr + 0x94u)
+            << "/0x" << readGuestU32Wrapped(rdram, addr + 0xB0u);
+    }
+
+    void appendKofxiManagerFields(std::ostream &out, const uint8_t *rdram, const char *name, uint32_t addr)
+    {
+        if (!isKofxiLikelyDataPointer(addr))
+        {
+            return;
+        }
+
+        const uint32_t commandBase = readGuestU32Wrapped(rdram, addr + 0x3708u);
+        const uint32_t owner = readGuestU32Wrapped(rdram, addr + 0x205Cu);
+        if (!commandBase && !owner)
+        {
+            return;
+        }
+
+        out << " " << name << "=0x" << std::hex << addr
+            << " mgr3708=0x" << commandBase
+            << " mgr205c=0x" << owner;
+        if (isKofxiLikelyDataPointer(owner))
+        {
+            out << " owner[0/34/3c/40]=0x"
+                << readGuestU32Wrapped(rdram, owner + 0x00u)
+                << "/0x" << readGuestU32Wrapped(rdram, owner + 0x34u)
+                << "/0x" << readGuestU32Wrapped(rdram, owner + 0x3Cu)
+                << "/0x" << readGuestU32Wrapped(rdram, owner + 0x40u);
+        }
+        if (isKofxiLikelyDataPointer(commandBase))
+        {
+            const uint32_t command = commandBase + 0xD0Cu;
+            out << " cmdD0c=0x" << command
+                << "[0/c/10/14]=0x"
+                << readGuestU32Wrapped(rdram, command + 0x00u)
+                << "/0x" << readGuestU32Wrapped(rdram, command + 0x0Cu)
+                << "/0x" << readGuestU32Wrapped(rdram, command + 0x10u)
+                << "/0x" << readGuestU32Wrapped(rdram, command + 0x14u);
+        }
+    }
+
+    uint32_t selectKofxiResourceObjectFromContext(const R5900Context *ctx)
+    {
+        if (!ctx)
+        {
+            return 0u;
+        }
+
+        const uint32_t regs[] = {
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[19], 0)),
+        };
+        for (uint32_t value : regs)
+        {
+            if (isKofxiCallbackResourceSlotAddress(value))
+            {
+                return value;
+            }
+        }
+        return 0u;
+    }
+
+    void appendKofxiResourceObjectDetail(std::ostream &out, const uint8_t *rdram, uint32_t object)
+    {
+        if (!object || !isKofxiCallbackResourceSlotAddress(object))
+        {
+            return;
+        }
+
+        const uint32_t source = readGuestU32Wrapped(rdram, object + 0x2Cu);
+        const uint32_t sourceVtable = source ? readGuestU32Wrapped(rdram, source) : 0u;
+        const uint32_t upperSlot = readGuestU32Wrapped(rdram, object + 0x94u);
+        const uint32_t queue8 = readGuestU32Wrapped(rdram, object + 0x08u);
+        const uint32_t object10 = readGuestU32Wrapped(rdram, object + 0x10u);
+        const uint32_t object14 = readGuestU32Wrapped(rdram, object + 0x14u);
+
+        out << " resObj=0x" << std::hex << object
+            << " st=0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 1u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 2u))
+            << "/" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 3u))
+            << " q=0x" << readGuestU32Wrapped(rdram, object + 4u)
+            << "/0x" << queue8
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x0Cu)
+            << " obj=0x" << object10 << "/0x" << object14
+            << " buf=0x" << readGuestU32Wrapped(rdram, object + 0x20u)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x24u)
+            << " src=0x" << source
+            << " srcV/cb24=0x" << sourceVtable
+            << "/0x" << (sourceVtable ? readGuestU32Wrapped(rdram, sourceVtable + 0x24u) : 0u)
+            << " step=0x" << readGuestU32Wrapped(rdram, object + 0x30u)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x34u)
+            << " f40/44/48/49=0x" << readGuestU32Wrapped(rdram, object + 0x40u)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x44u)
+            << "/0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x48u))
+            << "/0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, object + 0x49u))
+            << " tail74/90/94/b0=0x" << readGuestU32Wrapped(rdram, object + 0x74u)
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0x90u)
+            << "/0x" << upperSlot
+            << "/0x" << readGuestU32Wrapped(rdram, object + 0xB0u);
+        if (object10)
+        {
+            appendKofxiPointerFields(out, rdram, "obj10", object10);
+        }
+        if (object14)
+        {
+            appendKofxiPointerFields(out, rdram, "obj14", object14);
+        }
+        appendKofxiUpperResourceSlotDetail(out, rdram, upperSlot);
+    }
+
+    void appendKofxiResourceObjectGlobals(std::ostream &out, const uint8_t *rdram)
+    {
+        const uint32_t primary = readGuestU32Wrapped(rdram, 0x0090E4C0u);
+        const uint32_t secondary = readGuestU32Wrapped(rdram, 0x0088EAE0u);
+        out << " objGlobals=main0x90e4c0=0x" << std::hex << primary
+            << "/main0x88eae0=0x" << secondary
+            << " tableObjs=";
+
+        uint32_t emitted = 0u;
+        constexpr uint32_t kTableBase = 0x00415DC0u;
+        constexpr uint32_t kStride = 0x4180u;
+        for (uint32_t index = 0u; index < 14u; ++index)
+        {
+            const uint32_t entry = kTableBase + index * kStride;
+            const uint32_t object = readGuestU32Wrapped(rdram, entry + 4u);
+            if (!object)
+            {
+                continue;
+            }
+            if (emitted != 0u)
+            {
+                out << ",";
+            }
+            out << index << ":0x" << object;
+            ++emitted;
+            if (emitted >= 6u)
+            {
+                out << ",...";
+                break;
+            }
+        }
+        if (emitted == 0u)
+        {
+            out << "none";
+        }
+    }
+
+    void appendKofxiObjectTaskTableSummary(std::ostream &out, const uint8_t *rdram)
+    {
+        constexpr uint32_t kTaskBase = 0x00387780u;
+        constexpr uint32_t kTaskStride = 0x64u;
+        constexpr uint32_t kTaskCount = 16u;
+        constexpr uint32_t kEntryBase = 0x0037C868u;
+        constexpr uint32_t kEntryStride = 0x40u;
+        constexpr uint32_t kEntryCount = 32u;
+
+        out << " objTasks=";
+        uint32_t emitted = 0u;
+        for (uint32_t index = 0u; index < kTaskCount; ++index)
+        {
+            const uint32_t entry = kTaskBase + index * kTaskStride;
+            const uint32_t state0 = readGuestU8Wrapped(rdram, entry);
+            const uint32_t state1 = readGuestU8Wrapped(rdram, entry + 1u);
+            const uint32_t field4 = readGuestU32Wrapped(rdram, entry + 4u);
+            const uint32_t field8 = readGuestU32Wrapped(rdram, entry + 8u);
+            const uint32_t field10 = readGuestU32Wrapped(rdram, entry + 0x10u);
+            const uint32_t field20 = readGuestU32Wrapped(rdram, entry + 0x20u);
+            const uint32_t field30 = readGuestU32Wrapped(rdram, entry + 0x30u);
+            const uint32_t field38 = readGuestU32Wrapped(rdram, entry + 0x38u);
+            if (state0 == 0u && state1 == 0u && field4 == 0u && field8 == 0u &&
+                field10 == 0u && field20 == 0u && field30 == 0u && field38 == 0u)
+            {
+                continue;
+            }
+
+            if (emitted != 0u)
+            {
+                out << ",";
+            }
+            out << std::hex << index << ":"
+                << state0 << "/" << state1
+                << " f4/8=0x" << field4 << "/0x" << field8
+                << " f10/20=0x" << field10 << "/0x" << field20
+                << " f30/38=0x" << field30 << "/0x" << field38;
+            ++emitted;
+            if (emitted >= 6u)
+            {
+                out << ",...";
+                break;
+            }
+        }
+        if (emitted == 0u)
+        {
+            out << "none";
+        }
+
+        out << " objTaskEntries=";
+        emitted = 0u;
+        for (uint32_t index = 0u; index < kEntryCount; ++index)
+        {
+            const uint32_t entry = kEntryBase + index * kEntryStride;
+            const uint32_t state0 = readGuestU8Wrapped(rdram, entry);
+            const uint32_t state1 = readGuestU8Wrapped(rdram, entry + 1u);
+            const uint32_t field4 = readGuestU32Wrapped(rdram, entry + 4u);
+            const uint32_t field8 = readGuestU32Wrapped(rdram, entry + 8u);
+            const uint32_t field30 = readGuestU32Wrapped(rdram, entry + 0x30u);
+            const uint32_t field34 = readGuestU32Wrapped(rdram, entry + 0x34u);
+            const uint32_t field38 = readGuestU32Wrapped(rdram, entry + 0x38u);
+            if (state0 == 0u && state1 == 0u && field4 == 0u && field8 == 0u &&
+                field30 == 0u && field34 == 0u && field38 == 0u)
+            {
+                continue;
+            }
+
+            if (emitted != 0u)
+            {
+                out << ",";
+            }
+            out << std::hex << index << ":"
+                << state0 << "/" << state1
+                << " f4/8=0x" << field4 << "/0x" << field8
+                << " f30/34/38=0x" << field30 << "/0x" << field34 << "/0x" << field38;
+            ++emitted;
+            if (emitted >= 6u)
+            {
+                out << ",...";
+                break;
+            }
+        }
+        if (emitted == 0u)
+        {
+            out << "none";
+        }
+    }
+
+    void appendKofxiObjectPoolSummary(std::ostream &out, const uint8_t *rdram)
+    {
+        constexpr uint32_t kPoolBase = 0x00388BD0u;
+        constexpr uint32_t kPoolStride = 0x40u;
+        constexpr uint32_t kPoolCount = 0x100u;
+
+        out << " objPool=";
+        uint32_t emitted = 0u;
+        for (uint32_t index = 0u; index < kPoolCount; ++index)
+        {
+            const uint32_t object = kPoolBase + index * kPoolStride;
+            const uint32_t vtable = readGuestU32Wrapped(rdram, object);
+            const uint32_t state4 = readGuestU32Wrapped(rdram, object + 4u);
+            const uint32_t field8 = readGuestU32Wrapped(rdram, object + 8u);
+            const uint32_t field10 = readGuestU32Wrapped(rdram, object + 0x10u);
+            const uint32_t field14 = readGuestU32Wrapped(rdram, object + 0x14u);
+            const uint32_t field1C = readGuestU32Wrapped(rdram, object + 0x1Cu);
+            const uint32_t field20 = readGuestU32Wrapped(rdram, object + 0x20u);
+            const uint32_t field24 = readGuestU32Wrapped(rdram, object + 0x24u);
+            const uint32_t method38 = readGuestU32Wrapped(rdram, object + 0x38u);
+            const uint32_t self3C = readGuestU32Wrapped(rdram, object + 0x3Cu);
+            if (vtable == 0u && state4 == 0u && field8 == 0u && field10 == 0u &&
+                field14 == 0u && field1C == 0u && field20 == 0u && field24 == 0u &&
+                method38 == 0u && self3C == 0u)
+            {
+                continue;
+            }
+
+            if (emitted != 0u)
+            {
+                out << ",";
+            }
+            out << std::hex << index << ":0x" << object
+                << " v=0x" << vtable
+                << " f4/8=0x" << state4 << "/0x" << field8
+                << " f10/14=0x" << field10 << "/0x" << field14
+                << " f1c/20/24=0x" << field1C << "/0x" << field20 << "/0x" << field24
+                << " m38/self=0x" << method38 << "/0x" << self3C;
+            ++emitted;
+            if (emitted >= 6u)
+            {
+                out << ",...";
+                break;
+            }
+        }
+        if (emitted == 0u)
+        {
+            out << "none";
+        }
+    }
+
+    void appendKofxiDeferredSchedulerTables(std::ostream &out, const uint8_t *rdram)
+    {
+        constexpr uint32_t kGroupTableBase = 0x01BF7D60u;
+        constexpr uint32_t kGroupStride = 0x48u;
+        constexpr uint32_t kGroupCount = 8u;
+        constexpr uint32_t kGroupSlotStride = 0x0Cu;
+        constexpr uint32_t kGroupSlotCount = 6u;
+        constexpr uint32_t kGroupActiveBase = 0x0039E588u;
+        constexpr uint32_t kGroupTickBase = 0x0039E568u;
+        constexpr uint32_t kSingleBases[] = {0x01BF7FE0u, 0x01BF7FE8u, 0x01BF7FF0u};
+
+        out << " deferGroups=";
+        bool emittedGroup = false;
+        for (uint32_t group = 0; group < kGroupCount; ++group)
+        {
+            const uint32_t groupBase = kGroupTableBase + group * kGroupStride;
+            bool groupHasFunction = false;
+            for (uint32_t slot = 0; slot < kGroupSlotCount; ++slot)
+            {
+                if (readGuestU32Wrapped(rdram, groupBase + slot * kGroupSlotStride) != 0u)
+                {
+                    groupHasFunction = true;
+                    break;
+                }
+            }
+            if (!groupHasFunction)
+            {
+                continue;
+            }
+
+            if (emittedGroup)
+            {
+                out << ",";
+            }
+            emittedGroup = true;
+            out << group
+                << ":active=0x" << readGuestU32Wrapped(rdram, kGroupActiveBase + group * 4u)
+                << "/tick=0x" << readGuestU32Wrapped(rdram, kGroupTickBase + group * 4u)
+                << "[";
+            for (uint32_t slot = 0; slot < kGroupSlotCount; ++slot)
+            {
+                if (slot != 0u)
+                {
+                    out << ";";
+                }
+                const uint32_t entry = groupBase + slot * kGroupSlotStride;
+                out << "0x" << readGuestU32Wrapped(rdram, entry)
+                    << "/0x" << readGuestU32Wrapped(rdram, entry + 4u)
+                    << "/0x" << readGuestU32Wrapped(rdram, entry + 8u);
+            }
+            out << "]";
+        }
+        if (!emittedGroup)
+        {
+            out << "none";
+        }
+
+        out << " deferSingles=";
+        for (uint32_t index = 0; index < static_cast<uint32_t>(std::size(kSingleBases)); ++index)
+        {
+            if (index != 0u)
+            {
+                out << ",";
+            }
+            const uint32_t base = kSingleBases[index];
+            out << index << ":0x" << readGuestU32Wrapped(rdram, base)
+                << "/0x" << readGuestU32Wrapped(rdram, base + 4u);
+        }
+    }
+
+    void appendKofxiSchedulerGlobals(std::ostream &out, const uint8_t *rdram)
+    {
+        out << " schedGlobals="
+            << "mode=0x" << readGuestU32Wrapped(rdram, 0x00372FE8u)
+            << "/flag2ff4=0x" << readGuestU32Wrapped(rdram, 0x00372FF4u)
+            << "/prio3000=0x" << readGuestU32Wrapped(rdram, 0x00373000u)
+            << "/nest3030=0x" << readGuestU32Wrapped(rdram, 0x00373030u)
+            << "/spin3034=0x" << readGuestU32Wrapped(rdram, 0x00373034u)
+            << "/thread3088=0x" << readGuestU32Wrapped(rdram, 0x00373088u)
+            << "/savedTid=0x" << readGuestU32Wrapped(rdram, 0x0037A920u)
+            << "/savedPrio=0x" << readGuestU32Wrapped(rdram, 0x0037A924u);
+    }
+
+    void appendKofxiWorkerSchedulerState(std::ostream &out, const uint8_t *rdram)
+    {
+        out << " workerSched="
+            << "frameCtr=0x" << readGuestU32Wrapped(rdram, 0x00372360u)
+            << "/waitA=0x" << readGuestU32Wrapped(rdram, 0x00373018u)
+            << "/waitB=0x" << readGuestU32Wrapped(rdram, 0x0037301Cu)
+            << "/scope=0x" << readGuestU32Wrapped(rdram, 0x00373030u)
+            << "/loopGate=0x" << readGuestU32Wrapped(rdram, 0x00373034u)
+            << "/vblankA=0x" << readGuestU32Wrapped(rdram, 0x00373038u)
+            << "/schedMirror=0x" << readGuestU32Wrapped(rdram, 0x0037303Cu)
+            << "/vblankB=0x" << readGuestU32Wrapped(rdram, 0x00373040u)
+            << "/frameSleep=0x" << readGuestU32Wrapped(rdram, 0x0037304Cu)
+            << "/ticks=0x" << readGuestU32Wrapped(rdram, 0x00373050u)
+            << "," << readGuestU32Wrapped(rdram, 0x00373058u)
+            << "," << readGuestU32Wrapped(rdram, 0x00373060u)
+            << "," << readGuestU32Wrapped(rdram, 0x00373068u)
+            << "," << readGuestU32Wrapped(rdram, 0x00373070u)
+            << "," << readGuestU32Wrapped(rdram, 0x00373078u)
+            << "/frameTid=0x" << readGuestU32Wrapped(rdram, 0x00373098u)
+            << "/workerA=0x" << readGuestU32Wrapped(rdram, 0x0037309Cu)
+            << "/workerB=0x" << readGuestU32Wrapped(rdram, 0x003730A0u)
+            << "/workerInput=0x" << readGuestU32Wrapped(rdram, 0x00373114u)
+            << "/worker2Pending=0x" << readGuestU32Wrapped(rdram, 0x00373118u)
+            << "/irqGate=0x" << readGuestU32Wrapped(rdram, 0x0037310Cu)
+            << "/vblankCallback=0x" << readGuestU32Wrapped(rdram, 0x00373110u);
+    }
+
+    bool isKofxiSchedulerWorkerLookup(uint32_t lookupAddress)
+    {
+        switch (lookupAddress)
+        {
+        case 0x001B2CD8u:
+        case 0x001B2D40u:
+        case 0x001B2D54u:
+        case 0x001B2D68u:
+        case 0x001B2D74u:
+        case 0x001B2D84u:
+        case 0x001B2D8Cu:
+        case 0x001B2D94u:
+        case 0x001B2D9Cu:
+        case 0x001B2ED0u:
+        case 0x001B2F38u:
+        case 0x001B2F44u:
+        case 0x001B2F4Cu:
+        case 0x001B2F68u:
+        case 0x001B2F70u:
+        case 0x001B2F78u:
+        case 0x001B2F84u:
+        case 0x001B2F8Cu:
+        case 0x001B2F98u:
+        case 0x001B2FA0u:
+        case 0x001B2FB0u:
+        case 0x001B2FB8u:
+        case 0x001B2FBCu:
+        case 0x001B2FC4u:
+        case 0x001B3130u:
+        case 0x001B3180u:
+        case 0x001B3198u:
+        case 0x001B3200u:
+        case 0x001B3FA8u:
+        case 0x001B3FC0u:
+        case 0x001B4048u:
+        case 0x001B40F0u:
+        case 0x001B45C8u:
+        case 0x001B45F8u:
+        case 0x001B464Cu:
+        case 0x001B4654u:
+        case 0x001B4688u:
+        case 0x001B46F8u:
+        case 0x001B2718u:
+        case 0x001B27B8u:
+        case 0x001B2968u:
+        case 0x001B3638u:
+        case 0x001CE5E8u:
+        case 0x001CE618u:
+        case 0x001CE630u:
+        case 0x001CE648u:
+        case 0x001CE660u:
+        case 0x001CE458u:
+        case 0x001B1CC8u:
+        case 0x001B1CE8u:
+        case 0x001B1D08u:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    void traceKofxiSchedulerWorkerPc(uint32_t lookupAddress)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_SCHED_WORKER_PC") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext ||
+            !isKofxiSchedulerWorkerLookup(lookupAddress))
+        {
+            return;
+        }
+
+        const bool hasResourceTraceState = hasKofxiResourceTraceState(g_activeLookupRdram);
+        if (isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_SCHED_WORKER_PC_AFTER_RESOURCE") &&
+            !hasResourceTraceState)
+        {
+            return;
+        }
+
+        static std::atomic<uint32_t> s_logCount{0u};
+        const uint32_t index = s_logCount.fetch_add(1u, std::memory_order_relaxed);
+        const uint32_t limit = std::max<uint32_t>(
+            1u, parseRuntimeEnvU32("PS2X_TRACE_KOFXI_SCHED_WORKER_PC_LIMIT", 512u));
+        if (index >= limit)
+        {
+            return;
+        }
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx->pc;
+        const uint32_t ra = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
+        const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+        const uint32_t v0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0));
+        const uint32_t v1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0));
+        const uint32_t a0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0));
+        const uint32_t a1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0));
+        const uint32_t a2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0));
+        const uint32_t a3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0));
+        const uint32_t s0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0));
+        const uint32_t s1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0));
+        const uint32_t s2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0));
+        const uint32_t s3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[19], 0));
+
+        std::cerr << "[KOFXI:sched-worker-pc] #" << (index + 1u)
+                  << " lookup=0x" << std::hex << lookupAddress
+                  << " tid=" << std::dec << g_currentThreadId
+                  << " pc=0x" << std::hex << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " v0/v1=0x" << v0 << "/0x" << v1
+                  << " a0-a3=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " s0-s3=0x" << s0 << "/0x" << s1 << "/0x" << s2 << "/0x" << s3
+                  << " stack0/8/10/18=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 8u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x10u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x18u);
+        appendKofxiSchedulerGlobals(std::cerr, g_activeLookupRdram);
+        appendKofxiWorkerSchedulerState(std::cerr, g_activeLookupRdram);
+        appendKofxiDeferredSchedulerTables(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceSlotSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceCallbackSlotSummary(std::cerr, g_activeLookupRdram);
+        std::cerr << " trace=" << formatDispatchHistory() << std::dec << std::endl;
+    }
+
+    bool isKofxiNoisyDeferredSchedulerLookup(uint32_t lookupAddress)
+    {
+        switch (lookupAddress)
+        {
+        case 0x001B29A0u:
+        case 0x001B2A28u:
+        case 0x001B2A98u:
+        case 0x001B2B80u:
+        case 0x001CDA58u:
+        case 0x001CDA80u:
+        case 0x001CDAB8u:
+        case 0x001CDB24u:
+        case 0x001CDB28u:
+        case 0x001CDB30u:
+        case 0x001CDB48u:
+        case 0x001CDB60u:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    void traceKofxiUpperResourcePc(uint32_t lookupAddress)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_UPPER_RESOURCE_PC") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext)
+        {
+            return;
+        }
+
+        switch (lookupAddress)
+        {
+        case 0x001C5CC8u:
+        case 0x001B2718u:
+        case 0x001B2728u:
+        case 0x001B2738u:
+        case 0x001B2740u:
+        case 0x001B2788u:
+        case 0x001B2790u:
+        case 0x001B27B8u:
+        case 0x001B27C8u:
+        case 0x001B27D0u:
+        case 0x001B2808u:
+        case 0x001B2818u:
+        case 0x001B2820u:
+        case 0x001B2828u:
+        case 0x001B2830u:
+        case 0x001B2838u:
+        case 0x001B2840u:
+        case 0x001B3F90u:
+        case 0x001B3FA8u:
+        case 0x001CE350u:
+        case 0x001CE3C4u:
+        case 0x001CE3D0u:
+        case 0x001CE3D8u:
+        case 0x001CE3E8u:
+        case 0x001CE414u:
+        case 0x001CE428u:
+        case 0x001CE440u:
+        case 0x001CE458u:
+        case 0x001CE4B0u:
+        case 0x001CE4C0u:
+        case 0x001CE4C8u:
+        case 0x001CE520u:
+        case 0x001CE58Cu:
+        case 0x001CE598u:
+        case 0x001CE5A0u:
+        case 0x001CE5B8u:
+        case 0x001CE5C8u:
+        case 0x001CE5D0u:
+        case 0x001CE5E0u:
+        case 0x001CE5E8u:
+        case 0x001CE5F8u:
+        case 0x001CE610u:
+        case 0x001CE628u:
+        case 0x001CE640u:
+        case 0x001CE658u:
+        case 0x001CE670u:
+        case 0x001B1CC8u:
+        case 0x001B26D8u:
+        case 0x001B2700u:
+        case 0x001B29A0u:
+        case 0x001B2A28u:
+        case 0x001B2A98u:
+        case 0x001B2B80u:
+        case 0x001CDA58u:
+        case 0x001CDA80u:
+        case 0x001CDAB8u:
+        case 0x001CDB24u:
+        case 0x001CDB28u:
+        case 0x001CDB30u:
+        case 0x001CDB48u:
+        case 0x001CDB60u:
+        case 0x001B8298u:
+        case 0x001B82BCu:
+        case 0x001B82C4u:
+        case 0x001B8428u:
+        case 0x001B8450u:
+        case 0x001B8458u:
+        case 0x001B8464u:
+        case 0x001B8478u:
+        case 0x001B1FE0u:
+        case 0x001B2004u:
+        case 0x001B2010u:
+        case 0x001B2028u:
+        case 0x001B2048u:
+        case 0x001B2074u:
+        case 0x001B20A8u:
+        case 0x001B20E8u:
+        case 0x001B20F0u:
+        case 0x001B2118u:
+        case 0x001B213Cu:
+        case 0x001B2168u:
+        case 0x001B21B0u:
+        case 0x001B21C4u:
+        case 0x001B21E0u:
+        case 0x001B21F0u:
+        case 0x001B21F8u:
+        case 0x001B2260u:
+        case 0x001B2298u:
+        case 0x001B22E8u:
+        case 0x001B22F0u:
+        case 0x001B2380u:
+        case 0x001B239Cu:
+        case 0x001B23A0u:
+        case 0x001B23A8u:
+        case 0x001B23C0u:
+        case 0x001B23D8u:
+        case 0x001B240Cu:
+        case 0x001B2418u:
+        case 0x001B2420u:
+        case 0x001B2440u:
+        case 0x001B24A0u:
+        case 0x001B24A8u:
+        case 0x001B24B4u:
+        case 0x001B24BCu:
+        case 0x001B24C0u:
+        case 0x001B24C8u:
+        case 0x001B24E4u:
+        case 0x001B2540u:
+        case 0x001B25A8u:
+        case 0x001B25B0u:
+        case 0x001B25B8u:
+        case 0x001B25C0u:
+        case 0x001B25C4u:
+        case 0x001B25CCu:
+        case 0x001B25E4u:
+        case 0x001B2630u:
+        case 0x001B84A0u:
+        case 0x001B84A8u:
+        case 0x001B84ACu:
+        case 0x001B84B4u:
+        case 0x001B84C8u:
+        case 0x001B84F0u:
+        case 0x001B84F8u:
+        case 0x001B84FCu:
+        case 0x001B8504u:
+        case 0x001B8518u:
+        case 0x001B8528u:
+        case 0x001E9890u:
+        case 0x001E9960u:
+        case 0x001E9970u:
+        case 0x001E9978u:
+        case 0x001E9984u:
+        case 0x001E9990u:
+        case 0x001E9998u:
+        case 0x001E99A4u:
+        case 0x001E99ACu:
+        case 0x001E99B4u:
+        case 0x001E99C8u:
+        case 0x001E99D8u:
+        case 0x001E99F0u:
+        case 0x001E99F8u:
+        case 0x001E99FCu:
+        case 0x001E9A04u:
+        case 0x001E9A18u:
+        case 0x001E53A0u:
+        case 0x001E53BCu:
+        case 0x001E53E8u:
+        case 0x001E53F8u:
+        case 0x001E5540u:
+        case 0x001E5554u:
+        case 0x001E5580u:
+        case 0x001E5670u:
+        case 0x001E5698u:
+        case 0x001E56C8u:
+        case 0x001E56D0u:
+        case 0x001E56E0u:
+        case 0x001E56ECu:
+        case 0x001E56F4u:
+        case 0x001E5730u:
+        case 0x001E575Cu:
+        case 0x001E5798u:
+        case 0x001E57B0u:
+        case 0x001C5D20u:
+        case 0x001C5D28u:
+        case 0x001C5D60u:
+        case 0x001C5DA0u:
+        case 0x001C5E40u:
+        case 0x001C5E4Cu:
+        case 0x001C5E68u:
+        case 0x001C5E7Cu:
+        case 0x001C5E84u:
+        case 0x001C5E98u:
+        case 0x001C5EB4u:
+        case 0x001C5ECCu:
+        case 0x001C5ED8u:
+        case 0x001C5F28u:
+        case 0x001C5F2Cu:
+        case 0x001C5FA0u:
+        case 0x001C5FD4u:
+        case 0x001C5FECu:
+        case 0x001C5FF4u:
+        case 0x001C6018u:
+        case 0x001C6068u:
+        case 0x001C60F8u:
+        case 0x001C6128u:
+        case 0x001C617Cu:
+        case 0x001C6184u:
+        case 0x001C61B0u:
+        case 0x001C61C4u:
+        case 0x001C61CCu:
+        case 0x001C61E0u:
+        case 0x001C6200u:
+        case 0x001C6220u:
+        case 0x001C6234u:
+        case 0x001C623Cu:
+        case 0x001C6250u:
+        case 0x001C6280u:
+        case 0x001C6294u:
+        case 0x001C62A4u:
+        case 0x001C62B8u:
+        case 0x001C62E8u:
+        case 0x001C6318u:
+        case 0x001C6348u:
+        case 0x001C6358u:
+        case 0x001C6370u:
+        case 0x001C638Cu:
+        case 0x001C6398u:
+        case 0x001C63B0u:
+        case 0x001C63D0u:
+        case 0x001C63F0u:
+        case 0x001C6400u:
+        case 0x001C6408u:
+        case 0x001C6418u:
+        case 0x001C6440u:
+        case 0x001C6454u:
+        case 0x001C6A10u:
+        case 0x001C6A38u:
+        case 0x001C6A48u:
+        case 0x001C6A64u:
+        case 0x001C6A68u:
+        case 0x001C6A70u:
+        case 0x001C6A88u:
+        case 0x001C6AA8u:
+        case 0x001C6AACu:
+        case 0x001C6AB0u:
+        case 0x001C6D00u:
+        case 0x001C6D30u:
+        case 0x001C6D38u:
+        case 0x001C6D40u:
+        case 0x001C6DA8u:
+        case 0x001C6E10u:
+        case 0x001C6E28u:
+        case 0x001C6E68u:
+        case 0x001C6E78u:
+        case 0x001C6EC8u:
+        case 0x001C6EF0u:
+        case 0x001C6F98u:
+        case 0x001C6FA0u:
+        case 0x001C6FC8u:
+        case 0x001C6FF8u:
+        case 0x001C7020u:
+        case 0x001C702Cu:
+        case 0x001C7038u:
+        case 0x001C7054u:
+        case 0x001C705Cu:
+        case 0x001C7074u:
+        case 0x001C707Cu:
+        case 0x001C7094u:
+        case 0x001C70A8u:
+        case 0x001C70B0u:
+            break;
+        default:
+            return;
+        }
+
+        const bool hasResourceTraceState = hasKofxiResourceTraceState(g_activeLookupRdram);
+        if (isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_UPPER_RESOURCE_PC_AFTER_RESOURCE") &&
+            !hasResourceTraceState)
+        {
+            return;
+        }
+
+        if (isKofxiNoisyDeferredSchedulerLookup(lookupAddress) &&
+            !isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_UPPER_RESOURCE_PC_EARLY") &&
+            !hasResourceTraceState)
+        {
+            return;
+        }
+
+        const uint32_t limit = std::max<uint32_t>(
+            1u, parseRuntimeEnvU32("PS2X_TRACE_KOFXI_UPPER_RESOURCE_PC_LIMIT", 512u));
+        if (g_kofxiUpperResourcePcLogCount >= limit)
+        {
+            return;
+        }
+        ++g_kofxiUpperResourcePcLogCount;
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx->pc;
+        const uint32_t ra = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
+        const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+        const uint32_t gp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0));
+        const uint32_t v0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0));
+        const uint32_t v1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0));
+        const uint32_t a0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0));
+        const uint32_t a1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0));
+        const uint32_t a2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0));
+        const uint32_t a3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0));
+        const uint32_t t0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[8], 0));
+        const uint32_t t1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[9], 0));
+        const uint32_t s0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0));
+        const uint32_t s1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0));
+        const uint32_t s2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0));
+        const uint32_t s3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[19], 0));
+        const uint32_t slot = selectKofxiUpperResourceSlotFromContext(ctx);
+
+        std::cerr << "[KOFXI:upper-resource-pc] #" << g_kofxiUpperResourcePcLogCount
+                  << " lookup=0x" << std::hex << lookupAddress
+                  << " tid=" << std::dec << g_currentThreadId
+                  << " pc=0x" << std::hex << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " gp=0x" << gp
+                  << " v0/v1=0x" << v0 << "/0x" << v1
+                  << " a0-a3=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " t0/t1=0x" << t0 << "/0x" << t1
+                  << " s0-s3=0x" << s0 << "/0x" << s1 << "/0x" << s2 << "/0x" << s3
+                  << " stack0=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp)
+                  << " stack8=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 8u)
+                  << " stack10=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x10u)
+                  << " stack14=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x14u)
+                  << " stack18=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x18u);
+        appendKofxiUpperResourceSlotDetail(std::cerr, g_activeLookupRdram, slot);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "recA0", a0);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "recA1", a1);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "recA2", a2);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "recA3", a3);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "recT0", t0);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "recS0", s0);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "recS1", s1);
+        appendKofxiManagerFields(std::cerr, g_activeLookupRdram, "mgrA0", a0);
+        appendKofxiManagerFields(std::cerr, g_activeLookupRdram, "mgrS0", s0);
+        appendKofxiSchedulerGlobals(std::cerr, g_activeLookupRdram);
+        appendKofxiDeferredSchedulerTables(std::cerr, g_activeLookupRdram);
+        std::cerr << " trace=" << formatDispatchHistory();
+        appendKofxiResourceSlotSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceCallbackSlotSummary(std::cerr, g_activeLookupRdram);
+        std::cerr << std::dec << std::endl;
+    }
+
+    void traceKofxiUpperResourceScannerPc(uint32_t lookupAddress)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_UPPER_RESOURCE_SCANNER_PC") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext)
+        {
+            return;
+        }
+
+        switch (lookupAddress)
+        {
+        case 0x001C6418u:
+        case 0x001C6440u:
+        case 0x001C6454u:
+        case 0x001C6FF8u:
+        case 0x001C7020u:
+        case 0x001C702Cu:
+        case 0x001C7054u:
+        case 0x001C7074u:
+        case 0x001C70A8u:
+        case 0x001C6D00u:
+            break;
+        default:
+            return;
+        }
+
+        const bool hasResourceTraceState = hasKofxiResourceTraceState(g_activeLookupRdram);
+        if (isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_UPPER_RESOURCE_SCANNER_PC_AFTER_RESOURCE") &&
+            !hasResourceTraceState)
+        {
+            return;
+        }
+
+        const uint32_t limit = std::max<uint32_t>(
+            1u, parseRuntimeEnvU32("PS2X_TRACE_KOFXI_UPPER_RESOURCE_SCANNER_PC_LIMIT", 512u));
+        if (g_kofxiUpperResourceScannerPcLogCount >= limit)
+        {
+            return;
+        }
+        ++g_kofxiUpperResourceScannerPcLogCount;
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx->pc;
+        const uint32_t ra = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
+        const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+        const uint32_t v0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0));
+        const uint32_t v1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0));
+        const uint32_t a0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0));
+        const uint32_t a1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0));
+        const uint32_t a2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0));
+        const uint32_t a3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0));
+        const uint32_t s0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0));
+        const uint32_t s1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0));
+        const uint32_t s2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0));
+        const uint32_t slot = selectKofxiUpperResourceSlotFromContext(ctx);
+
+        std::cerr << "[KOFXI:upper-resource-scanner-pc] #" << g_kofxiUpperResourceScannerPcLogCount
+                  << " lookup=0x" << std::hex << lookupAddress
+                  << " tid=" << std::dec << g_currentThreadId
+                  << " pc=0x" << std::hex << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " v0/v1=0x" << v0 << "/0x" << v1
+                  << " a0-a3=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " s0-s2=0x" << s0 << "/0x" << s1 << "/0x" << s2
+                  << " stack0/8/10/18=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 8u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x10u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x18u);
+        appendKofxiUpperResourceSlotDetail(std::cerr, g_activeLookupRdram, slot);
+        appendKofxiUpperResourceScannerStats(std::cerr, g_activeLookupRdram);
+        appendKofxiSchedulerGlobals(std::cerr, g_activeLookupRdram);
+        appendKofxiDeferredSchedulerTables(std::cerr, g_activeLookupRdram);
+        std::cerr << std::dec << std::endl;
+    }
+
+    void traceKofxiUpperResourceCommandPc(uint32_t lookupAddress)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_UPPER_RESOURCE_COMMAND_PC") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext)
+        {
+            return;
+        }
+
+        switch (lookupAddress)
+        {
+        case 0x001E9890u:
+        case 0x001E9960u:
+        case 0x001E9978u:
+        case 0x001E9984u:
+        case 0x001E9990u:
+        case 0x001E9998u:
+        case 0x001E99A4u:
+        case 0x001E99ACu:
+        case 0x001E99B4u:
+        case 0x001E99D8u:
+        case 0x001E99F0u:
+        case 0x001E9A04u:
+        case 0x001E9A18u:
+        case 0x001B1FE0u:
+        case 0x001B2004u:
+        case 0x001B2010u:
+        case 0x001B2028u:
+        case 0x001B2048u:
+        case 0x001B2074u:
+        case 0x001B20A8u:
+        case 0x001B20E8u:
+        case 0x001B20F0u:
+        case 0x001B2118u:
+        case 0x001B213Cu:
+        case 0x001B2168u:
+        case 0x001B21B0u:
+        case 0x001B21C4u:
+        case 0x001B21E0u:
+        case 0x001B21F0u:
+        case 0x001B21F8u:
+        case 0x001B2260u:
+        case 0x001B2298u:
+        case 0x001B22E8u:
+        case 0x001B22F0u:
+        case 0x001C5FA0u:
+        case 0x001C5FD4u:
+        case 0x001C5FECu:
+        case 0x001C5FF4u:
+        case 0x001C6018u:
+        case 0x001C6068u:
+        case 0x001C60F8u:
+        case 0x001C6128u:
+        case 0x001C617Cu:
+        case 0x001C6184u:
+        case 0x001C6220u:
+        case 0x001C6234u:
+        case 0x001C623Cu:
+        case 0x001C6250u:
+        case 0x001C6280u:
+        case 0x001C6294u:
+        case 0x001C62A4u:
+            break;
+        default:
+            return;
+        }
+
+        const uint32_t limit = std::max<uint32_t>(
+            1u, parseRuntimeEnvU32("PS2X_TRACE_KOFXI_UPPER_RESOURCE_COMMAND_PC_LIMIT", 512u));
+        if (g_kofxiUpperResourceCommandPcLogCount >= limit)
+        {
+            return;
+        }
+        ++g_kofxiUpperResourceCommandPcLogCount;
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx->pc;
+        const uint32_t ra = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
+        const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+        const uint32_t v0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0));
+        const uint32_t v1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0));
+        const uint32_t a0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0));
+        const uint32_t a1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0));
+        const uint32_t a2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0));
+        const uint32_t a3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0));
+        const uint32_t t0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[8], 0));
+        const uint32_t s0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0));
+        const uint32_t s1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0));
+        const uint32_t slot = selectKofxiUpperResourceSlotFromContext(ctx);
+
+        std::cerr << "[KOFXI:upper-resource-command-pc] #" << g_kofxiUpperResourceCommandPcLogCount
+                  << " lookup=0x" << std::hex << lookupAddress
+                  << " tid=" << std::dec << g_currentThreadId
+                  << " pc=0x" << std::hex << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " v0/v1=0x" << v0 << "/0x" << v1
+                  << " a0-a3=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " t0=0x" << t0
+                  << " s0/s1=0x" << s0 << "/0x" << s1
+                  << " stack0/8/10/18=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 8u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x10u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x18u);
+        appendKofxiUpperResourceSlotDetail(std::cerr, g_activeLookupRdram, slot);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "cmdA0", a0);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "cmdA1", a1);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "cmdA2", a2);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "cmdA3", a3);
+        appendKofxiManagerFields(std::cerr, g_activeLookupRdram, "mgrA0", a0);
+        appendKofxiManagerFields(std::cerr, g_activeLookupRdram, "mgrS0", s0);
+        appendKofxiResourceSlotSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceCallbackSlotSummary(std::cerr, g_activeLookupRdram);
+        std::cerr << " trace=" << formatDispatchHistory() << std::dec << std::endl;
+    }
+
+    void traceKofxiObjectManagerPc(uint32_t lookupAddress)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_OBJECT_MANAGER_PC") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext)
+        {
+            return;
+        }
+
+        switch (lookupAddress)
+        {
+        case 0x0014C130u:
+        case 0x0014C648u:
+        case 0x001BBB70u:
+        case 0x001BBBA0u:
+        case 0x001BBBC0u:
+        case 0x001BBBC8u:
+        case 0x001BBBD4u:
+        case 0x001BBBDCu:
+        case 0x001BBBECu:
+        case 0x001BBBF4u:
+        case 0x001BBBFCu:
+        case 0x001BBC00u:
+        case 0x001BBC20u:
+        case 0x001B9F18u:
+        case 0x001B9DB8u:
+        case 0x001B9E08u:
+        case 0x001B9E20u:
+        case 0x001B9E58u:
+        case 0x001B9E74u:
+        case 0x001B9E94u:
+        case 0x001B9E9Cu:
+        case 0x001B6418u:
+        case 0x001B6438u:
+        case 0x001B6460u:
+        case 0x001B6270u:
+        case 0x001AB940u:
+        case 0x001AB964u:
+        case 0x001AB984u:
+        case 0x001BA058u:
+        case 0x001B9F98u:
+        case 0x001B4CC0u:
+        case 0x001B4CD8u:
+        case 0x001CA338u:
+        case 0x001CA388u:
+        case 0x001BA088u:
+        case 0x001BA0C8u:
+            break;
+        default:
+            return;
+        }
+
+        if (isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_OBJECT_MANAGER_PC_AFTER_RESOURCE") &&
+            !hasKofxiResourceTraceState(g_activeLookupRdram))
+        {
+            return;
+        }
+
+        const uint32_t limit = std::max<uint32_t>(
+            1u, parseRuntimeEnvU32("PS2X_TRACE_KOFXI_OBJECT_MANAGER_PC_LIMIT", 768u));
+        if (g_kofxiObjectManagerPcLogCount >= limit)
+        {
+            return;
+        }
+        ++g_kofxiObjectManagerPcLogCount;
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx->pc;
+        const uint32_t ra = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
+        const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+        const uint32_t gp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0));
+        const uint32_t v0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0));
+        const uint32_t v1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0));
+        const uint32_t a0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0));
+        const uint32_t a1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0));
+        const uint32_t a2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0));
+        const uint32_t a3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0));
+        const uint32_t s0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0));
+        const uint32_t s1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0));
+        const uint32_t s2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0));
+        const uint32_t s3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[19], 0));
+        const uint32_t slot = selectKofxiObjectManagerCallbackSlot(ctx);
+        const uint32_t a0ChildObject =
+            isKofxiResourceObjectCandidate(a0) ? readGuestU32Wrapped(g_activeLookupRdram, a0 + 4u) : 0u;
+
+        std::cerr << "[KOFXI:object-manager-pc] #" << g_kofxiObjectManagerPcLogCount
+                  << " lookup=0x" << std::hex << lookupAddress
+                  << " tid=" << std::dec << g_currentThreadId
+                  << " pc=0x" << std::hex << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " gp=0x" << gp
+                  << " v0/v1=0x" << v0 << "/0x" << v1
+                  << " a0-a3=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " s0-s3=0x" << s0 << "/0x" << s1 << "/0x" << s2 << "/0x" << s3
+                  << " stack0/8/10/18/20/28=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 8u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x10u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x18u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x20u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x28u);
+        appendKofxiObjectManagerSlotDetail(std::cerr, g_activeLookupRdram, "cur", slot);
+        appendKofxiObjectManagerSlotDetail(std::cerr, g_activeLookupRdram, "a0", a0);
+        appendKofxiObjectManagerSlotDetail(std::cerr, g_activeLookupRdram, "s0", s0);
+        appendKofxiObjectManagerSlotDetail(std::cerr, g_activeLookupRdram, "s1", s1);
+        if (a0ChildObject)
+        {
+            std::cerr << " a0ChildObj=0x" << a0ChildObject
+                      << ":b0d/0e/0f=0x" << static_cast<uint32_t>(readGuestU8Wrapped(g_activeLookupRdram, a0ChildObject + 0x0Du))
+                      << "/" << static_cast<uint32_t>(readGuestU8Wrapped(g_activeLookupRdram, a0ChildObject + 0x0Eu))
+                      << "/" << static_cast<uint32_t>(readGuestU8Wrapped(g_activeLookupRdram, a0ChildObject + 0x0Fu))
+                      << " w10/98/9c/cc/e8=0x" << readGuestU32Wrapped(g_activeLookupRdram, a0ChildObject + 0x10u)
+                      << "/0x" << readGuestU16Wrapped(g_activeLookupRdram, a0ChildObject + 0x98u)
+                      << "/0x" << readGuestU16Wrapped(g_activeLookupRdram, a0ChildObject + 0x9Cu)
+                      << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, a0ChildObject + 0xCCu)
+                      << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, a0ChildObject + 0xE8u);
+        }
+        appendKofxiObjectTaskTableSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceSlotSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceCallbackSlotSummary(std::cerr, g_activeLookupRdram);
+        std::cerr << " trace=" << formatDispatchHistory() << std::dec << std::endl;
+    }
+
+    void traceKofxiResourceObjectPc(uint32_t lookupAddress)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_RESOURCE_OBJECT_PC") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext)
+        {
+            return;
+        }
+
+        switch (lookupAddress)
+        {
+        case 0x0014C4C4u:
+        case 0x0014C4CCu:
+        case 0x0014C4D4u:
+        case 0x0014C4E0u:
+        case 0x0014C4E8u:
+        case 0x0014C4F0u:
+        case 0x0014C528u:
+        case 0x0014C530u:
+        case 0x0014C540u:
+        case 0x0014C548u:
+        case 0x0014C558u:
+        case 0x0014C560u:
+        case 0x0014C56Cu:
+        case 0x0014C574u:
+        case 0x0014C57Cu:
+        case 0x0014C584u:
+        case 0x0014C590u:
+        case 0x0014C598u:
+        case 0x0014C5A4u:
+        case 0x0014C5ACu:
+        case 0x0014C5BCu:
+        case 0x0014C5C4u:
+        case 0x0014C5D0u:
+        case 0x0014C5D8u:
+        case 0x0014C5DCu:
+        case 0x0014C608u:
+        case 0x0014C610u:
+        case 0x0014C630u:
+        case 0x0014C638u:
+        case 0x0014C640u:
+        case 0x0014C648u:
+        case 0x001AEF20u:
+        case 0x001AEF58u:
+        case 0x001AEF60u:
+        case 0x001AEF68u:
+        case 0x001AF940u:
+        case 0x001AF954u:
+        case 0x001AF95Cu:
+        case 0x001AF964u:
+        case 0x001B2028u:
+        case 0x001B2048u:
+        case 0x001B2074u:
+        case 0x001B20A8u:
+        case 0x001B20E8u:
+        case 0x001B20F0u:
+        case 0x001B2118u:
+        case 0x001B213Cu:
+        case 0x001B2168u:
+        case 0x001B21B0u:
+        case 0x001B21C4u:
+        case 0x001B21E0u:
+        case 0x001B21F0u:
+        case 0x001B21F8u:
+        case 0x001B2260u:
+        case 0x001B2298u:
+        case 0x001B22C8u:
+        case 0x001B22D0u:
+        case 0x001B22E8u:
+        case 0x001B22F0u:
+        case 0x001B2380u:
+        case 0x001B23C0u:
+        case 0x001B2440u:
+        case 0x001B24B4u:
+        case 0x001B24C0u:
+        case 0x001B2540u:
+        case 0x001B25B8u:
+        case 0x001B25C4u:
+        case 0x001B87B8u:
+        case 0x001B87DCu:
+        case 0x001B87ECu:
+        case 0x001B87F4u:
+        case 0x001B8810u:
+        case 0x001B88E4u:
+        case 0x001B8960u:
+        case 0x001B8974u:
+        case 0x001B89E4u:
+        case 0x001B89F8u:
+        case 0x001B8A08u:
+        case 0x001B8A18u:
+        case 0x001B8A2Cu:
+        case 0x001B8A98u:
+        case 0x001B8AF4u:
+        case 0x001B8B00u:
+        case 0x001B8B08u:
+        case 0x001B8B28u:
+        case 0x001B8B44u:
+        case 0x001B8B50u:
+        case 0x001B8B58u:
+        case 0x001B9D68u:
+        case 0x001B9D8Cu:
+        case 0x001B9D9Cu:
+        case 0x001B9DB8u:
+        case 0x001BA088u:
+        case 0x001BA0A4u:
+        case 0x001BA0B0u:
+        case 0x001BA0C8u:
+        case 0x001BA638u:
+        case 0x001BA654u:
+        case 0x001BA660u:
+        case 0x001BA678u:
+        case 0x001C1C28u:
+        case 0x001C1CC8u:
+        case 0x001C1D18u:
+        case 0x001C25B8u:
+        case 0x001C8AA8u:
+        case 0x001C8AD8u:
+        case 0x001C9700u:
+        case 0x001C97B8u:
+        case 0x001C97D8u:
+        case 0x001C98D0u:
+        case 0x001C9924u:
+        case 0x001CB800u:
+        case 0x001CB850u:
+        case 0x001CB8B0u:
+        case 0x001CBA38u:
+        case 0x001CBA50u:
+        case 0x001CBAA0u:
+        case 0x001CBC20u:
+        case 0x001CBE50u:
+        case 0x001C5D60u:
+        case 0x001C5E40u:
+        case 0x001C5F28u:
+        case 0x001C5FA0u:
+        case 0x001C5FD4u:
+        case 0x001C5FECu:
+        case 0x001C6018u:
+        case 0x001C6250u:
+        case 0x001C62B8u:
+        case 0x001C6418u:
+        case 0x001C6A48u:
+        case 0x001C6A88u:
+        case 0x001C6AACu:
+        case 0x001C6FF8u:
+            break;
+        default:
+            return;
+        }
+
+        const bool hasResourceTraceState = hasKofxiResourceTraceState(g_activeLookupRdram);
+        if (isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_RESOURCE_OBJECT_PC_AFTER_RESOURCE") &&
+            !hasResourceTraceState)
+        {
+            return;
+        }
+
+        const uint32_t limit = std::max<uint32_t>(
+            1u, parseRuntimeEnvU32("PS2X_TRACE_KOFXI_RESOURCE_OBJECT_PC_LIMIT", 512u));
+        if (g_kofxiResourceObjectPcLogCount >= limit)
+        {
+            return;
+        }
+        ++g_kofxiResourceObjectPcLogCount;
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx->pc;
+        const uint32_t ra = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
+        const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+        const uint32_t gp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0));
+        const uint32_t v0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0));
+        const uint32_t v1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0));
+        const uint32_t a0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0));
+        const uint32_t a1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0));
+        const uint32_t a2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0));
+        const uint32_t a3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0));
+        const uint32_t t0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[8], 0));
+        const uint32_t s0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0));
+        const uint32_t s1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0));
+        const uint32_t s2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0));
+        const uint32_t s3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[19], 0));
+        const uint32_t object = selectKofxiResourceObjectFromContext(ctx);
+
+        std::cerr << "[KOFXI:resource-object-pc] #" << g_kofxiResourceObjectPcLogCount
+                  << " lookup=0x" << std::hex << lookupAddress
+                  << " tid=" << std::dec << g_currentThreadId
+                  << " pc=0x" << std::hex << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " gp=0x" << gp
+                  << " v0/v1=0x" << v0 << "/0x" << v1
+                  << " a0-a3=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " t0=0x" << t0
+                  << " s0-s3=0x" << s0 << "/0x" << s1 << "/0x" << s2 << "/0x" << s3
+                  << " stack0/8/10/18/20/28=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 8u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x10u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x18u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x20u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x28u);
+        appendKofxiResourceObjectDetail(std::cerr, g_activeLookupRdram, object);
+        appendKofxiResourceObjectGlobals(std::cerr, g_activeLookupRdram);
+        appendKofxiObjectTaskTableSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiObjectPoolSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "ptrA0", a0);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "ptrA1", a1);
+        appendKofxiPointerFields(std::cerr, g_activeLookupRdram, "ptrV0", v0);
+        appendKofxiManagerFields(std::cerr, g_activeLookupRdram, "mgrA0", a0);
+        appendKofxiSchedulerGlobals(std::cerr, g_activeLookupRdram);
+        appendKofxiDeferredSchedulerTables(std::cerr, g_activeLookupRdram);
+        std::cerr << " trace=" << formatDispatchHistory();
+        appendKofxiResourceSlotSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceCallbackSlotSummary(std::cerr, g_activeLookupRdram);
+        std::cerr << std::dec << std::endl;
+    }
+
+    void traceKofxiCallbackResourcePc(uint32_t lookupAddress)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_CALLBACK_RESOURCE_PC") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext)
+        {
+            return;
+        }
+
+        switch (lookupAddress)
+        {
+        case 0x001B8C70u:
+        case 0x001B8D00u:
+        case 0x001B8D08u:
+        case 0x001B8D10u:
+        case 0x001B8D14u:
+        case 0x001B8D1Cu:
+        case 0x001B8D24u:
+        case 0x001B8D2Cu:
+        case 0x001B8D34u:
+        case 0x001B8D40u:
+        case 0x001B8D48u:
+        case 0x001B8D50u:
+        case 0x001B8D68u:
+        case 0x001B8D88u:
+        case 0x001B8DA0u:
+        case 0x001B8DC0u:
+        case 0x001B8DE0u:
+        case 0x001B8DF8u:
+        case 0x001B8E00u:
+        case 0x001B8E0Cu:
+        case 0x001B8E14u:
+        case 0x001B8E1Cu:
+        case 0x001B8E24u:
+        case 0x001B8E40u:
+            break;
+        default:
+            return;
+        }
+
+        const uint32_t limit = std::max<uint32_t>(
+            1u, parseRuntimeEnvU32("PS2X_TRACE_KOFXI_CALLBACK_RESOURCE_PC_LIMIT", 512u));
+        if (g_kofxiCallbackResourcePcLogCount >= limit)
+        {
+            return;
+        }
+        ++g_kofxiCallbackResourcePcLogCount;
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx->pc;
+        const uint32_t ra = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
+        const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+        const uint32_t gp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0));
+        const uint32_t v0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0));
+        const uint32_t v1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0));
+        const uint32_t a0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0));
+        const uint32_t a1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0));
+        const uint32_t a2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0));
+        const uint32_t a3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0));
+        const uint32_t s0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0));
+        const uint32_t s1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0));
+        const uint32_t s2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0));
+        const uint32_t s3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[19], 0));
+        uint32_t slot = isKofxiCallbackResourceSlotAddress(s1)
+                            ? s1
+                            : (isKofxiCallbackResourceSlotAddress(a0) ? a0 : s1);
+        if (!isKofxiCallbackResourceSlotAddress(slot))
+        {
+            slot = 0u;
+        }
+
+        const uint32_t object10 = slot ? readGuestU32Wrapped(g_activeLookupRdram, slot + 0x10u) : 0u;
+        const uint32_t object14 = slot ? readGuestU32Wrapped(g_activeLookupRdram, slot + 0x14u) : 0u;
+        const uint32_t queue8 = slot ? readGuestU32Wrapped(g_activeLookupRdram, slot + 0x08u) : 0u;
+        const uint32_t object = isKofxiCallbackResourceSlotAddress(queue8) ? 0u : queue8;
+
+        std::cerr << "[KOFXI:callback-resource-pc] #" << g_kofxiCallbackResourcePcLogCount
+                  << " lookup=0x" << std::hex << lookupAddress
+                  << " tid=" << std::dec << g_currentThreadId
+                  << " pc=0x" << std::hex << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " gp=0x" << gp
+                  << " v0/v1=0x" << v0 << "/0x" << v1
+                  << " a0-a3=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " s0-s3=0x" << s0 << "/0x" << s1 << "/0x" << s2 << "/0x" << s3
+                  << " stack20=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x20u)
+                  << " stack28=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x28u)
+                  << " slot=0x" << slot;
+        if (slot != 0u)
+        {
+            std::cerr << " slot0/3=0x" << static_cast<uint32_t>(readGuestU8Wrapped(g_activeLookupRdram, slot))
+                      << "/0x" << static_cast<uint32_t>(readGuestU8Wrapped(g_activeLookupRdram, slot + 3u))
+                      << " slot4/8/c=0x" << readGuestU32Wrapped(g_activeLookupRdram, slot + 4u)
+                      << "/0x" << queue8
+                      << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, slot + 0xCu)
+                      << " obj10/14=0x" << object10 << "/0x" << object14
+                      << " buf20/24/2c=0x" << readGuestU32Wrapped(g_activeLookupRdram, slot + 0x20u)
+                      << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, slot + 0x24u)
+                      << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, slot + 0x2Cu)
+                      << " step30/34=0x" << readGuestU32Wrapped(g_activeLookupRdram, slot + 0x30u)
+                      << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, slot + 0x34u)
+                      << " tail74/94/b0=0x" << readGuestU32Wrapped(g_activeLookupRdram, slot + 0x74u)
+                      << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, slot + 0x94u)
+                      << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, slot + 0xB0u);
+        }
+        if (object != 0u)
+        {
+            std::cerr << " queueObj0/4=0x" << readGuestU32Wrapped(g_activeLookupRdram, object)
+                      << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, object + 4u)
+                      << " queueObj48/49=0x" << static_cast<uint32_t>(readGuestU8Wrapped(g_activeLookupRdram, object + 0x48u))
+                      << "/0x" << static_cast<uint32_t>(readGuestU8Wrapped(g_activeLookupRdram, object + 0x49u));
+        }
+        std::cerr << " trace=" << formatDispatchHistory();
+        appendKofxiResourceSlotSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceCallbackSlotSummary(std::cerr, g_activeLookupRdram);
+        std::cerr << std::dec << std::endl;
+    }
+
+    uint32_t selectKofxiChildResourceFromContext(const R5900Context *ctx)
+    {
+        if (!ctx)
+        {
+            return 0u;
+        }
+
+        const uint32_t regs[] = {
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[19], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0)),
+            static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0)),
+        };
+        for (uint32_t value : regs)
+        {
+            if (isKofxiChildResourceAddress(value))
+            {
+                return value;
+            }
+        }
+        return 0u;
+    }
+
+    void traceKofxiChildResourcePc(uint32_t lookupAddress)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_CHILD_RESOURCE") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext)
+        {
+            return;
+        }
+
+        switch (lookupAddress)
+        {
+        case 0x001B6E98u:
+        case 0x001B6EACu:
+        case 0x001B6EB4u:
+        case 0x001B6EC8u:
+        case 0x001B6EDCu:
+        case 0x001B6F18u:
+        case 0x001B6F20u:
+        case 0x001B6F60u:
+        case 0x001B6F7Cu:
+        case 0x001B6F80u:
+        case 0x001B6F88u:
+        case 0x001B74A8u:
+        case 0x001B752Cu:
+        case 0x001B7554u:
+        case 0x001B7570u:
+        case 0x001B7588u:
+        case 0x001B75A0u:
+        case 0x001B75C8u:
+        case 0x001B75F4u:
+        case 0x001B75FCu:
+        case 0x001B7614u:
+        case 0x001B7628u:
+        case 0x001B7688u:
+        case 0x001B7694u:
+        case 0x001B76B0u:
+        case 0x001B76C4u:
+        case 0x001B76E0u:
+        case 0x001B7738u:
+        case 0x001B7778u:
+        case 0x001B77B0u:
+        case 0x001B77C4u:
+        case 0x001BE778u:
+        case 0x001BE7C4u:
+        case 0x001BE7D8u:
+        case 0x001BE7F0u:
+        case 0x001BE874u:
+        case 0x001BEBA8u:
+        case 0x001BEB40u:
+        case 0x001BED74u:
+        case 0x001BEE68u:
+        case 0x001C97D8u:
+            break;
+        default:
+            return;
+        }
+
+        const uint32_t limit = std::max<uint32_t>(
+            1u, parseRuntimeEnvU32("PS2X_TRACE_KOFXI_CHILD_RESOURCE_LIMIT", 512u));
+        if (g_kofxiChildResourcePcLogCount >= limit)
+        {
+            return;
+        }
+        ++g_kofxiChildResourcePcLogCount;
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx->pc;
+        const uint32_t ra = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
+        const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+        const uint32_t gp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0));
+        const uint32_t v0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0));
+        const uint32_t v1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0));
+        const uint32_t a0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0));
+        const uint32_t a1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0));
+        const uint32_t a2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0));
+        const uint32_t a3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0));
+        const uint32_t s0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0));
+        const uint32_t s1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0));
+        const uint32_t s2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0));
+        const uint32_t s3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[19], 0));
+        const uint32_t child = selectKofxiChildResourceFromContext(ctx);
+
+        std::cerr << "[KOFXI:child-resource-pc] #" << g_kofxiChildResourcePcLogCount
+                  << " lookup=0x" << std::hex << lookupAddress
+                  << " tid=" << std::dec << g_currentThreadId
+                  << " pc=0x" << std::hex << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " gp=0x" << gp
+                  << " v0/v1=0x" << v0 << "/0x" << v1
+                  << " a0-a3=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " s0-s3=0x" << s0 << "/0x" << s1 << "/0x" << s2 << "/0x" << s3
+                  << " stack0/8/10/18=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 8u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x10u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x18u);
+        appendKofxiChildResourceDetail(std::cerr, g_activeLookupRdram, child);
+        std::cerr << " trace=" << formatDispatchHistory();
+        appendKofxiChildResourceSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceSlotSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceCallbackSlotSummary(std::cerr, g_activeLookupRdram);
+        std::cerr << std::dec << std::endl;
+    }
+
+    void traceKofxiResourceHandlePoolPc(uint32_t lookupAddress)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_RESOURCE_HANDLE_POOL_PC") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext)
+        {
+            return;
+        }
+
+        switch (lookupAddress)
+        {
+        case 0x001B0348u:
+        case 0x001B0364u:
+        case 0x001B0370u:
+        case 0x001B0378u:
+        case 0x001B0390u:
+        case 0x001B03C4u:
+        case 0x001B03CCu:
+        case 0x001B03E8u:
+        case 0x001B03FCu:
+        case 0x001B0414u:
+        case 0x001AFE40u:
+        case 0x001AFE64u:
+        case 0x001AFE90u:
+        case 0x001AFE98u:
+        case 0x001AFEACu:
+        case 0x001AFEC8u:
+        case 0x001AFEDCu:
+        case 0x001AFEE4u:
+        case 0x001AFEF0u:
+        case 0x001AFF18u:
+        case 0x001AFF1Cu:
+        case 0x001B04A0u:
+        case 0x001B04BCu:
+        case 0x001B04C4u:
+        case 0x001B04D0u:
+        case 0x001B04FCu:
+        case 0x001B0518u:
+        case 0x001B0524u:
+        case 0x001B0538u:
+        case 0x001B0548u:
+        case 0x001B0570u:
+        case 0x001B08C0u:
+        case 0x001B0900u:
+        case 0x001B0940u:
+        case 0x001B0954u:
+        case 0x001B0990u:
+        case 0x001B09A4u:
+        case 0x001B09D4u:
+        case 0x001B09E4u:
+        case 0x001B09F8u:
+        case 0x001B0A14u:
+        case 0x001B0A24u:
+        case 0x001B0A3Cu:
+        case 0x001B0A60u:
+        case 0x001B0A84u:
+        case 0x001B0A94u:
+        case 0x001B0A9Cu:
+        case 0x001B0AB8u:
+        case 0x001B0AD4u:
+        case 0x001B0AE8u:
+        case 0x001B0AF8u:
+        case 0x001B0B0Cu:
+        case 0x001B0B14u:
+        case 0x001B0B1Cu:
+        case 0x001B0B30u:
+        case 0x001B0B78u:
+        case 0x001B0B98u:
+        case 0x001B0BB8u:
+        case 0x001B0BC8u:
+        case 0x001B0BD0u:
+        case 0x001B0BE4u:
+        case 0x001B0D20u:
+        case 0x001B0D50u:
+        case 0x001B0D5Cu:
+        case 0x001B0D60u:
+        case 0x001B0D88u:
+        case 0x001B0DA0u:
+        case 0x001B0DB4u:
+        case 0x001B0DC8u:
+        case 0x001B1048u:
+        case 0x001B105Cu:
+        case 0x001B1064u:
+        case 0x001B106Cu:
+        case 0x001B1080u:
+        case 0x001B10A0u:
+        case 0x001B10C8u:
+        case 0x001B10D0u:
+        case 0x001B10E4u:
+        case 0x001B10F8u:
+        case 0x001B1328u:
+        case 0x001B133Cu:
+        case 0x001B1344u:
+        case 0x001B134Cu:
+        case 0x001B1360u:
+        case 0x001B0270u:
+        case 0x001B02A8u:
+        case 0x001B02CCu:
+        case 0x001B02FCu:
+        case 0x001B0304u:
+        case 0x001B0318u:
+        case 0x001B0320u:
+        case 0x001B0330u:
+        case 0x001B1540u:
+        case 0x001B158Cu:
+        case 0x001B15E0u:
+        case 0x001B1618u:
+        case 0x001B166Cu:
+        case 0x001B169Cu:
+        case 0x001B1708u:
+        case 0x001B1720u:
+        case 0x001B1734u:
+        case 0x001B1744u:
+        case 0x001B6610u:
+        case 0x001B6698u:
+        case 0x001B66E0u:
+        case 0x001B66ECu:
+        case 0x001B67D0u:
+        case 0x001B68A8u:
+        case 0x001B6908u:
+        case 0x001B6930u:
+        case 0x001B6940u:
+        case 0x001B69D8u:
+        case 0x001B6A0Cu:
+        case 0x001B6A24u:
+        case 0x001B6A48u:
+        case 0x001B6A7Cu:
+        case 0x001B6A94u:
+        case 0x001B6AC0u:
+        case 0x001B6AF4u:
+        case 0x001B6B0Cu:
+        case 0x001B6B30u:
+        case 0x001B6B44u:
+        case 0x001B6B48u:
+        case 0x001B6B50u:
+        case 0x001B6B68u:
+        case 0x001B6B84u:
+        case 0x001B6B98u:
+        case 0x001B6BB4u:
+        case 0x001B6BD8u:
+        case 0x001B6BECu:
+        case 0x001B6BF4u:
+        case 0x001B6C60u:
+        case 0x001B6C74u:
+        case 0x001B6C7Cu:
+        case 0x001B6C84u:
+        case 0x001B6C98u:
+        case 0x001B6D08u:
+        case 0x001B6D1Cu:
+        case 0x001B6D24u:
+        case 0x001B6D2Cu:
+        case 0x001B6D40u:
+        case 0x001B6D50u:
+        case 0x001B6D58u:
+        case 0x001B6D74u:
+        case 0x001B6D88u:
+        case 0x001B6D90u:
+        case 0x001B6DA4u:
+        case 0x001B6DACu:
+        case 0x001B6DB4u:
+        case 0x001B6DC8u:
+        case 0x001B6DDCu:
+        case 0x001B6DE4u:
+        case 0x001B6DF4u:
+        case 0x001B6E50u:
+        case 0x001B6E6Cu:
+        case 0x001B6E74u:
+        case 0x001B6E7Cu:
+        case 0x001B6EC8u:
+        case 0x001B6EDCu:
+        case 0x001B6F18u:
+        case 0x001B6F20u:
+        case 0x001B6F30u:
+        case 0x001B6F60u:
+        case 0x001B7010u:
+        case 0x001B7080u:
+        case 0x001B74A8u:
+        case 0x001B75ECu:
+        case 0x001B75F4u:
+        case 0x001B760Cu:
+        case 0x001B7614u:
+        case 0x001B7620u:
+        case 0x001B7628u:
+        case 0x001B7678u:
+        case 0x001B7688u:
+        case 0x001B768Cu:
+        case 0x001B7694u:
+        case 0x001B76CCu:
+        case 0x001B7730u:
+        case 0x001B7DD0u:
+        case 0x001B7E10u:
+        case 0x001B7ED0u:
+        case 0x001B7F20u:
+        case 0x001BEB40u:
+        case 0x001BEB78u:
+        case 0x001BEB80u:
+        case 0x001BEB94u:
+        case 0x001BEBA8u:
+        case 0x001BEBE0u:
+        case 0x001BEBE8u:
+        case 0x001BEBFCu:
+        case 0x001BEE00u:
+        case 0x001BEE38u:
+        case 0x001BEE40u:
+        case 0x001BEE50u:
+        case 0x001BEE68u:
+        case 0x001BE918u:
+        case 0x001BF420u:
+        case 0x001BF480u:
+        case 0x001BF48Cu:
+        case 0x001BF494u:
+        case 0x001BF4ACu:
+        case 0x001BF4C8u:
+        case 0x001BFF38u:
+        case 0x001BFF7Cu:
+        case 0x001C0140u:
+            break;
+        default:
+            return;
+        }
+
+        const uint32_t limit = std::max<uint32_t>(
+            1u, parseRuntimeEnvU32("PS2X_TRACE_KOFXI_RESOURCE_HANDLE_POOL_PC_LIMIT", 512u));
+        if (g_kofxiResourceHandlePoolPcLogCount >= limit)
+        {
+            return;
+        }
+        ++g_kofxiResourceHandlePoolPcLogCount;
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx->pc;
+        const uint32_t ra = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
+        const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+        const uint32_t gp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0));
+        const uint32_t v0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0));
+        const uint32_t v1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0));
+        const uint32_t a0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0));
+        const uint32_t a1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0));
+        const uint32_t a2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0));
+        const uint32_t a3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0));
+        const uint32_t s0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0));
+        const uint32_t s1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0));
+        const uint32_t s2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0));
+        const uint32_t s3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[19], 0));
+
+        std::cerr << "[KOFXI:resource-handle-pool-pc] #" << g_kofxiResourceHandlePoolPcLogCount
+                  << " lookup=0x" << std::hex << lookupAddress
+                  << " tid=" << std::dec << g_currentThreadId
+                  << " pc=0x" << std::hex << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " gp=0x" << gp
+                  << " v0/v1=0x" << v0 << "/0x" << v1
+                  << " a0-a3=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " s0-s3=0x" << s0 << "/0x" << s1 << "/0x" << s2 << "/0x" << s3
+                  << " stack0/8/10/18=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 8u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x10u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x18u);
+        appendKofxiResourceHandleDetail(std::cerr, g_activeLookupRdram, "a0", a0);
+        appendKofxiResourceHandleDetail(std::cerr, g_activeLookupRdram, "s0", s0);
+        appendKofxiResourceHandleDetail(std::cerr, g_activeLookupRdram, "s2", s2);
+        appendKofxiResourceObjectDetail(std::cerr, g_activeLookupRdram, "a0", a0);
+        appendKofxiResourceObjectDetail(std::cerr, g_activeLookupRdram, "s0", s0);
+        appendKofxiResourceObjectDetail(std::cerr, g_activeLookupRdram, "s1", s1);
+        appendKofxiResourceObjectDetail(std::cerr, g_activeLookupRdram, "s2", s2);
+        appendKofxiResourceHandlePoolSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceSlotSummary(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceCallbackSlotSummary(std::cerr, g_activeLookupRdram);
+        std::cerr << " trace=" << formatDispatchHistory() << std::dec << std::endl;
+    }
+
+    std::string readGuestCStringWrapped(const uint8_t *rdram, uint32_t addr, size_t maxLength);
+
+    bool isKofxiAdxStreamLookup(uint32_t lookupAddress)
+    {
+        switch (lookupAddress)
+        {
+        case 0x001BE3A8u:
+        case 0x001BE3D4u:
+        case 0x001BE3FCu:
+        case 0x001BE6D0u:
+        case 0x001BE704u:
+        case 0x001BE724u:
+        case 0x001BE740u:
+        case 0x001BE758u:
+        case 0x001BE778u:
+        case 0x001BE7C4u:
+        case 0x001BE7E0u:
+        case 0x001BE804u:
+        case 0x001BE820u:
+        case 0x001BE838u:
+        case 0x001BE858u:
+        case 0x001BE880u:
+        case 0x001BE918u:
+        case 0x001BE958u:
+        case 0x001BE9B0u:
+        case 0x001BE9C0u:
+        case 0x001BEA00u:
+        case 0x001BEA48u:
+        case 0x001C28F0u:
+        case 0x001C2914u:
+        case 0x001C2968u:
+        case 0x001C2B40u:
+        case 0x001C2B78u:
+        case 0x001C2B98u:
+        case 0x001C2BE8u:
+        case 0x001C2C1Cu:
+        case 0x001C2C54u:
+        case 0x001C2C70u:
+        case 0x001C2C88u:
+        case 0x001C2C98u:
+        case 0x001C2CF0u:
+        case 0x001C2D10u:
+        case 0x001C2D68u:
+        case 0x001C2E00u:
+        case 0x001C2F28u:
+        case 0x001C2F98u:
+        case 0x001C2FE0u:
+        case 0x001C33C0u:
+        case 0x001C3C30u:
+        case 0x001C7388u:
+        case 0x001C73F8u:
+        case 0x001C7440u:
+        case 0x001C7474u:
+        case 0x001C7480u:
+        case 0x001C7498u:
+        case 0x001C74E0u:
+        case 0x001C75A0u:
+        case 0x001C7634u:
+        case 0x001C7740u:
+        case 0x001B4848u:
+        case 0x001C1330u:
+        case 0x0011B970u:
+        case 0x00129F70u:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    void appendKofxiAdxStreamSlots(std::ostream &out, const uint8_t *rdram)
+    {
+        constexpr uint32_t kStreamSlotBase = 0x01BF5450u;
+        constexpr uint32_t kStreamSlotStride = 8u;
+        constexpr uint32_t kStreamSlotCount = 40u;
+
+        uint32_t activeCount = 0u;
+        out << " streamSlots=";
+        for (uint32_t index = 0u; index < kStreamSlotCount; ++index)
+        {
+            const uint32_t slot = kStreamSlotBase + index * kStreamSlotStride;
+            const uint32_t descriptor = readGuestU32Wrapped(rdram, slot);
+            const uint32_t cookie = readGuestU32Wrapped(rdram, slot + 4u);
+            if (descriptor == 0u && cookie == 0u)
+            {
+                continue;
+            }
+
+            if (activeCount != 0u)
+            {
+                out << ",";
+            }
+            out << std::hex << index
+                << ":desc=0x" << descriptor
+                << "/cookie=0x" << cookie
+                << "/open=0x" << (descriptor ? readGuestU32Wrapped(rdram, descriptor + 0x10u) : 0u);
+            ++activeCount;
+            if (activeCount >= 8u)
+            {
+                out << ",...";
+                break;
+            }
+        }
+
+        if (activeCount == 0u)
+        {
+            out << "none";
+        }
+    }
+
+    void appendKofxiAdxDeviceState(std::ostream &out, const uint8_t *rdram)
+    {
+        constexpr uint32_t kDeviceNameBase = 0x01BF5594u;
+        constexpr uint32_t kDeviceStride = 0x10u;
+        constexpr uint32_t kCdvStateBase = 0x0037DCB8u;
+        constexpr uint32_t kMfsStateBase = 0x003838E0u;
+        constexpr uint32_t kCdvHandleBase = 0x0037DD20u;
+        constexpr uint32_t kCdvHandleStride = 0x48u;
+        constexpr uint32_t kCdvHandleCount = 8u;
+
+        out << " devices=";
+        for (uint32_t index = 0u; index < 2u; ++index)
+        {
+            const uint32_t nameAddr = kDeviceNameBase + index * kDeviceStride;
+            const uint32_t descriptor = readGuestU32Wrapped(rdram, nameAddr - 4u);
+            if (index != 0u)
+            {
+                out << ",";
+            }
+            out << index << ":'" << readGuestCStringWrapped(rdram, nameAddr, kDeviceStride)
+                << "' desc=0x" << std::hex << descriptor
+                << " open=0x" << (descriptor ? readGuestU32Wrapped(rdram, descriptor + 0x10u) : 0u);
+        }
+
+        out << " cdvState=0x"
+            << static_cast<uint32_t>(readGuestU8Wrapped(rdram, kCdvStateBase))
+            << "/0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, kCdvStateBase + 1u))
+            << "/0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, kCdvStateBase + 2u))
+            << " cdvWords=0x" << readGuestU32Wrapped(rdram, kCdvStateBase + 4u)
+            << "/0x" << readGuestU32Wrapped(rdram, kCdvStateBase + 8u)
+            << "/0x" << readGuestU32Wrapped(rdram, kCdvStateBase + 0x24u)
+            << " mfsState=0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, kMfsStateBase))
+            << "/0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, kMfsStateBase + 1u))
+            << "/0x" << static_cast<uint32_t>(readGuestU8Wrapped(rdram, kMfsStateBase + 2u))
+            << " mfsWords=0x" << readGuestU32Wrapped(rdram, kMfsStateBase + 4u)
+            << "/0x" << readGuestU32Wrapped(rdram, kMfsStateBase + 8u)
+            << "/0x" << readGuestU32Wrapped(rdram, kMfsStateBase + 0x24u);
+
+        uint32_t activeHandles = 0u;
+        out << " cdvHandles=";
+        for (uint32_t index = 0u; index < kCdvHandleCount; ++index)
+        {
+            const uint32_t handle = kCdvHandleBase + index * kCdvHandleStride;
+            const uint32_t state0 = readGuestU8Wrapped(rdram, handle);
+            const uint32_t state1 = readGuestU8Wrapped(rdram, handle + 1u);
+            const uint32_t field4 = readGuestU32Wrapped(rdram, handle + 4u);
+            const uint32_t field24 = readGuestU32Wrapped(rdram, handle + 0x24u);
+            if (state0 == 0u && state1 == 0u && field4 == 0u && field24 == 0u)
+            {
+                continue;
+            }
+
+            if (activeHandles != 0u)
+            {
+                out << ",";
+            }
+            out << std::hex << index
+                << ":st=0x" << static_cast<uint32_t>(state0) << "/" << static_cast<uint32_t>(state1)
+                << " f4/8/c/24=0x" << field4
+                << "/0x" << readGuestU32Wrapped(rdram, handle + 8u)
+                << "/0x" << readGuestU32Wrapped(rdram, handle + 0x0Cu)
+                << "/0x" << field24;
+            ++activeHandles;
+            if (activeHandles >= 6u)
+            {
+                out << ",...";
+                break;
+            }
+        }
+        if (activeHandles == 0u)
+        {
+            out << "none";
+        }
+    }
+
+    void traceKofxiAdxStreamPc(uint32_t lookupAddress)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_ADXSTM_PC") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext ||
+            !isKofxiAdxStreamLookup(lookupAddress))
+        {
+            return;
+        }
+
+        const uint32_t limit = std::max<uint32_t>(
+            1u, parseRuntimeEnvU32("PS2X_TRACE_KOFXI_ADXSTM_PC_LIMIT", 512u));
+        if (g_kofxiAdxStreamPcLogCount >= limit)
+        {
+            return;
+        }
+        ++g_kofxiAdxStreamPcLogCount;
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx->pc;
+        const uint32_t ra = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
+        const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+        const uint32_t gp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0));
+        const uint32_t v0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0));
+        const uint32_t v1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0));
+        const uint32_t a0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0));
+        const uint32_t a1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0));
+        const uint32_t a2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0));
+        const uint32_t a3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0));
+        const uint32_t t0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[8], 0));
+        const uint32_t s0 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[16], 0));
+        const uint32_t s1 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[17], 0));
+        const uint32_t s2 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[18], 0));
+        const uint32_t s3 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[19], 0));
+        const uint32_t s4 = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[20], 0));
+
+        std::cerr << "[KOFXI:adxstm-pc] #" << g_kofxiAdxStreamPcLogCount
+                  << " lookup=0x" << std::hex << lookupAddress
+                  << " tid=" << std::dec << g_currentThreadId
+                  << " pc=0x" << std::hex << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " gp=0x" << gp
+                  << " v0/v1=0x" << v0 << "/0x" << v1
+                  << " a0-a3=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " t0=0x" << t0
+                  << " s0-s4=0x" << s0 << "/0x" << s1 << "/0x" << s2 << "/0x" << s3 << "/0x" << s4
+                  << " stack0/8/10/18/20/28=0x" << readGuestU32Wrapped(g_activeLookupRdram, sp)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 8u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x10u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x18u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x20u)
+                  << "/0x" << readGuestU32Wrapped(g_activeLookupRdram, sp + 0x28u)
+                  << " strA0='" << readGuestCStringWrapped(g_activeLookupRdram, a0, 96u) << "'"
+                  << " strA1='" << readGuestCStringWrapped(g_activeLookupRdram, a1, 96u) << "'"
+                  << " strS0='" << readGuestCStringWrapped(g_activeLookupRdram, s0, 96u) << "'"
+                  << " strS1='" << readGuestCStringWrapped(g_activeLookupRdram, s1, 96u) << "'"
+                  << " strS2='" << readGuestCStringWrapped(g_activeLookupRdram, s2, 192u) << "'"
+                  << " spDev='" << readGuestCStringWrapped(g_activeLookupRdram, sp, 96u) << "'"
+                  << " spPath='" << readGuestCStringWrapped(g_activeLookupRdram, sp + 0x130u, 192u) << "'";
+        appendKofxiAdxStreamSlots(std::cerr, g_activeLookupRdram);
+        appendKofxiAdxDeviceState(std::cerr, g_activeLookupRdram);
+        appendKofxiResourceHandlePoolSummary(std::cerr, g_activeLookupRdram);
+        std::cerr << " trace=" << formatDispatchHistory() << std::dec << std::endl;
+    }
+
     uint64_t readGuestU64Wrapped(const uint8_t *rdram, uint32_t addr)
     {
         const uint64_t lo = readGuestU32Wrapped(rdram, addr);
         const uint64_t hi = readGuestU32Wrapped(rdram, addr + 4u);
         return lo | (hi << 32);
+    }
+
+    std::string readGuestCStringWrapped(const uint8_t *rdram, uint32_t addr, size_t maxLength)
+    {
+        std::string out;
+        if (!rdram || addr == 0u)
+        {
+            return out;
+        }
+
+        out.reserve(std::min<size_t>(maxLength, 64u));
+        for (size_t i = 0; i < maxLength; ++i)
+        {
+            const uint8_t value = readGuestU8Wrapped(rdram, addr + static_cast<uint32_t>(i));
+            if (value == 0u)
+            {
+                break;
+            }
+
+            const auto ch = static_cast<unsigned char>(value);
+            out.push_back(std::isprint(ch) ? static_cast<char>(ch) : '.');
+        }
+        return out;
+    }
+
+    std::string formatGuestStackWindow(const uint8_t *rdram, uint32_t sp, int32_t firstOffset, int32_t lastOffset)
+    {
+        if (!rdram)
+        {
+            return {};
+        }
+
+        std::ostringstream stackDump;
+        stackDump << " [stack-window]";
+        for (int32_t off = firstOffset; off <= lastOffset; off += 4)
+        {
+            const uint32_t slot = readGuestU32Wrapped(rdram, sp + static_cast<uint32_t>(off));
+            if (off < 0)
+            {
+                stackDump << " -" << std::hex << static_cast<uint32_t>(-off) << "=0x" << slot;
+            }
+            else
+            {
+                stackDump << " +" << std::hex << static_cast<uint32_t>(off) << "=0x" << slot;
+            }
+        }
+        return stackDump.str();
+    }
+
+    void traceKofxiResourceLookup(uint32_t address)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_RESOURCE_RA"))
+        {
+            return;
+        }
+
+        switch (address)
+        {
+        case 0x0014C4CCu:
+        case 0x001AEF20u:
+        case 0x001AEF88u:
+        case 0x001AF2F0u:
+        case 0x001AF330u:
+        case 0x001AF5A8u:
+        case 0x001AF77Cu:
+        case 0x001AF940u:
+        case 0x001AF978u:
+        case 0x001AF9C8u:
+            break;
+        default:
+            return;
+        }
+
+        static thread_local uint32_t s_traceCount = 0u;
+        if (s_traceCount >= 256u)
+        {
+            return;
+        }
+        ++s_traceCount;
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx ? ctx->pc : 0u;
+        const uint32_t ra = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0)) : 0u;
+        const uint32_t sp = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0)) : 0u;
+        const uint32_t v0 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0)) : 0u;
+        const uint32_t a0 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0)) : 0u;
+
+        std::cerr << "[kofxi:resource-ra] lookup=0x" << std::hex << address
+                  << " ctxPc=0x" << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " v0=0x" << v0
+                  << " a0=0x" << a0
+                  << formatGuestStackWindow(g_activeLookupRdram, sp, -0x40, 0x40)
+                  << std::dec << std::endl;
+    }
+
+    void traceKofxiBadReturn(uint32_t address)
+    {
+        if (!isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_BAD_RETURN") ||
+            !g_activeLookupRdram ||
+            !g_activeLookupContext)
+        {
+            return;
+        }
+
+        const R5900Context *ctx = g_activeLookupContext;
+        const uint32_t pc = ctx ? ctx->pc : 0u;
+        const uint32_t ra = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0)) : 0u;
+        const uint32_t sp = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0)) : 0u;
+        const uint32_t gp = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0)) : 0u;
+        const uint32_t v0 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[2], 0)) : 0u;
+        const uint32_t v1 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[3], 0)) : 0u;
+        const uint32_t a0 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[4], 0)) : 0u;
+        const uint32_t a1 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[5], 0)) : 0u;
+        const uint32_t a2 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[6], 0)) : 0u;
+        const uint32_t a3 = ctx ? static_cast<uint32_t>(_mm_extract_epi32(ctx->r[7], 0)) : 0u;
+
+        auto stackWord = [&](int32_t offset) -> uint32_t {
+            return readGuestU32Wrapped(g_activeLookupRdram, sp + static_cast<uint32_t>(offset));
+        };
+
+        constexpr uint32_t kKofxiBadReturnArg = 0x0000012Cu;
+        constexpr uint32_t kKofxiBadReturnCaller = 0x001A1818u;
+        constexpr uint32_t kKofxiBadReturnCallSite = 0x001A1810u;
+        constexpr uint32_t kNoFrameOffset = 0xFFFFFFFFu;
+
+        uint32_t frameOffset = kNoFrameOffset;
+        for (uint32_t offset = 0u; offset <= 0x420u; offset += 0x10u)
+        {
+            const uint32_t frameS0 = stackWord(static_cast<int32_t>(offset));
+            const uint32_t frameRa = stackWord(static_cast<int32_t>(offset + 0x20u));
+            const uint32_t frameArg = stackWord(static_cast<int32_t>(offset + 0x40u));
+            if (frameArg == kKofxiBadReturnArg &&
+                (frameRa == kKofxiBadReturnCaller ||
+                 frameRa == kKofxiBadReturnArg ||
+                 frameS0 == kKofxiBadReturnCaller ||
+                 frameS0 == kKofxiBadReturnCallSite))
+            {
+                frameOffset = offset;
+                break;
+            }
+        }
+
+        const bool hasFrame = frameOffset != kNoFrameOffset;
+        const uint32_t frameBase = hasFrame ? (sp + frameOffset) : 0u;
+        const uint32_t frameS0 = hasFrame ? stackWord(static_cast<int32_t>(frameOffset)) : 0u;
+        const uint32_t frameSavedRa = hasFrame ? stackWord(static_cast<int32_t>(frameOffset + 0x20u)) : 0u;
+        const uint32_t frameArg30 = hasFrame ? stackWord(static_cast<int32_t>(frameOffset + 0x30u)) : 0u;
+        const uint32_t frameArg34 = hasFrame ? stackWord(static_cast<int32_t>(frameOffset + 0x34u)) : 0u;
+        const uint32_t frameArg38 = hasFrame ? stackWord(static_cast<int32_t>(frameOffset + 0x38u)) : 0u;
+        const uint32_t frameArg3C = hasFrame ? stackWord(static_cast<int32_t>(frameOffset + 0x3Cu)) : 0u;
+        const uint32_t frameArg40 = hasFrame ? stackWord(static_cast<int32_t>(frameOffset + 0x40u)) : 0u;
+
+        bool isInitTailAddress = false;
+        switch (address)
+        {
+        case 0x0000012Cu:
+        case 0x0014C2E0u:
+        case 0x0014C3B8u:
+        case 0x0014C3C0u:
+        case 0x0014C3CCu:
+        case 0x0014C3D4u:
+        case 0x0014C3E4u:
+        case 0x0014C3ECu:
+        case 0x0014C3F8u:
+        case 0x0014C400u:
+        case 0x0014C638u:
+        case 0x0014C648u:
+        case 0x0014C658u:
+        case 0x0014C66Cu:
+        case 0x0014C680u:
+        case 0x0014C694u:
+        case 0x0014C6A8u:
+        case 0x0014C6C0u:
+        case 0x0014C6C4u:
+        case 0x0014C6C8u:
+        case 0x0014C6CCu:
+        case 0x001A1810u:
+        case 0x001A1818u:
+            isInitTailAddress = true;
+            break;
+        default:
+            break;
+        }
+
+        bool isNestedResourceCall = false;
+        switch (address)
+        {
+        case 0x0010CC60u:
+        case 0x0010CC70u:
+        case 0x0010CCA0u:
+        case 0x0010D020u:
+        case 0x0010FFF8u:
+        case 0x00110130u:
+        case 0x001102F8u:
+        case 0x00110570u:
+        case 0x00110D30u:
+        case 0x00116EA0u:
+        case 0x00116EF0u:
+        case 0x00119288u:
+        case 0x001192F0u:
+        case 0x00119470u:
+        case 0x00119508u:
+        case 0x001195BCu:
+        case 0x00119610u:
+        case 0x0011963Cu:
+        case 0x00119658u:
+        case 0x00119660u:
+        case 0x001196F4u:
+        case 0x00119724u:
+        case 0x00119750u:
+        case 0x0011975Cu:
+        case 0x00119850u:
+        case 0x00119858u:
+        case 0x0014C160u:
+        case 0x001B4CD8u:
+        case 0x001B9F98u:
+        case 0x001BA058u:
+        case 0x001CA338u:
+        case 0x001CA388u:
+            isNestedResourceCall = true;
+            break;
+        default:
+            break;
+        }
+
+        const bool isPostWaitRpcCall =
+            address == 0x00119288u &&
+            a0 == 1u &&
+            a1 == 0x8010u &&
+            a3 == 0x3FFFu &&
+            (a2 == 0x0980u || a2 == 0x0A80u || a2 == 0x0981u || a2 == 0x0A81u);
+        const bool broadTrace = isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_BAD_RETURN_BROAD");
+        const bool shouldTrace =
+            broadTrace ||
+            address == kKofxiBadReturnArg ||
+            isInitTailAddress ||
+            isPostWaitRpcCall ||
+            (hasFrame && isNestedResourceCall);
+        if (!shouldTrace)
+        {
+            return;
+        }
+
+        static thread_local uint32_t s_traceCount = 0u;
+        const uint32_t limit = std::max<uint32_t>(
+            1u, parseRuntimeEnvU32("PS2X_TRACE_KOFXI_BAD_RETURN_LIMIT", 1024u));
+        if (s_traceCount >= limit)
+        {
+            return;
+        }
+        const uint32_t index = s_traceCount++;
+
+        std::cerr << "[kofxi:bad-return] #" << std::dec << index
+                  << " lookup=0x" << std::hex << address
+                  << " ctxPc=0x" << pc
+                  << " ra=0x" << ra
+                  << " sp=0x" << sp
+                  << " gp=0x" << gp
+                  << " v0=0x" << v0
+                  << " v1=0x" << v1
+                  << " a0=0x" << a0
+                  << " a1=0x" << a1
+                  << " a2=0x" << a2
+                  << " a3=0x" << a3
+                  << " frameOff=0x" << (hasFrame ? frameOffset : 0u)
+                  << " frameBase=0x" << frameBase
+                  << " frameS0=0x" << frameS0
+                  << " frameRA=0x" << frameSavedRa
+                  << " frameArgs=0x" << frameArg30
+                  << "/0x" << frameArg34
+                  << "/0x" << frameArg38
+                  << "/0x" << frameArg3C
+                  << "/0x" << frameArg40
+                  << " hasFrame=" << (hasFrame ? 1u : 0u)
+                  << " postWaitRpc=" << (isPostWaitRpcCall ? 1u : 0u)
+                  << " sp-30=0x" << stackWord(-0x30)
+                  << " sp-10=0x" << stackWord(-0x10)
+                  << " sp+0=0x" << stackWord(0)
+                  << " sp+20=0x" << stackWord(0x20)
+                  << " sp+30=0x" << stackWord(0x30)
+                  << " sp+34=0x" << stackWord(0x34)
+                  << " sp+38=0x" << stackWord(0x38)
+                  << " sp+3c=0x" << stackWord(0x3C)
+                  << " sp+40=0x" << stackWord(0x40)
+                  << " sp+120=0x" << stackWord(0x120)
+                  << " sp+140=0x" << stackWord(0x140)
+                  << " sp+1e0=0x" << stackWord(0x1E0)
+                  << " sp+200=0x" << stackWord(0x200)
+                  << " trace=" << formatDispatchHistory();
+        if (address == 0x0000012Cu || isRuntimeEnvEnabled("PS2X_TRACE_KOFXI_BAD_RETURN_STACK"))
+        {
+            std::cerr << formatGuestStackWindow(g_activeLookupRdram, sp, -0x80, 0x60);
+        }
+        std::cerr << std::dec << std::endl;
+    }
+
+    uint32_t selectKofxiInitResourceReturnRecoveryPc(const uint8_t *rdram, const R5900Context *ctx, const PS2Runtime *runtime)
+    {
+        if (!rdram || !ctx || !runtime)
+        {
+            return 0u;
+        }
+
+        constexpr uint32_t kBadReturnArg = 0x0000012Cu;
+        constexpr uint32_t kInitResourceEntry = 0x0014C2E0u;
+        constexpr uint32_t kInitResourceResume = 0x001A1818u;
+
+        const uint32_t pc = ctx->pc;
+        const uint32_t ra = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
+        if (pc != kBadReturnArg || ra != kBadReturnArg ||
+            !runtime->hasFunction(kInitResourceEntry) ||
+            !runtime->hasFunction(kInitResourceResume))
+        {
+            return 0u;
+        }
+
+        const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+        if (sp >= PS2_RAM_SIZE)
+        {
+            return 0u;
+        }
+
+        for (int32_t offset = -0x100; offset <= 0x420; offset += 0x10)
+        {
+            const uint32_t frameBase = sp + static_cast<uint32_t>(offset);
+            if (frameBase >= PS2_RAM_SIZE || frameBase + 0x44u > PS2_RAM_SIZE)
+            {
+                continue;
+            }
+
+            const uint32_t savedRa = readGuestU32Wrapped(rdram, frameBase + 0x20u);
+            const uint32_t resourceArg = readGuestU32Wrapped(rdram, frameBase + 0x40u);
+            if (savedRa != kInitResourceResume || resourceArg != kBadReturnArg)
+            {
+                continue;
+            }
+
+            static std::atomic<uint32_t> s_logCount{0u};
+            const uint32_t index = s_logCount.fetch_add(1u, std::memory_order_relaxed);
+            if (index < 32u)
+            {
+                std::cerr << "[KOFXI:init-resource-return] #" << std::dec << index
+                          << " recovered-low-return"
+                          << " bad=0x" << std::hex << pc
+                          << " ra=0x" << ra
+                          << " sp=0x" << sp
+                          << " frameBase=0x" << frameBase
+                          << " savedRa=0x" << savedRa
+                          << " arg=0x" << resourceArg
+                          << " resume=0x" << kInitResourceResume
+                          << std::dec << std::endl;
+            }
+
+            return kInitResourceResume;
+        }
+
+        return 0u;
     }
 
     uint32_t selectStackRecoveryPc(const uint8_t *rdram, const R5900Context *ctx, const PS2Runtime *runtime)
@@ -431,6 +5001,7 @@ static void UploadFrame(Texture2D &tex, PS2Runtime *rt, uint32_t &outWidth, uint
     static uint32_t s_lastHeight = 0u;
 
     const uint64_t currentTick = ps2_syscalls::GetCurrentVSyncTick();
+    ps2_stubs::pumpSifPadScriptInput(rt ? rt->memory().getRDRAM() : nullptr);
     if (!s_hasLatchedInitialFrame || currentTick != s_lastPresentationTick)
     {
         rt->gs().latchHostPresentationFrame();
@@ -451,6 +5022,19 @@ static void UploadFrame(Texture2D &tex, PS2Runtime *rt, uint32_t &outWidth, uint
                                                    &sourceFbp,
                                                    &usedPreferredDisplaySource))
     {
+        if (isRuntimeEnvEnabled("PS2X_TRACE_FRAME"))
+        {
+            static uint32_t s_missingFrameTraceCount = 0u;
+            if (s_missingFrameTraceCount < 16u || (s_missingFrameTraceCount & 0x3fu) == 0u)
+            {
+                std::cout << "[frame:trace] idx=" << s_missingFrameTraceCount
+                          << " tick=" << currentTick
+                          << " no-latched-frame"
+                          << std::endl;
+            }
+            ++s_missingFrameTraceCount;
+        }
+
         Image blank = GenImageColor(FB_WIDTH, FB_HEIGHT, MAGENTA);
         UpdateTexture(tex, blank.data);
         UnloadImage(blank);
@@ -503,11 +5087,101 @@ static void UploadFrame(Texture2D &tex, PS2Runtime *rt, uint32_t &outWidth, uint
         }
         ++s_uploadDebugCount;
     });
+
+    if (isRuntimeEnvEnabled("PS2X_TRACE_FRAME"))
+    {
+        static uint32_t s_frameTraceCount = 0u;
+        const bool changed =
+            displayFbp != s_lastDisplayFbp ||
+            sourceFbp != s_lastSourceFbp ||
+            usedPreferredDisplaySource != s_lastPreferred ||
+            width != s_lastWidth ||
+            height != s_lastHeight;
+
+        if (s_frameTraceCount < 96u || changed || (s_frameTraceCount & 0x3fu) == 0u)
+        {
+            uint32_t sampledNonZero = 0u;
+            uint32_t sampledNonBlackRgb = 0u;
+            const HostFrameRgbBounds rgbBounds = measureHostFrameRgbBounds(scratch, width, height);
+            const GSRegisters &gsRegs = rt->memory().gs();
+            const RuntimeDispFbFields dispfb1 = decodeRuntimeDispFb(gsRegs.dispfb1);
+            const RuntimeDispFbFields dispfb2 = decodeRuntimeDispFb(gsRegs.dispfb2);
+            const RuntimeDisplayFields display1 = decodeRuntimeDisplay(gsRegs.display1);
+            const RuntimeDisplayFields display2 = decodeRuntimeDisplay(gsRegs.display2);
+            constexpr size_t kSampleStrideBytes = 257u * 4u;
+            for (size_t offset = 0u; offset + 4u <= scratch.size(); offset += kSampleStrideBytes)
+            {
+                uint32_t pixel = 0u;
+                std::memcpy(&pixel, scratch.data() + offset, sizeof(pixel));
+                if (pixel != 0u)
+                {
+                    ++sampledNonZero;
+                }
+                if ((pixel & 0x00FFFFFFu) != 0u)
+                {
+                    ++sampledNonBlackRgb;
+                }
+            }
+
+            std::cout << "[frame:trace] idx=" << s_frameTraceCount
+                      << " tick=" << currentTick
+                      << " displayFbp=" << displayFbp
+                      << " sourceFbp=" << sourceFbp
+                      << " size=" << width << "x" << height
+                      << " preferred=" << static_cast<uint32_t>(usedPreferredDisplaySource ? 1u : 0u)
+                      << " sampledNonZero=" << sampledNonZero
+                      << " sampledRgb=" << sampledNonBlackRgb
+                      << " rgbCount=" << rgbBounds.rgbCount;
+            if (rgbBounds.rgbCount != 0u)
+            {
+                std::cout << " rgbBounds=(" << rgbBounds.minX << "," << rgbBounds.minY
+                          << ")-(" << rgbBounds.maxX << "," << rgbBounds.maxY << ")";
+            }
+            std::cout << " pmode=0x" << std::hex << gsRegs.pmode
+                      << " smode2=0x" << gsRegs.smode2
+                      << " dispfb1=0x" << gsRegs.dispfb1
+                      << " display1=0x" << gsRegs.display1
+                      << " dispfb2=0x" << gsRegs.dispfb2
+                      << " display2=0x" << gsRegs.display2
+                      << std::dec
+                      << " df1=(" << dispfb1.fbp << "," << dispfb1.fbw
+                      << ",0x" << std::hex << dispfb1.psm << std::dec
+                      << "," << dispfb1.dbx << "," << dispfb1.dby << ")"
+                      << " d1=(" << display1.dx << "," << display1.dy
+                      << "," << display1.magh << "," << display1.magv
+                      << "," << display1.dw << "," << display1.dh
+                      << "->" << display1.width << "x" << display1.height << ")"
+                      << " df2=(" << dispfb2.fbp << "," << dispfb2.fbw
+                      << ",0x" << std::hex << dispfb2.psm << std::dec
+                      << "," << dispfb2.dbx << "," << dispfb2.dby << ")"
+                      << " d2=(" << display2.dx << "," << display2.dy
+                      << "," << display2.magh << "," << display2.magv
+                      << "," << display2.dw << "," << display2.dh
+                      << "->" << display2.width << "x" << display2.height << ")";
+
+            for (const auto &probe : kGhostProbePoints)
+            {
+                if (probe.x >= width || probe.y >= height)
+                {
+                    continue;
+                }
+
+                const uint32_t pixel = sampleHostFramePixel(scratch, width, height, probe.x, probe.y);
+                std::cout << " host[" << probe.x << "," << probe.y << "]=0x"
+                          << std::hex << pixel << std::dec;
+            }
+            std::cout << std::endl;
+        }
+        ++s_frameTraceCount;
+    }
+
     s_lastDisplayFbp = displayFbp;
     s_lastSourceFbp = sourceFbp;
     s_lastPreferred = usedPreferredDisplaySource;
     s_lastWidth = width;
     s_lastHeight = height;
+
+    maybeSaveRuntimeScreenshot(scratch, width, height, currentTick, displayFbp, sourceFbp);
 
     std::vector<uint8_t> uploadBuffer(DEFAULT_FB_SIZE, 0u);
     if (!scratch.empty() && width != 0u && height != 0u)
@@ -541,6 +5215,10 @@ PS2Runtime::PS2Runtime()
 
     // R0 is always zero in MIPS
     m_cpuContext.r[0] = _mm_set1_epi32(0);
+
+    // Games usually run after BIOS/libkernel has enabled the EE interrupt state.
+    // Some ps2sdk thread helpers probe Status.IE and EIE before StartThread.
+    m_cpuContext.cop0_status = 0x10001u;
 
     // Stack pointer (SP) and global pointer (GP) will be set by the loaded ELF
 
@@ -974,6 +5652,22 @@ bool PS2Runtime::hasFunction(uint32_t address) const
 PS2Runtime::RecompiledFunction PS2Runtime::lookupFunction(uint32_t address)
 {
     pushDispatchPc(address);
+    traceLookupWatch(address);
+    traceKofxiResourceSlot(address);
+    traceKofxiResourceLookup(address);
+    traceKofxiBadReturn(address);
+    traceKofxiUpperResourcePc(address);
+    traceKofxiUpperResourceScannerPc(address);
+    traceKofxiUpperResourceCommandPc(address);
+    traceKofxiSchedulerWorkerPc(address);
+    traceKofxiObjectManagerPc(address);
+    traceKofxiResourceObjectPc(address);
+    traceKofxiCallbackResourcePc(address);
+    traceKofxiChildResourcePc(address);
+    traceKofxiResourceHandlePoolPc(address);
+    traceKofxiAdxStreamPc(address);
+    traceKofxiMainFramePc(address);
+    traceKofxiObjectPoolChanges(address, "lookup");
 
     auto it = m_functionTable.find(address);
     if (it != m_functionTable.end())
@@ -1004,16 +5698,7 @@ PS2Runtime::RecompiledFunction PS2Runtime::lookupFunction(uint32_t address)
             {
                 if (!s_loggedContext)
                 {
-                    std::ostringstream stackDump;
-                    if (rdram)
-                    {
-                        stackDump << " [stack]";
-                        for (uint32_t off = 0u; off < 0x40u; off += 4u)
-                        {
-                            const uint32_t slot = readGuestU32Wrapped(rdram, sp + off);
-                            stackDump << " +" << std::hex << off << "=0x" << slot;
-                        }
-                    }
+                    const std::string stackDump = formatGuestStackWindow(rdram, sp, -0x80, 0x40);
                     std::cerr << "[dispatch:first-bad-pc] bad=0x" << std::hex << pc
                               << " ra=0x" << ra
                               << " sp=0x" << sp
@@ -1023,12 +5708,12 @@ PS2Runtime::RecompiledFunction PS2Runtime::lookupFunction(uint32_t address)
                               << " a0=0x" << a0
                               << " a1=0x" << a1
                               << " trace=" << formatDispatchHistory()
-                              << stackDump.str()
+                              << stackDump
                               << std::dec << std::endl;
                     s_loggedContext = true;
                 }
 
-                uint32_t recoveryPc = 0u;
+                uint32_t recoveryPc = selectKofxiInitResourceReturnRecoveryPc(rdram, ctx, runtime);
                 if (ra != 0u && runtime->hasFunction(ra))
                 {
                     recoveryPc = ra;
@@ -1163,6 +5848,17 @@ void PS2Runtime::handleSyscall(uint8_t *rdram, R5900Context *ctx, uint32_t encod
                                  "This breaks the atomic basic block model and is structurally unsupported by the emulator.");
     }
 
+    const uint32_t syscallFromV1 = getRegU32(ctx, 3); // $v1
+    if (shouldTraceSyscall(encodedSyscallId, syscallFromV1))
+    {
+        RUNTIME_LOG("[syscall] encoded=0x" << std::hex << encodedSyscallId
+                                           << " v1=0x" << syscallFromV1
+                                           << " v0=0x" << getRegU32(ctx, 2)
+                                           << " pc=0x" << ctx->pc
+                                           << " ra=0x" << getRegU32(ctx, 31)
+                                           << std::dec << std::endl);
+    }
+
     // Try immediate first
     if (encodedSyscallId != 0 && ps2_syscalls::dispatchNumericSyscall(encodedSyscallId, rdram, ctx, this))
     {
@@ -1170,7 +5866,6 @@ void PS2Runtime::handleSyscall(uint8_t *rdram, R5900Context *ctx, uint32_t encod
     }
 
     // Try $v1 (standard)
-    const uint32_t syscallFromV1 = getRegU32(ctx, 3); // $v1
     if (ps2_syscalls::dispatchNumericSyscall(syscallFromV1, rdram, ctx, this))
     {
         return;
@@ -1711,12 +6406,31 @@ uint32_t PS2Runtime::reserveAsyncCallbackStack(uint32_t size, uint32_t alignment
 
 void PS2Runtime::dispatchLoop(uint8_t *rdram, R5900Context *ctx)
 {
+    R5900Context *previousLookupContext = g_activeLookupContext;
+    uint8_t *previousLookupRdram = g_activeLookupRdram;
+    g_activeLookupRdram = rdram;
+    g_activeLookupContext = ctx;
+
+    std::optional<GuestExecutionScope> serialGuestExecution;
+    if (serialGuestThreadsEnabled())
+    {
+        static std::atomic<uint32_t> s_serialLogCount{0u};
+        if (s_serialLogCount.fetch_add(1u, std::memory_order_relaxed) < 4u)
+        {
+            std::cerr << "[dispatch] PS2X_SERIAL_GUEST_THREADS=1: holding guest execution lock across dispatcher loop"
+                      << std::endl;
+        }
+        serialGuestExecution.emplace(this);
+    }
+
     uint32_t lastPc = std::numeric_limits<uint32_t>::max();
     uint32_t samePcCount = 0;
+    uint64_t dispatchStepCount = 0u;
     constexpr uint32_t kSamePcYieldInterval = 0x4000u;
 
     while (!isStopRequested())
     {
+        ++dispatchStepCount;
         const uint32_t pc = ctx->pc;
 
         if (pc == lastPc)
@@ -1741,13 +6455,51 @@ void PS2Runtime::dispatchLoop(uint8_t *rdram, R5900Context *ctx)
         m_debugSp.store(static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0)), std::memory_order_relaxed);
         m_debugGp.store(static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0)), std::memory_order_relaxed);
 
-        RecompiledFunction fn = lookupFunction(pc);
         const uint32_t dispatchedPc = pc;
         const uint32_t dispatchedRa = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[31], 0));
 
+        if (traceMainThreadEnabled() && g_currentThreadId == 1)
+        {
+            const uint32_t interval = std::max<uint32_t>(
+                1u, parseRuntimeEnvU32("PS2X_TRACE_MAIN_THREAD_INTERVAL", 0x20000u));
+            if ((dispatchStepCount % interval) == 0u)
+            {
+                const uint32_t sp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[29], 0));
+                const uint32_t gp = static_cast<uint32_t>(_mm_extract_epi32(ctx->r[28], 0));
+                std::cerr << "[MainThreadHeartbeat] step=" << dispatchStepCount
+                          << " pc=0x" << std::hex << pc
+                          << " ra=0x" << dispatchedRa
+                          << " sp=0x" << sp
+                          << " gp=0x" << gp
+                          << " samePc=0x" << samePcCount
+                          << std::dec
+                          << " waiters=" << guestExecutionWaiterCountForTesting()
+                          << " trace=" << formatDispatchHistory()
+                          << std::endl;
+            }
+        }
+
+        std::shared_ptr<ThreadInfo> currentThreadInfo;
+        if (serialGuestExecution || traceThreadHeartbeatEnabled() || traceMainThreadEnabled())
+        {
+            currentThreadInfo = lookupCurrentThreadInfoForDebug();
+            updateThreadDebugState(currentThreadInfo, ctx, dispatchStepCount);
+            maybeTraceThreadHeartbeat(g_currentThreadId, currentThreadInfo, ctx, dispatchStepCount);
+        }
+
+        if (serialGuestExecution)
+        {
+            RecompiledFunction fn = lookupFunction(pc);
+            fn(rdram, ctx, this);
+            traceKofxiObjectPoolChanges(dispatchedPc, "after");
+            yieldSerialGuestExecutionIfContended(this);
+        }
+        else
         {
             GuestExecutionScope guestExecution(this);
+            RecompiledFunction fn = lookupFunction(pc);
             fn(rdram, ctx, this);
+            traceKofxiObjectPoolChanges(dispatchedPc, "after");
         }
 
         if (ctx->pc == 0u)
@@ -1768,6 +6520,9 @@ void PS2Runtime::dispatchLoop(uint8_t *rdram, R5900Context *ctx)
             break;
         }
     }
+
+    g_activeLookupContext = previousLookupContext;
+    g_activeLookupRdram = previousLookupRdram;
 }
 
 void PS2Runtime::enterGuestExecution()
@@ -1832,7 +6587,9 @@ bool PS2Runtime::shouldPreemptGuestExecution()
 {
     thread_local uint32_t s_backEdgeYieldCounter = 0u;
     const uint32_t waiterCount = m_guestExecutionWaiters.load(std::memory_order_acquire);
-    const uint32_t yieldInterval = (waiterCount != 0u) ? 64u : 100u;
+    const uint32_t yieldInterval = (serialGuestThreadsEnabled() && waiterCount != 0u)
+                                       ? serialGuestContendedPreemptInterval()
+                                       : ((waiterCount != 0u) ? 64u : 100u);
     if (++s_backEdgeYieldCounter < yieldInterval)
     {
         return false;
@@ -1846,7 +6603,9 @@ uint8_t PS2Runtime::Load8(uint8_t *rdram, R5900Context *ctx, uint32_t vaddr)
 {
     try
     {
-        return m_memory.read8(vaddr);
+        const uint8_t value = m_memory.read8(vaddr);
+        traceGuestReadAccess("LOAD8", ctx, vaddr, 1u, value, 0u);
+        return value;
     }
     catch (const std::exception &)
     {
@@ -1859,7 +6618,9 @@ uint16_t PS2Runtime::Load16(uint8_t *rdram, R5900Context *ctx, uint32_t vaddr)
 {
     try
     {
-        return m_memory.read16(vaddr);
+        const uint16_t value = m_memory.read16(vaddr);
+        traceGuestReadAccess("LOAD16", ctx, vaddr, 2u, value, 0u);
+        return value;
     }
     catch (const std::exception &)
     {
@@ -1872,7 +6633,9 @@ uint32_t PS2Runtime::Load32(uint8_t *rdram, R5900Context *ctx, uint32_t vaddr)
 {
     try
     {
-        return m_memory.read32(vaddr);
+        const uint32_t value = m_memory.read32(vaddr);
+        traceGuestReadAccess("LOAD32", ctx, vaddr, 4u, value, 0u);
+        return value;
     }
     catch (const std::exception &)
     {
@@ -1885,7 +6648,9 @@ uint64_t PS2Runtime::Load64(uint8_t *rdram, R5900Context *ctx, uint32_t vaddr)
 {
     try
     {
-        return m_memory.read64(vaddr);
+        const uint64_t value = m_memory.read64(vaddr);
+        traceGuestReadAccess("LOAD64", ctx, vaddr, 8u, value, 0u);
+        return value;
     }
     catch (const std::exception &)
     {
@@ -1898,7 +6663,11 @@ __m128i PS2Runtime::Load128(uint8_t *rdram, R5900Context *ctx, uint32_t vaddr)
 {
     try
     {
-        return m_memory.read128(vaddr);
+        const __m128i value = m_memory.read128(vaddr);
+        alignas(16) uint64_t parts[2];
+        _mm_storeu_si128(reinterpret_cast<__m128i *>(parts), value);
+        traceGuestReadAccess("LOAD128", ctx, vaddr, 16u, parts[0], parts[1]);
+        return value;
     }
     catch (const std::exception &)
     {
@@ -2040,11 +6809,67 @@ void PS2Runtime::run()
 
     ps2_syscalls::EnsureVSyncWorkerRunning(m_memory.getRDRAM(), this);
 
+    const bool tracePc = isRuntimeEnvEnabled("PS2X_TRACE_PC");
     uint64_t tick = 0;
     while (!isStopRequested() && g_activeThreads.load(std::memory_order_relaxed) > 0)
     {
+        ++tick;
+        if (tracePc && (tick % 60u) == 0u)
+        {
+            uint64_t curDma = m_memory.dmaStartCount();
+            uint64_t curGif = m_memory.gifCopyCount();
+            uint64_t curGs = m_memory.gsWriteCount();
+            uint64_t curVif = m_memory.vifWriteCount();
+            const GSRegisters &gs = m_memory.gs();
+            const uint32_t dbgPc = m_debugPc.load(std::memory_order_relaxed);
+            const uint32_t dbgRa = m_debugRa.load(std::memory_order_relaxed);
+            const uint32_t dbgSp = m_debugSp.load(std::memory_order_relaxed);
+            const uint32_t dbgGp = m_debugGp.load(std::memory_order_relaxed);
+            const int activeThreads = g_activeThreads.load(std::memory_order_relaxed);
+
+            std::cout << "[run:trace] tick=" << tick
+                      << " pc=0x" << std::hex << dbgPc
+                      << " ra=0x" << dbgRa
+                      << " sp=0x" << dbgSp
+                      << " gp=0x" << dbgGp
+                      << " dispfb1=0x" << gs.dispfb1
+                      << " display1=0x" << gs.display1
+                      << std::dec
+                      << " activeThreads=" << activeThreads
+                      << " dma=" << curDma
+                      << " gif=" << curGif
+                      << " gsw=" << curGs
+                      << " vif=" << curVif
+                      << std::endl;
+        }
+        if (traceKofxiFrameStateEnabled() && (tick % 60u) == 0u)
+        {
+            const uint8_t *rdram = m_memory.getRDRAM();
+            const uint32_t dbgPc = m_debugPc.load(std::memory_order_relaxed);
+            const uint32_t dbgRa = m_debugRa.load(std::memory_order_relaxed);
+            std::cout << "[KOFXI:frame-state] tick=" << tick
+                      << " pc=0x" << std::hex << dbgPc
+                      << " ra=0x" << dbgRa
+                      << " frameSleep=0x" << readGuestU32Wrapped(rdram, 0x0037304cu)
+                      << " frameTid=0x" << readGuestU32Wrapped(rdram, 0x00373098u)
+                      << " workerA=0x" << readGuestU32Wrapped(rdram, 0x0037309cu)
+                      << " workerB=0x" << readGuestU32Wrapped(rdram, 0x003730a0u)
+                      << " initCount=0x" << readGuestU32Wrapped(rdram, 0x00372ff4u)
+                      << " irqGate=0x" << readGuestU32Wrapped(rdram, 0x0037310cu)
+                      << " cbDepth=0x" << readGuestU32Wrapped(rdram, 0x0038e560u)
+                      << " cbPending=0x" << readGuestU32Wrapped(rdram, 0x0038e564u)
+                      << " resMgr=0x" << readGuestU32Wrapped(rdram, 0x00385320u)
+                      << "/0x" << readGuestU32Wrapped(rdram, 0x00385324u)
+                      << "/0x" << readGuestU32Wrapped(rdram, 0x0038532cu)
+                      << "/0x" << readGuestU32Wrapped(rdram, 0x00385330u)
+                      << "/0x" << readGuestU32Wrapped(rdram, 0x00385334u)
+                      << " activeThreads=" << std::dec << g_activeThreads.load(std::memory_order_relaxed);
+            appendKofxiResourceSlotSummary(std::cout, rdram);
+            appendKofxiResourceCallbackSlotSummary(std::cout, rdram);
+            appendKofxiChildResourceSummary(std::cout, rdram);
+            std::cout << std::endl;
+        }
         PS2_IF_AGRESSIVE_LOGS({
-            tick++;
             if ((tick % 120) == 0)
             {
                 uint64_t curDma = m_memory.dmaStartCount();

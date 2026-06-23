@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "Stubs/GS.h"
 #include "Interrupt.h"
 #include "Lifecycle.h"
 
@@ -8,21 +9,8 @@ namespace ps2_syscalls
 
     void notifyRuntimeStop()
     {
-        stopInterruptWorker();
-        {
-            std::lock_guard<std::mutex> lock(g_irq_handler_mutex);
-            g_intcHandlers.clear();
-            g_dmacHandlers.clear();
-            g_nextIntcHandlerId = 1;
-            g_nextDmacHandlerId = 1;
-            g_enabled_intc_mask = 0xFFFFFFFFu;
-            g_enabled_dmac_mask = 0xFFFFFFFFu;
-        }
-        {
-            std::lock_guard<std::mutex> lock(g_vsync_flag_mutex);
-            g_vsync_registration = {};
-            g_vsync_tick_counter = 0u;
-        }
+        ps2_stubs::resetGsSyncVCallbackState();
+        resetInterruptState();
 
         std::vector<std::shared_ptr<ThreadInfo>> threads;
         threads.reserve(32);

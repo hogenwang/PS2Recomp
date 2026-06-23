@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(PS2X_ENABLE_RUNNER_UNITY_BUILD "Build ps2EntryRunner with CMake unity build" ON)
 set(PS2X_RUNNER_UNITY_BUILD_BATCH_SIZE 8 CACHE STRING "Unity build batch size for ps2EntryRunner")
 option(PS2X_ENABLE_SCCACHE "Use sccache as compiler launcher when available" ON)
+set(PS2X_GENERATED_RUNNER_DIR "" CACHE PATH "Directory containing generated PS2Recomp runner .cpp/.h files")
 
 if(PS2X_ENABLE_SCCACHE)
     find_program(PS2X_SCCACHE_PROGRAM sccache)
@@ -190,6 +191,28 @@ file(GLOB RUNNER_SRC_FILES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/runner/*.cpp"
 )
 
+set(PS2X_GENERATED_RUNNER_INCLUDE_DIR "")
+if(PS2X_GENERATED_RUNNER_DIR)
+    get_filename_component(PS2X_GENERATED_RUNNER_ABS_DIR
+        "${PS2X_GENERATED_RUNNER_DIR}" ABSOLUTE BASE_DIR "${CMAKE_SOURCE_DIR}")
+    if(NOT EXISTS "${PS2X_GENERATED_RUNNER_ABS_DIR}")
+        message(FATAL_ERROR "PS2X_GENERATED_RUNNER_DIR does not exist: ${PS2X_GENERATED_RUNNER_ABS_DIR}")
+    endif()
+
+    file(GLOB PS2X_GENERATED_RUNNER_SRC_FILES CONFIGURE_DEPENDS
+        "${PS2X_GENERATED_RUNNER_ABS_DIR}/*.cpp"
+    )
+
+    if(PS2X_GENERATED_RUNNER_SRC_FILES)
+        list(FILTER RUNNER_SRC_FILES EXCLUDE REGEX "[/\\\\]register_functions\\.cpp$")
+        list(APPEND RUNNER_SRC_FILES ${PS2X_GENERATED_RUNNER_SRC_FILES})
+        set(PS2X_GENERATED_RUNNER_INCLUDE_DIR "${PS2X_GENERATED_RUNNER_ABS_DIR}")
+        message(STATUS "Using generated runner sources from: ${PS2X_GENERATED_RUNNER_ABS_DIR}")
+    else()
+        message(FATAL_ERROR "PS2X_GENERATED_RUNNER_DIR contains no .cpp files: ${PS2X_GENERATED_RUNNER_ABS_DIR}")
+    endif()
+endif()
+
 set(RUNNER_MAIN_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/runner/main.cpp")
 set(ROOT_MAIN_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
 
@@ -218,6 +241,12 @@ endif()
 
 if(MSVC)
     target_compile_options(ps2EntryRunner PRIVATE /FS)
+endif()
+
+if(PS2X_GENERATED_RUNNER_INCLUDE_DIR)
+    target_include_directories(ps2EntryRunner PRIVATE
+        "${PS2X_GENERATED_RUNNER_INCLUDE_DIR}"
+    )
 endif()
 
 target_include_directories(ps2_runtime PUBLIC

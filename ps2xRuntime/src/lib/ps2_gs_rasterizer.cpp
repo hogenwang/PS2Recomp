@@ -9,6 +9,7 @@
 #include <atomic>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -92,6 +93,181 @@ namespace
     std::atomic<uint32_t> s_debugPixelCount{0};
     std::atomic<uint32_t> s_debugContext1PrimitiveCount{0};
     std::atomic<uint32_t> s_debugFbp150PixelCount{0};
+    std::atomic<uint32_t> s_traceRgbWriteCount{0};
+    std::atomic<uint32_t> s_tracePrimBoundsCount{0};
+
+    bool traceGsDrawRgbEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_DRAW_RGB");
+            return value && value[0] != '\0' && value[0] != '0';
+        }();
+        return enabled;
+    }
+
+    uint32_t traceGsDrawRgbLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_DRAW_RGB_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 256u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 256u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 8192ul));
+        }();
+        return limit;
+    }
+
+    bool traceGsPrimBoundsEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_PRIM_BOUNDS");
+            return value && value[0] != '\0' && value[0] != '0';
+        }();
+        return enabled;
+    }
+
+    uint32_t traceGsPrimBoundsLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_PRIM_BOUNDS_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 1024u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 1024u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 16384ul));
+        }();
+        return limit;
+    }
+
+    void tracePrimBounds(const char *kind,
+                         const GSContext &ctx,
+                         const GSPrimReg &prim,
+                         const GSVertex &v0,
+                         const GSVertex &v1,
+                         const GSVertex *v2,
+                         int unclippedX0,
+                         int unclippedY0,
+                         int unclippedX1,
+                         int unclippedY1,
+                         int drawX0,
+                         int drawY0,
+                         int drawX1,
+                         int drawY1)
+    {
+        if (!traceGsPrimBoundsEnabled())
+        {
+            return;
+        }
+
+        const uint32_t index = s_tracePrimBoundsCount.fetch_add(1u, std::memory_order_relaxed);
+        if (index >= traceGsPrimBoundsLimit())
+        {
+            return;
+        }
+
+        std::cout << "[gs:prim-bounds] idx=" << index
+                  << " kind=" << kind
+                  << " prim=" << static_cast<uint32_t>(prim.type)
+                  << " ctxt=" << static_cast<uint32_t>(prim.ctxt ? 1u : 0u)
+                  << " tme=" << static_cast<uint32_t>(prim.tme ? 1u : 0u)
+                  << " fst=" << static_cast<uint32_t>(prim.fst ? 1u : 0u)
+                  << " abe=" << static_cast<uint32_t>(prim.abe ? 1u : 0u)
+                  << " fbp=" << ctx.frame.fbp
+                  << " fbw=" << ctx.frame.fbw
+                  << " psm=0x" << std::hex << static_cast<uint32_t>(ctx.frame.psm)
+                  << " tex=("
+                  << "tbp0=" << ctx.tex0.tbp0
+                  << " tbw=" << static_cast<uint32_t>(ctx.tex0.tbw)
+                  << " psm=0x" << static_cast<uint32_t>(ctx.tex0.psm)
+                  << " tw=" << static_cast<uint32_t>(ctx.tex0.tw)
+                  << " th=" << static_cast<uint32_t>(ctx.tex0.th)
+                  << " tcc=" << static_cast<uint32_t>(ctx.tex0.tcc)
+                  << " tfx=" << static_cast<uint32_t>(ctx.tex0.tfx)
+                  << " cbp=" << ctx.tex0.cbp
+                  << " cpsm=0x" << static_cast<uint32_t>(ctx.tex0.cpsm)
+                  << " csm=" << static_cast<uint32_t>(ctx.tex0.csm)
+                  << " csa=" << static_cast<uint32_t>(ctx.tex0.csa)
+                  << ")"
+                  << " alpha=0x" << ctx.alpha
+                  << " test=0x" << ctx.test
+                  << std::dec
+                  << " of=(" << (ctx.xyoffset.ofx >> 4) << "," << (ctx.xyoffset.ofy >> 4) << ")"
+                  << " scissor=(" << ctx.scissor.x0 << "," << ctx.scissor.y0
+                  << ")-(" << ctx.scissor.x1 << "," << ctx.scissor.y1 << ")"
+                  << " rect=(" << unclippedX0 << "," << unclippedY0
+                  << ")-(" << unclippedX1 << "," << unclippedY1 << ")"
+                  << " draw=(" << drawX0 << "," << drawY0
+                  << ")-(" << drawX1 << "," << drawY1 << ")"
+                  << " v0=(" << v0.x << "," << v0.y << ")"
+                  << " uv0=(" << (v0.u >> 4) << "," << (v0.v >> 4) << ")"
+                  << " stq0=(" << v0.s << "," << v0.t << "," << v0.q << ")"
+                  << " v1=(" << v1.x << "," << v1.y << ")"
+                  << " uv1=(" << (v1.u >> 4) << "," << (v1.v >> 4) << ")"
+                  << " stq1=(" << v1.s << "," << v1.t << "," << v1.q << ")";
+        if (v2)
+        {
+            std::cout << " v2=(" << v2->x << "," << v2->y << ")"
+                      << " uv2=(" << (v2->u >> 4) << "," << (v2->v >> 4) << ")"
+                      << " stq2=(" << v2->s << "," << v2->t << "," << v2->q << ")";
+        }
+        std::cout << std::endl;
+    }
+
+    void traceRgbWrite(const GSContext &ctx,
+                       const GSPrimReg &prim,
+                       int x,
+                       int y,
+                       uint32_t pixel,
+                       uint32_t offset)
+    {
+        if (!traceGsDrawRgbEnabled() || (pixel & 0x00FFFFFFu) == 0u)
+        {
+            return;
+        }
+
+        const uint32_t index = s_traceRgbWriteCount.fetch_add(1u, std::memory_order_relaxed);
+        if (index >= traceGsDrawRgbLimit())
+        {
+            return;
+        }
+
+        std::cout << "[gs:rgb-write] idx=" << index
+                  << " xy=(" << x << "," << y << ")"
+                  << " pixel=0x" << std::hex << pixel
+                  << " off=0x" << offset
+                  << " fbp=0x" << ctx.frame.fbp
+                  << " fbw=0x" << ctx.frame.fbw
+                  << " psm=0x" << static_cast<uint32_t>(ctx.frame.psm)
+                  << " mask=0x" << ctx.frame.fbmsk
+                  << std::dec
+                  << " prim=" << static_cast<uint32_t>(prim.type)
+                  << " ctxt=" << static_cast<uint32_t>(prim.ctxt ? 1u : 0u)
+                  << " tme=" << static_cast<uint32_t>(prim.tme ? 1u : 0u)
+                  << " abe=" << static_cast<uint32_t>(prim.abe ? 1u : 0u)
+                  << std::endl;
+    }
+
     bool passesAlphaTest(uint64_t testReg, uint8_t alpha)
     {
         if ((testReg & 0x1u) == 0u)
@@ -530,6 +706,7 @@ void GSRasterizer::writePixel(GS *gs, int x, int y, uint8_t r, uint8_t g, uint8_
             std::memcpy(&existing, gs->m_vram + off, 2);
             pixel = static_cast<uint16_t>((pixel & ~mask) | (existing & mask));
         }
+        traceRgbWrite(ctx, gs->m_prim, x, y, decodePSMCT16(pixel), off);
         std::memcpy(gs->m_vram + off, &pixel, 2);
         return;
     }
@@ -550,6 +727,7 @@ void GSRasterizer::writePixel(GS *gs, int x, int y, uint8_t r, uint8_t g, uint8_
         pixel = (pixel & 0x00FFFFFFu) | (existing & 0xFF000000u);
     }
 
+    traceRgbWrite(ctx, gs->m_prim, x, y, pixel, off);
     std::memcpy(gs->m_vram + off, &pixel, 4);
 }
 
@@ -765,6 +943,21 @@ void GSRasterizer::drawSprite(GS *gs)
     const int drawX1 = clampInt(unclippedX1, ctx.scissor.x0, ctx.scissor.x1);
     const int drawY1 = clampInt(unclippedY1, ctx.scissor.y0, ctx.scissor.y1);
 
+    tracePrimBounds("sprite",
+                    ctx,
+                    gs->m_prim,
+                    v0,
+                    v1,
+                    nullptr,
+                    unclippedX0,
+                    unclippedY0,
+                    unclippedX1,
+                    unclippedY1,
+                    drawX0,
+                    drawY0,
+                    drawX1,
+                    drawY1);
+
     const uint64_t alphaReg = ctx.alpha;
     const uint8_t alphaMode = static_cast<uint8_t>(alphaReg & 0xFFu);
     const uint8_t alphaFix = static_cast<uint8_t>((alphaReg >> 32) & 0xFFu);
@@ -887,6 +1080,10 @@ void GSRasterizer::drawTriangle(GS *gs)
     int maxX = static_cast<int>(std::ceil(std::max({fx0, fx1, fx2})));
     int minY = static_cast<int>(std::floor(std::min({fy0, fy1, fy2})));
     int maxY = static_cast<int>(std::ceil(std::max({fy0, fy1, fy2})));
+    const int unclippedMinX = minX;
+    const int unclippedMaxX = maxX;
+    const int unclippedMinY = minY;
+    const int unclippedMaxY = maxY;
 
     minX = clampInt(minX, ctx.scissor.x0, ctx.scissor.x1);
     maxX = clampInt(maxX, ctx.scissor.x0, ctx.scissor.x1);
@@ -896,6 +1093,21 @@ void GSRasterizer::drawTriangle(GS *gs)
     float denom = (fy1 - fy2) * (fx0 - fx2) + (fx2 - fx1) * (fy0 - fy2);
     if (std::fabs(denom) < 0.001f)
         return;
+
+    tracePrimBounds("triangle",
+                    ctx,
+                    gs->m_prim,
+                    v0,
+                    v1,
+                    &v2,
+                    unclippedMinX,
+                    unclippedMinY,
+                    unclippedMaxX,
+                    unclippedMaxY,
+                    minX,
+                    minY,
+                    maxX,
+                    maxY);
 
     const float winding = (denom < 0.0f) ? -1.0f : 1.0f;
     const float invAbsDenom = 1.0f / std::fabs(denom);

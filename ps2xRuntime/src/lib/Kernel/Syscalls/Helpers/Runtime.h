@@ -449,6 +449,7 @@ struct IrqHandlerInfo
     uint32_t arg = 0;
     uint32_t gp = 0;
     uint32_t sp = 0;
+    int ownerThreadId = 1;
     bool enabled = true;
     int order = 0;
 };

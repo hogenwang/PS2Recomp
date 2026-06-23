@@ -33,6 +33,8 @@ namespace
 
     constexpr uint32_t K_EVENT_WAIT_READY_ADDR = 0x1800u;
     constexpr uint32_t K_EVENT_WAIT_GATE_ADDR = 0x1804u;
+    constexpr uint32_t K_SLEEP_WAIT_READY_ADDR = 0x1810u;
+    constexpr uint32_t K_SLEEP_WAIT_GATE_ADDR = 0x1814u;
 
     struct EeThreadStatus
     {
@@ -195,6 +197,28 @@ namespace
         ctx->pc = 0u;
     }
 
+    void sleepAfterSuspendHandler(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        if (!rdram || !ctx)
+        {
+            return;
+        }
+
+        writeGuestU32(rdram, K_SLEEP_WAIT_READY_ADDR, 1u);
+        while (readGuestU32(rdram, K_SLEEP_WAIT_GATE_ADDR) == 0u)
+        {
+            if (runtime && runtime->isStopRequested())
+            {
+                ctx->pc = 0u;
+                return;
+            }
+            std::this_thread::yield();
+        }
+
+        SleepThread(rdram, ctx, runtime);
+        ctx->pc = 0u;
+    }
+
     void alarmNoopHandler(uint8_t *, R5900Context *ctx, PS2Runtime *)
     {
         ctx->pc = 0u;
@@ -298,6 +322,47 @@ void register_ps2_runtime_kernel_tests()
             EeThreadStatus status{};
             std::memcpy(&status, env.rdram.data() + K_STATUS_ADDR, sizeof(status));
             t.Equals(status.status, THS_DORMANT, "thread should remain dormant when StartThread fails early");
+
+            setRegU32(env.ctx, 4, static_cast<uint32_t>(tid));
+            DeleteThread(env.rdram.data(), &env.ctx, &env.runtime);
+            t.Equals(getRegS32(env.ctx, 2), KE_OK, "DeleteThread should clean up failed-start thread");
+        });
+
+        tc.Run("encoded-zero syscall dispatches through v1", [](TestCase &t)
+        {
+            TestEnv env;
+
+            const uint32_t threadParam[7] = {
+                0u,
+                0x00250000u, // entry not registered in runtime
+                0x00300000u,
+                0x00000400u,
+                0x00110000u,
+                8u,
+                0u
+            };
+
+            writeGuestWords(env.rdram.data(), K_PARAM_ADDR, threadParam, std::size(threadParam));
+            setRegU32(env.ctx, 4, K_PARAM_ADDR);
+            CreateThread(env.rdram.data(), &env.ctx, &env.runtime);
+            const int32_t tid = getRegS32(env.ctx, 2);
+            t.IsTrue(tid >= 2, "CreateThread should return an id before syscall dispatch check");
+
+            setRegU32(env.ctx, 4, static_cast<uint32_t>(tid));
+            setRegU32(env.ctx, 5, 0x12345678u);
+            setRegU32(env.ctx, 3, 0x22u); // $v1 = StartThread
+            env.runtime.handleSyscall(env.rdram.data(), &env.ctx, 0u);
+            t.Equals(getRegS32(env.ctx, 2), KE_ERROR,
+                     "syscall 0 should dispatch StartThread through $v1 for ps2sdk-style wrappers");
+
+            setRegU32(env.ctx, 4, static_cast<uint32_t>(tid));
+            setRegU32(env.ctx, 5, K_STATUS_ADDR);
+            ReferThreadStatus(env.rdram.data(), &env.ctx, &env.runtime);
+            t.Equals(getRegS32(env.ctx, 2), KE_OK, "ReferThreadStatus should still succeed after failed StartThread");
+
+            EeThreadStatus status{};
+            std::memcpy(&status, env.rdram.data() + K_STATUS_ADDR, sizeof(status));
+            t.Equals(status.status, THS_DORMANT, "thread should remain dormant when v1-dispatched StartThread fails early");
 
             setRegU32(env.ctx, 4, static_cast<uint32_t>(tid));
             DeleteThread(env.rdram.data(), &env.ctx, &env.runtime);
@@ -558,6 +623,113 @@ void register_ps2_runtime_kernel_tests()
             t.Equals(getRegS32(env.ctx, 2), KE_OK, "DeleteThread should clean up the waiter thread");
         });
 
+        tc.Run("WakeupThread releases sleep wait even when the target is suspended", [](TestCase &t)
+        {
+            TestEnv env;
+
+            constexpr uint32_t kWaitThreadEntry = 0x00206000u;
+            writeGuestU32(env.rdram.data(), K_SLEEP_WAIT_READY_ADDR, 0u);
+            writeGuestU32(env.rdram.data(), K_SLEEP_WAIT_GATE_ADDR, 0u);
+
+            env.runtime.registerFunction(kWaitThreadEntry, &sleepAfterSuspendHandler);
+
+            const uint32_t threadParam[7] = {
+                0u,
+                kWaitThreadEntry,
+                0x00312000u,
+                0x00000800u,
+                0x00120000u,
+                6u,
+                0u
+            };
+
+            writeGuestWords(env.rdram.data(), K_PARAM_ADDR, threadParam, std::size(threadParam));
+            setRegU32(env.ctx, 4, K_PARAM_ADDR);
+            CreateThread(env.rdram.data(), &env.ctx, &env.runtime);
+            const int32_t tid = getRegS32(env.ctx, 2);
+            t.IsTrue(tid >= 2, "CreateThread should return a valid worker thread id");
+
+            setRegU32(env.ctx, 4, static_cast<uint32_t>(tid));
+            setRegU32(env.ctx, 5, 0u);
+            StartThread(env.rdram.data(), &env.ctx, &env.runtime);
+            t.Equals(getRegS32(env.ctx, 2), KE_OK, "StartThread should launch the sleep waiter");
+
+            const bool ready = waitUntil([&]()
+            {
+                return readGuestU32(env.rdram.data(), K_SLEEP_WAIT_READY_ADDR) == 1u;
+            }, std::chrono::milliseconds(200));
+            t.IsTrue(ready, "waiter thread should reach the suspend gate before blocking");
+
+            setRegU32(env.ctx, 4, static_cast<uint32_t>(tid));
+            SuspendThread(env.rdram.data(), &env.ctx, &env.runtime);
+            t.Equals(getRegS32(env.ctx, 2), KE_OK, "SuspendThread should succeed for the running waiter");
+
+            writeGuestU32(env.rdram.data(), K_SLEEP_WAIT_GATE_ADDR, 1u);
+
+            const bool sleepWaitingSuspended = waitUntil([&]()
+            {
+                R5900Context statusCtx{};
+                setRegU32(statusCtx, 4, static_cast<uint32_t>(tid));
+                setRegU32(statusCtx, 5, K_STATUS_ADDR);
+                ReferThreadStatus(env.rdram.data(), &statusCtx, &env.runtime);
+                if (getRegS32(statusCtx, 2) != KE_OK)
+                {
+                    return false;
+                }
+
+                EeThreadStatus status{};
+                std::memcpy(&status, env.rdram.data() + K_STATUS_ADDR, sizeof(status));
+                return status.status == THS_WAITSUSPEND && status.waitType == 1u;
+            }, std::chrono::milliseconds(200));
+            t.IsTrue(sleepWaitingSuspended, "waiter thread should enter THS_WAITSUSPEND before wakeup");
+
+            setRegU32(env.ctx, 4, static_cast<uint32_t>(tid));
+            WakeupThread(env.rdram.data(), &env.ctx, &env.runtime);
+            t.Equals(getRegS32(env.ctx, 2), KE_OK, "WakeupThread should succeed for a suspended sleeping waiter");
+
+            const bool suspended = waitUntil([&]()
+            {
+                R5900Context statusCtx{};
+                setRegU32(statusCtx, 4, static_cast<uint32_t>(tid));
+                setRegU32(statusCtx, 5, K_STATUS_ADDR);
+                ReferThreadStatus(env.rdram.data(), &statusCtx, &env.runtime);
+                if (getRegS32(statusCtx, 2) != KE_OK)
+                {
+                    return false;
+                }
+
+                EeThreadStatus status{};
+                std::memcpy(&status, env.rdram.data() + K_STATUS_ADDR, sizeof(status));
+                return status.status == THS_SUSPEND && status.waitType == 0u;
+            }, std::chrono::milliseconds(200));
+            t.IsTrue(suspended, "WakeupThread should move a wait-suspended sleeper to THS_SUSPEND");
+
+            setRegU32(env.ctx, 4, static_cast<uint32_t>(tid));
+            ResumeThread(env.rdram.data(), &env.ctx, &env.runtime);
+            t.Equals(getRegS32(env.ctx, 2), KE_OK, "ResumeThread should release the waiter after wakeup");
+
+            const bool dormant = waitUntil([&]()
+            {
+                R5900Context statusCtx{};
+                setRegU32(statusCtx, 4, static_cast<uint32_t>(tid));
+                setRegU32(statusCtx, 5, K_STATUS_ADDR);
+                ReferThreadStatus(env.rdram.data(), &statusCtx, &env.runtime);
+                if (getRegS32(statusCtx, 2) != KE_OK)
+                {
+                    return false;
+                }
+
+                EeThreadStatus status{};
+                std::memcpy(&status, env.rdram.data() + K_STATUS_ADDR, sizeof(status));
+                return status.status == THS_DORMANT;
+            }, std::chrono::milliseconds(200));
+            t.IsTrue(dormant, "waiter thread should return to dormant after being resumed");
+
+            setRegU32(env.ctx, 4, static_cast<uint32_t>(tid));
+            DeleteThread(env.rdram.data(), &env.ctx, &env.runtime);
+            t.Equals(getRegS32(env.ctx, 2), KE_OK, "DeleteThread should clean up the waiter thread");
+        });
+
         tc.Run("setup heap and allocator primitives track end-of-heap", [](TestCase &t)
         {
             TestEnv env;
@@ -593,6 +765,33 @@ void register_ps2_runtime_kernel_tests()
             env.runtime.guestFree(grown);
             const uint32_t reused = env.runtime.guestMalloc(0x80u, 16u);
             t.Equals(reused, heapBase, "guestFree should make the head block reusable");
+        });
+
+        tc.Run("late BIOS numeric syscalls dispatch for startup probes", [](TestCase &t)
+        {
+            TestEnv env;
+
+            t.IsTrue(callSyscall(0x7Bu, env.rdram.data(), &env.ctx, &env.runtime),
+                     "_ExecOSD syscall should dispatch");
+            t.Equals(getRegS32(env.ctx, 2), KE_OK, "_ExecOSD should return success in the bootstrap stub");
+
+            setRegU32(env.ctx, 2, 0xDEADBEEFu);
+            t.IsTrue(callSyscall(0x7Cu, env.rdram.data(), &env.ctx, &env.runtime),
+                     "Deci2Call syscall should dispatch");
+            t.Equals(getRegS32(env.ctx, 2), KE_OK, "Deci2Call should return success for DECI2 probes");
+
+            t.IsTrue(callSyscall(0x7Du, env.rdram.data(), &env.ctx, &env.runtime),
+                     "PSMode syscall should dispatch");
+            t.Equals(getRegS32(env.ctx, 2), KE_OK, "PSMode should return success as a no-op");
+
+            t.IsTrue(callSyscall(0x7Eu, env.rdram.data(), &env.ctx, &env.runtime),
+                     "MachineType syscall should dispatch");
+            t.Equals(::getRegU32(&env.ctx, 2), 0u, "MachineType should report a standard PS2 class machine");
+
+            t.IsTrue(callSyscall(0x7Fu, env.rdram.data(), &env.ctx, &env.runtime),
+                     "GetMemorySize syscall should dispatch");
+            t.Equals(::getRegU32(&env.ctx, 2), static_cast<uint32_t>(PS2_RAM_SIZE),
+                     "GetMemorySize should report the runtime RDRAM size");
         });
 
         tc.Run("ReleaseAlarm aliases CancelAlarm and cache toggles succeed", [](TestCase &t)

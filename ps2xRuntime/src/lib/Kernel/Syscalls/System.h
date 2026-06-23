@@ -14,6 +14,10 @@ namespace ps2_syscalls
     void GsSetVideoMode(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
     void GetOsdConfigParam(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
     void SetOsdConfigParam(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
+    void SetCPUTimerHandler(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
+    void SetCPUTimer(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
+    void SetOsdConfigParam2(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
+    void GetOsdConfigParam2(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
     void GetRomName(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
     void SifLoadElfPart(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
     void sceSifLoadElf(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
@@ -27,8 +31,11 @@ namespace ps2_syscalls
     void SetupHeap(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
     void EndOfHeap(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
     void GetMemorySize(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
+    void ExecOSD(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
     void FindAddress(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
     void Deci2Call(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
+    void PSMode(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
+    void MachineType(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
     void QueryBootMode(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
     void GetThreadTLS(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
     void RegisterExitHandler(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);

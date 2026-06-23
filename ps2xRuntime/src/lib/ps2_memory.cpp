@@ -5,8 +5,16 @@
 #include <cstring>
 #include <stdexcept>
 #include <algorithm>
+#include <cstdlib>
 #include <string>
 #include <vector>
+
+namespace ps2_syscalls
+{
+    uint64_t GetCurrentVSyncTick();
+    uint32_t AcknowledgeIntcStatus(uint32_t mask);
+    uint32_t ReadIntcStatus();
+}
 
 namespace
 {
@@ -32,6 +40,109 @@ namespace
     {
         inRange(offset, sizeof(T), regionSize, op, address);
         std::memcpy(base + offset, &value, sizeof(T));
+    }
+
+    bool traceGifDmaSourceEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GIF_DMA_SOURCE");
+            return value && value[0] != '\0' && value[0] != '0';
+        }();
+        return enabled;
+    }
+
+    uint32_t traceGifDmaSourceLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GIF_DMA_SOURCE_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 2048u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 2048u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 65536ul));
+        }();
+        return limit;
+    }
+
+    std::atomic<uint32_t> s_traceGifDmaSourceCount{0};
+
+    bool takeGifDmaSourceTrace(uint32_t &index)
+    {
+        if (!traceGifDmaSourceEnabled())
+        {
+            return false;
+        }
+
+        index = s_traceGifDmaSourceCount.fetch_add(1u, std::memory_order_relaxed);
+        return index < traceGifDmaSourceLimit();
+    }
+
+    void appendGifTagSummary(const uint8_t *data, uint32_t sizeBytes)
+    {
+        if (!data || sizeBytes < 16u)
+        {
+            std::cout << " tag=<none>";
+            return;
+        }
+
+        uint64_t tagLo = 0;
+        uint64_t tagHi = 0;
+        std::memcpy(&tagLo, data, sizeof(tagLo));
+        std::memcpy(&tagHi, data + 8u, sizeof(tagHi));
+
+        const uint32_t nloop = static_cast<uint32_t>(tagLo & 0x7FFFu);
+        const uint32_t eop = static_cast<uint32_t>((tagLo >> 15) & 0x1ull);
+        const uint32_t flg = static_cast<uint32_t>((tagLo >> 58) & 0x3ull);
+        uint32_t nreg = static_cast<uint32_t>((tagLo >> 60) & 0xFull);
+        if (nreg == 0u)
+        {
+            nreg = 16u;
+        }
+
+        std::cout << " tagLo=0x" << std::hex << tagLo
+                  << " tagHi=0x" << tagHi
+                  << std::dec
+                  << " nloop=" << nloop
+                  << " eop=" << eop
+                  << " flg=" << flg
+                  << " nreg=" << nreg;
+    }
+
+    void traceGifDmaPacketSource(const char *phase,
+                                 const char *source,
+                                 uint32_t srcAddr,
+                                 uint32_t srcPhys,
+                                 uint32_t qwc,
+                                 uint32_t sizeBytes,
+                                 bool scratch,
+                                 const uint8_t *data)
+    {
+        uint32_t index = 0;
+        if (!takeGifDmaSourceTrace(index))
+        {
+            return;
+        }
+
+        std::cout << "[gifdma:" << phase << "] idx=" << index
+                  << " source=" << source
+                  << " src=0x" << std::hex << srcAddr
+                  << " phys=0x" << srcPhys
+                  << std::dec
+                  << " qwc=" << qwc
+                  << " bytes=" << sizeBytes
+                  << " scratch=" << static_cast<uint32_t>(scratch ? 1u : 0u);
+        appendGifTagSummary(data, sizeBytes);
+        std::cout << std::endl;
     }
 
     inline bool isGsPrivReg(uint32_t addr)
@@ -88,6 +199,72 @@ namespace
         }
     }
 
+    inline uint64_t readGsPrivRegForGuest(GSRegisters &gs, uint32_t addr)
+    {
+        uint64_t *reg = gsRegPtr(gs, addr);
+        if (!reg)
+        {
+            return 0u;
+        }
+
+        uint64_t value = *reg;
+        const uint32_t regOff = (addr - PS2_GS_PRIV_REG_BASE) & ~0x7u;
+        if (regOff == 0x1000u)
+        {
+            static const bool traceCsrRead = [] {
+                const char *env = std::getenv("PS2X_TRACE_GS_CSR_READ");
+                return env && env[0] != '\0' && env[0] != '0';
+            }();
+            static std::atomic<uint32_t> traceCount{0};
+
+            constexpr uint64_t kCsrFieldBit = 1ull << 13;
+            const uint64_t raw = value;
+            const uint64_t tick = ps2_syscalls::GetCurrentVSyncTick();
+            const uint64_t field = (tick & 1ull) ? kCsrFieldBit : 0ull;
+            value |= field;
+            if (traceCsrRead)
+            {
+                const uint32_t idx = traceCount.fetch_add(1, std::memory_order_relaxed);
+                if (idx < 128u || (idx < 4096u && (idx % 128u) == 0u))
+                {
+                    std::cerr << "[GS:csr-read] #" << idx << " addr=0x" << std::hex << addr
+                              << " raw=0x" << raw << " tick=" << std::dec << tick
+                              << " field=" << ((field != 0u) ? 1u : 0u)
+                              << " value=0x" << std::hex << value << std::dec << "\n";
+                }
+            }
+        }
+
+        return value;
+    }
+
+}
+
+namespace ps2_syscalls
+{
+    namespace
+    {
+        std::atomic<uint32_t> g_intc_status_bits{0u};
+    }
+
+    void RaiseIntcStatus(uint32_t cause)
+    {
+        if (cause >= 32u)
+        {
+            return;
+        }
+        g_intc_status_bits.fetch_or(1u << cause, std::memory_order_relaxed);
+    }
+
+    uint32_t AcknowledgeIntcStatus(uint32_t mask)
+    {
+        return g_intc_status_bits.fetch_and(~mask, std::memory_order_relaxed) & ~mask;
+    }
+
+    uint32_t ReadIntcStatus()
+    {
+        return g_intc_status_bits.load(std::memory_order_relaxed);
+    }
 }
 
 // Helpers for GS VRAM addressing (PSMCT32 path).
@@ -401,11 +578,8 @@ uint32_t PS2Memory::read32(uint32_t address)
 
     if (isGsPrivReg(address))
     {
-        uint64_t *reg = gsRegPtr(gs_regs, address);
-        if (!reg)
-            return 0;
         uint32_t off = address & 7;
-        uint64_t val = *reg;
+        uint64_t val = readGsPrivRegForGuest(gs_regs, address);
         return (uint32_t)(val >> (off * 8));
     }
 
@@ -437,8 +611,7 @@ uint64_t PS2Memory::read64(uint32_t address)
 
     if (isGsPrivReg(address))
     {
-        uint64_t *reg = gsRegPtr(gs_regs, address);
-        return reg ? *reg : 0;
+        return readGsPrivRegForGuest(gs_regs, address);
     }
 
     const bool scratch = isScratchpad(address);
@@ -743,6 +916,20 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
         return true;
     }
 
+    if (address == 0x1000F000u)
+    {
+        ps2_syscalls::AcknowledgeIntcStatus(value);
+        m_ioRegisters[address] = ps2_syscalls::ReadIntcStatus();
+        return true;
+    }
+
+    if (address == 0x1000F010u)
+    {
+        const uint32_t current = m_ioRegisters.count(address) ? m_ioRegisters[address] : 0u;
+        m_ioRegisters[address] = current ^ value;
+        return true;
+    }
+
     m_ioRegisters[address] = value;
 
     if (address >= 0x10003C00u && address < 0x10003E00u)
@@ -849,6 +1036,19 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                 uint32_t chcr = value;
                 uint32_t mode = (chcr >> 2) & 0x3;
 
+                uint32_t dmaTraceIndex = 0;
+                if (channelBase == 0x1000A000u && takeGifDmaSourceTrace(dmaTraceIndex))
+                {
+                    std::cout << "[gifdma:start] idx=" << dmaTraceIndex
+                              << " madr=0x" << std::hex << madr
+                              << " tadr=0x" << m_ioRegisters[channelBase + 0x30]
+                              << " chcr=0x" << chcr
+                              << std::dec
+                              << " qwc=" << qwc
+                              << " mode=" << mode
+                              << std::endl;
+                }
+
                 if (mode == 0 && qwc > 0)
                 {
                     enqueueTransfer(madr, qwc);
@@ -944,6 +1144,23 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                         const bool irq = ((tag >> 31) & 0x1ull) != 0ull;
                         uint32_t addr = static_cast<uint32_t>((tag >> 32) & 0x7FFFFFFF);
                         ++tagsProcessed;
+
+                        uint32_t chainTraceIndex = 0;
+                        if (channelBase == 0x1000A000u && takeGifDmaSourceTrace(chainTraceIndex))
+                        {
+                            std::cout << "[gifdma:chain-tag] idx=" << chainTraceIndex
+                                      << " tagAddr=0x" << std::hex << currentTagAddr
+                                      << " phys=0x" << physTag
+                                      << " tag=0x" << tag
+                                      << " addr=0x" << addr
+                                      << std::dec
+                                      << " qwc=" << static_cast<uint32_t>(tagQwc)
+                                      << " id=" << id
+                                      << " irq=" << static_cast<uint32_t>(irq ? 1u : 0u)
+                                      << " asp=" << asp
+                                      << " scratch=" << static_cast<uint32_t>(tagInSPR ? 1u : 0u)
+                                      << std::endl;
+                        }
 
                         uint32_t dataAddr = 0;
                         bool hasPayload = (tagQwc > 0);
@@ -1097,6 +1314,14 @@ void PS2Memory::processPendingTransfers()
         {
             m_seenGifCopy = true;
             m_gifCopyCount.fetch_add(1, std::memory_order_relaxed);
+            traceGifDmaPacketSource("submit",
+                                    "chain",
+                                    p.srcAddr,
+                                    0u,
+                                    p.qwc,
+                                    static_cast<uint32_t>(p.chainData.size()),
+                                    false,
+                                    p.chainData.data());
             submitGifPacket(GifPathId::Path3, p.chainData.data(), static_cast<uint32_t>(p.chainData.size()), false);
         }
         else if (p.qwc > 0)
@@ -1118,6 +1343,14 @@ void PS2Memory::processPendingTransfers()
                 {
                     m_seenGifCopy = true;
                     m_gifCopyCount.fetch_add(1, std::memory_order_relaxed);
+                    traceGifDmaPacketSource("submit",
+                                            "scratch",
+                                            p.srcAddr,
+                                            srcPhys,
+                                            p.qwc,
+                                            sizeBytes,
+                                            true,
+                                            m_scratchpad + srcPhys);
                     submitGifPacket(GifPathId::Path3, m_scratchpad + srcPhys, sizeBytes, false);
                 }
             }
@@ -1129,6 +1362,14 @@ void PS2Memory::processPendingTransfers()
                 {
                     m_seenGifCopy = true;
                     m_gifCopyCount.fetch_add(1, std::memory_order_relaxed);
+                    traceGifDmaPacketSource("submit",
+                                            "rdram",
+                                            p.srcAddr,
+                                            srcPhys,
+                                            p.qwc,
+                                            sizeBytes,
+                                            false,
+                                            m_rdram + srcPhys);
                     submitGifPacket(GifPathId::Path3, m_rdram + srcPhys, sizeBytes, false);
                 }
             }
@@ -1290,12 +1531,8 @@ uint32_t PS2Memory::readIORegister(uint32_t address)
 {
     if (isGsPrivReg(address))
     {
-        if (uint64_t *reg = gsRegPtr(gs_regs, address))
-        {
-            const uint32_t off = address & 7u;
-            return static_cast<uint32_t>((*reg >> (off * 8u)) & 0xFFFFFFFFull);
-        }
-        return 0u;
+        const uint32_t off = address & 7u;
+        return static_cast<uint32_t>((readGsPrivRegForGuest(gs_regs, address) >> (off * 8u)) & 0xFFFFFFFFull);
     }
 
     if (address >= 0x10002000 && address <= 0x10002030)
@@ -1321,6 +1558,12 @@ uint32_t PS2Memory::readIORegister(uint32_t address)
     }
     if (address >= 0x10000000 && address < 0x10010000)
     {
+        if (address == 0x1000F000u)
+        {
+            m_ioRegisters[address] = ps2_syscalls::ReadIntcStatus();
+            return m_ioRegisters[address];
+        }
+
         if (address >= 0x10000000 && address < 0x10000100)
         {
             if ((address & 0xF) == 0x00)

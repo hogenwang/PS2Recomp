@@ -1,8 +1,399 @@
 #include "Common.h"
 #include "Thread.h"
 
+#include <cstdlib>
+#include <optional>
+
 namespace ps2_syscalls
 {
+    static bool traceThreadStatusEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_THREAD_STATUS");
+            if (!value || value[0] == '\0')
+            {
+                return false;
+            }
+
+            return std::strcmp(value, "0") != 0 &&
+                   std::strcmp(value, "false") != 0 &&
+                   std::strcmp(value, "FALSE") != 0 &&
+                   std::strcmp(value, "off") != 0 &&
+                   std::strcmp(value, "OFF") != 0;
+        }();
+        return enabled;
+    }
+
+    static bool traceKofxiFrameThreadEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_KOFXI_FRAME_THREAD");
+            if (!value || value[0] == '\0')
+            {
+                return traceThreadStatusEnabled();
+            }
+
+            return std::strcmp(value, "0") != 0 &&
+                   std::strcmp(value, "false") != 0 &&
+                   std::strcmp(value, "FALSE") != 0 &&
+                   std::strcmp(value, "off") != 0 &&
+                   std::strcmp(value, "OFF") != 0;
+        }();
+        return enabled;
+    }
+
+    static uint32_t readGuestU32OrZero(uint8_t *rdram, uint32_t addr)
+    {
+        if (!rdram)
+        {
+            return 0;
+        }
+
+        uint8_t *ptr = getMemPtr(rdram, addr);
+        if (!ptr)
+        {
+            return 0;
+        }
+
+        uint32_t value = 0;
+        std::memcpy(&value, ptr, sizeof(value));
+        return value;
+    }
+
+    static void traceKofxiFrameThreadEvent(const char *event,
+                                           uint8_t *rdram,
+                                           int targetTid,
+                                           const R5900Context *ctx,
+                                           int status,
+                                           int waitType,
+                                           int waitId,
+                                           int suspendCount,
+                                           int wakeupCount,
+                                           int ret)
+    {
+        if (!traceKofxiFrameThreadEnabled())
+        {
+            return;
+        }
+
+        const uint32_t pc = ctx ? ctx->pc : 0u;
+        const uint32_t ra = ctx ? GPR_U32(ctx, 31) : 0u;
+        const bool isFrameThreadEvent = targetTid == 1 || g_currentThreadId == 1 || ra == 0x1b4118u;
+        if (!isFrameThreadEvent)
+        {
+            return;
+        }
+
+        static std::atomic<uint32_t> s_frameTraceCount{0u};
+        const uint32_t traceIndex = s_frameTraceCount.fetch_add(1u, std::memory_order_relaxed);
+        if (traceIndex >= 512u)
+        {
+            return;
+        }
+
+        RUNTIME_LOG("[KOFXI:frame-thread] event=" << (event ? event : "")
+                                                  << " caller=" << g_currentThreadId
+                                                  << " target=" << targetTid
+                                                  << " pc=0x" << std::hex << pc
+                                                  << " ra=0x" << ra
+                                                  << " frameSleep=0x" << readGuestU32OrZero(rdram, 0x0037304cu)
+                                                  << " frameTid=0x" << readGuestU32OrZero(rdram, 0x00373098u)
+                                                  << " workerA=0x" << readGuestU32OrZero(rdram, 0x0037309cu)
+                                                  << " workerB=0x" << readGuestU32OrZero(rdram, 0x003730a0u)
+                                                  << " initCount=0x" << readGuestU32OrZero(rdram, 0x00372ff4u)
+                                                  << " irqGate=0x" << readGuestU32OrZero(rdram, 0x0037310cu)
+                                                  << std::dec
+                                                  << " status=" << status
+                                                  << " waitType=0x" << std::hex << waitType
+                                                  << " waitId=0x" << waitId
+                                                  << std::dec
+                                                  << " suspendCount=" << suspendCount
+                                                  << " wakeupCount=" << wakeupCount
+                                                  << " ret=" << ret
+                                                  << std::endl);
+    }
+
+    static bool serialGuestThreadsEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *value = std::getenv("PS2X_SERIAL_GUEST_THREADS");
+            if (!value || value[0] == '\0')
+            {
+                return false;
+            }
+
+            return std::strcmp(value, "0") != 0 &&
+                   std::strcmp(value, "false") != 0 &&
+                   std::strcmp(value, "FALSE") != 0 &&
+                   std::strcmp(value, "off") != 0 &&
+                   std::strcmp(value, "OFF") != 0;
+        }();
+        return enabled;
+    }
+
+    static uint32_t serialWakeHandoffMicros()
+    {
+        static const uint32_t value = []()
+        {
+            const char *envValue = std::getenv("PS2X_SERIAL_WAKE_HANDOFF_US");
+            if (!envValue || envValue[0] == '\0')
+            {
+                return 1000u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(envValue, &end, 0);
+            if (end == envValue)
+            {
+                return 1000u;
+            }
+
+            return static_cast<uint32_t>(std::min<unsigned long>(parsed, 100000u));
+        }();
+        return value;
+    }
+
+    static uint32_t serialGuestContendedYieldInterval()
+    {
+        static const uint32_t interval = []()
+        {
+            const char *envValue = std::getenv("PS2X_SERIAL_CONTENDED_YIELD_INTERVAL");
+            if (!envValue || envValue[0] == '\0')
+            {
+                return 1u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(envValue, &end, 0);
+            if (end == envValue)
+            {
+                return 1u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 65536ul));
+        }();
+        return interval;
+    }
+
+    static uint32_t serialGuestYieldHandoffMicros()
+    {
+        static const uint32_t micros = []()
+        {
+            const char *envValue = std::getenv("PS2X_SERIAL_YIELD_HANDOFF_US");
+            if (!envValue || envValue[0] == '\0')
+            {
+                return 1000u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(envValue, &end, 0);
+            if (end == envValue)
+            {
+                return 1000u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 0ul, 100000ul));
+        }();
+        return micros;
+    }
+
+    static bool traceThreadHeartbeatEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_THREAD_HEARTBEAT");
+            if (!value || value[0] == '\0')
+            {
+                return false;
+            }
+
+            return std::strcmp(value, "0") != 0 &&
+                   std::strcmp(value, "false") != 0 &&
+                   std::strcmp(value, "FALSE") != 0 &&
+                   std::strcmp(value, "off") != 0 &&
+                   std::strcmp(value, "OFF") != 0;
+        }();
+        return enabled;
+    }
+
+    static void updateThreadDebugState(const std::shared_ptr<ThreadInfo> &info, const R5900Context *ctx, uint64_t step)
+    {
+        if (!info || !ctx)
+        {
+            return;
+        }
+
+        info->debugPc.store(ctx->pc, std::memory_order_relaxed);
+        info->debugRa.store(GPR_U32(ctx, 31), std::memory_order_relaxed);
+        info->debugSp.store(GPR_U32(ctx, 29), std::memory_order_relaxed);
+        info->debugGp.store(GPR_U32(ctx, 28), std::memory_order_relaxed);
+        info->debugStep.store(step, std::memory_order_relaxed);
+    }
+
+    static void maybeTraceThreadHeartbeat(int tid, const std::shared_ptr<ThreadInfo> &info, const R5900Context *ctx, uint64_t step)
+    {
+        if (!traceThreadHeartbeatEnabled() || !info || !ctx)
+        {
+            return;
+        }
+
+        if ((step & 0x3FFFu) != 0u)
+        {
+            return;
+        }
+
+        int status = 0;
+        int waitType = 0;
+        int waitId = 0;
+        int wakeupCount = 0;
+        {
+            std::lock_guard<std::mutex> lock(info->m);
+            status = info->status;
+            waitType = info->waitType;
+            waitId = info->waitId;
+            wakeupCount = info->wakeupCount;
+        }
+
+        RUNTIME_LOG("[ThreadHeartbeat] tid=" << tid
+                  << " step=" << step
+                  << " pc=0x" << std::hex << ctx->pc
+                  << " ra=0x" << GPR_U32(ctx, 31)
+                  << " sp=0x" << GPR_U32(ctx, 29)
+                  << " gp=0x" << GPR_U32(ctx, 28)
+                  << std::dec
+                  << " status=0x" << std::hex << status
+                  << " waitType=0x" << waitType
+                  << " waitId=0x" << waitId
+                  << std::dec
+                  << " wakeupCount=" << wakeupCount
+                  << std::endl);
+    }
+
+    static void maybeDumpThreadDebugTable(const char *reason, int subjectId)
+    {
+        if (!traceThreadHeartbeatEnabled())
+        {
+            return;
+        }
+
+        static std::atomic<uint32_t> s_dumpCount{0u};
+        const uint32_t dumpIndex = s_dumpCount.fetch_add(1u, std::memory_order_relaxed);
+        if (dumpIndex >= 80u)
+        {
+            return;
+        }
+
+        std::vector<std::pair<int, std::shared_ptr<ThreadInfo>>> snapshot;
+        {
+            std::lock_guard<std::mutex> mapLock(g_thread_map_mutex);
+            snapshot.reserve(g_threads.size());
+            for (const auto &entry : g_threads)
+            {
+                snapshot.emplace_back(entry.first, entry.second);
+            }
+        }
+        std::sort(snapshot.begin(), snapshot.end(), [](const auto &a, const auto &b)
+                  { return a.first < b.first; });
+
+        RUNTIME_LOG("[ThreadTable] reason=" << (reason ? reason : "")
+                  << " subject=" << subjectId
+                  << " current=" << g_currentThreadId
+                  << " count=" << snapshot.size()
+                  << std::endl);
+
+        for (const auto &[tid, info] : snapshot)
+        {
+            if (!info)
+            {
+                continue;
+            }
+
+            int status = 0;
+            int waitType = 0;
+            int waitId = 0;
+            int wakeupCount = 0;
+            int priority = 0;
+            bool locked = false;
+            {
+                std::unique_lock<std::mutex> lock(info->m, std::try_to_lock);
+                locked = lock.owns_lock();
+                if (locked)
+                {
+                    status = info->status;
+                    waitType = info->waitType;
+                    waitId = info->waitId;
+                    wakeupCount = info->wakeupCount;
+                    priority = info->currentPriority;
+                }
+            }
+
+            RUNTIME_LOG("  tid=" << tid
+                      << " entry=0x" << std::hex << info->entry
+                      << " pc=0x" << info->debugPc.load(std::memory_order_relaxed)
+                      << " ra=0x" << info->debugRa.load(std::memory_order_relaxed)
+                      << " sp=0x" << info->debugSp.load(std::memory_order_relaxed)
+                      << " gp=0x" << info->debugGp.load(std::memory_order_relaxed)
+                      << std::dec
+                      << " step=" << info->debugStep.load(std::memory_order_relaxed)
+                      << " prio=" << priority
+                      << " status=0x" << std::hex << status
+                      << " waitType=0x" << waitType
+                      << " waitId=0x" << waitId
+                      << std::dec
+                      << " wakeupCount=" << wakeupCount
+                      << " locked=" << locked
+                      << std::endl);
+        }
+    }
+
+    static void yieldSerialGuestExecutionIfContended(PS2Runtime *runtime)
+    {
+        if (!runtime || runtime->guestExecutionWaiterCountForTesting() == 0u)
+        {
+            return;
+        }
+
+        thread_local uint32_t s_serialYieldCounter = 0u;
+        const uint32_t interval = serialGuestContendedYieldInterval();
+        if ((++s_serialYieldCounter % interval) != 0u)
+        {
+            return;
+        }
+
+        PS2Runtime::GuestExecutionReleaseScope releaseGuestExecution(runtime);
+        const uint32_t handoffMicros = serialGuestYieldHandoffMicros();
+        if (handoffMicros != 0u)
+        {
+            std::this_thread::sleep_for(std::chrono::microseconds(handoffMicros));
+        }
+        else
+        {
+            std::this_thread::yield();
+        }
+    }
+
+    static void handOffSerialGuestExecutionAfterWake(PS2Runtime *runtime)
+    {
+        if (!serialGuestThreadsEnabled() || !runtime)
+        {
+            return;
+        }
+
+        PS2Runtime::GuestExecutionReleaseScope releaseGuestExecution(runtime);
+        const uint32_t handoffMicros = serialWakeHandoffMicros();
+        if (handoffMicros != 0u)
+        {
+            std::this_thread::sleep_for(std::chrono::microseconds(handoffMicros));
+        }
+        else
+        {
+            std::this_thread::yield();
+        }
+    }
+
     static void applySuspendStatusLocked(ThreadInfo &info)
     {
         if (info.waitType != TSW_NONE)
@@ -191,12 +582,15 @@ namespace ps2_syscalls
             g_threads[id] = info;
         }
 
-        RUNTIME_LOG("[CreateThread] id=" << id
-                                         << " entry=0x" << std::hex << info->entry
-                                         << " stack=0x" << info->stack
-                                         << " size=0x" << info->stackSize
-                                         << " gp=0x" << info->gp
-                                         << " prio=" << std::dec << info->priority << std::endl);
+        if (traceThreadStatusEnabled())
+        {
+            RUNTIME_LOG("[CreateThread] id=" << id
+                                             << " entry=0x" << std::hex << info->entry
+                                             << " stack=0x" << info->stack
+                                             << " size=0x" << info->stackSize
+                                             << " gp=0x" << info->gp
+                                             << " prio=" << std::dec << info->priority << std::endl);
+        }
 
         setReturnS32(ctx, id);
     }
@@ -259,6 +653,7 @@ namespace ps2_syscalls
         uint32_t arg = getRegU32(ctx, 5);              // $a1 = user arg
         if (tid == 0)
         {
+            RUNTIME_LOG("[StartThread:reject] tid=0 arg=0x" << std::hex << arg << std::dec << std::endl);
             setReturnS32(ctx, KE_ILLEGAL_THID);
             return;
         }
@@ -279,6 +674,7 @@ namespace ps2_syscalls
         }
         if (runtime->isStopRequested())
         {
+            RUNTIME_LOG("[StartThread:reject] id=" << tid << " runtime stop requested" << std::endl);
             setReturnS32(ctx, KE_ERROR);
             return;
         }
@@ -287,11 +683,16 @@ namespace ps2_syscalls
 
         const uint32_t callerSp = getRegU32(ctx, 29);
         const uint32_t callerGp = getRegU32(ctx, 28);
+        const uint32_t callerCop0Status = ctx ? ctx->cop0_status : 0u;
 
         {
             std::lock_guard<std::mutex> lock(info->m);
             if (info->started || info->status != THS_DORMANT)
             {
+                RUNTIME_LOG("[StartThread:reject] id=" << tid
+                                                       << " started=" << info->started
+                                                       << " status=" << info->status
+                                                       << std::endl);
                 setReturnS32(ctx, KE_NOT_DORMANT);
                 return;
             }
@@ -312,9 +713,12 @@ namespace ps2_syscalls
                 {
                     info->stack = autoStack;
                     info->ownsStack = true;
-                    RUNTIME_LOG("[StartThread] id=" << tid
-                                                    << " auto-stack=0x" << std::hex << autoStack
-                                                    << " size=0x" << info->stackSize << std::dec << std::endl);
+                    if (traceThreadStatusEnabled())
+                    {
+                        RUNTIME_LOG("[StartThread] id=" << tid
+                                                        << " auto-stack=0x" << std::hex << autoStack
+                                                        << " size=0x" << info->stackSize << std::dec << std::endl);
+                    }
                 }
             }
 
@@ -360,19 +764,40 @@ namespace ps2_syscalls
             SET_GPR_U32(threadCtx, 28, threadGp);
             SET_GPR_U32(threadCtx, 4, info->arg);
             SET_GPR_U32(threadCtx, 31, 0);
+            threadCtx->cop0_status = callerCop0Status;
             threadCtx->pc = info->entry;
 
             g_currentThreadId = tid;
 
-            RUNTIME_LOG("[StartThread] id=" << tid
-                      << " entry=0x" << std::hex << info->entry
-                      << " sp=0x" << GPR_U32(threadCtx, 29)
-                      << " gp=0x" << GPR_U32(threadCtx, 28)
-                      << " arg=0x" << info->arg << std::dec << std::endl);
+            if (traceThreadStatusEnabled())
+            {
+                RUNTIME_LOG("[StartThread] id=" << tid
+                          << " entry=0x" << std::hex << info->entry
+                          << " sp=0x" << GPR_U32(threadCtx, 29)
+                          << " gp=0x" << GPR_U32(threadCtx, 28)
+                          << " arg=0x" << info->arg
+                          << " cop0=0x" << threadCtx->cop0_status << std::dec << std::endl);
+            }
 
             bool exited = false;
             try
             {
+                std::optional<PS2Runtime::GuestExecutionScope> serialGuestExecution;
+                if (serialGuestThreadsEnabled())
+                {
+                    if (traceThreadStatusEnabled())
+                    {
+                        static std::atomic<uint32_t> s_serialLogCount{0u};
+                        if (s_serialLogCount.fetch_add(1u, std::memory_order_relaxed) < 16u)
+                        {
+                            RUNTIME_LOG("[StartThread] id=" << tid
+                                      << " PS2X_SERIAL_GUEST_THREADS=1: holding guest execution lock across worker loop"
+                                      << std::endl);
+                        }
+                    }
+                    serialGuestExecution.emplace(runtime);
+                }
+
                 uint32_t lastPc = 0xFFFFFFFFu;
                 uint32_t samePcCount = 0;
                 constexpr uint32_t kSamePcYieldMask = 0x3FFFu;
@@ -388,14 +813,25 @@ namespace ps2_syscalls
                     }
 
                     waitWhileSuspended(info, runtime);
+                    updateThreadDebugState(info, threadCtx, stepCount);
+                    maybeTraceThreadHeartbeat(tid, info, threadCtx, stepCount);
 
                     const uint32_t pc = threadCtx->pc;
-                    if (pc == 0u)
+                    const uint32_t ra = GPR_U32(threadCtx, 31);
+                    if (pc == 0u || (pc < 0x00100000u && pc == ra))
                     {
+                        if (pc != 0u && traceThreadStatusEnabled())
+                        {
+                            RUNTIME_LOG("[StartThread] id=" << tid
+                                      << " returned via low sentinel pc=0x" << std::hex << pc
+                                      << " sp=0x" << GPR_U32(threadCtx, 29)
+                                      << " gp=0x" << GPR_U32(threadCtx, 28)
+                                      << std::dec << std::endl);
+                        }
                         break;
                     }
 
-                    if ((stepCount & 0x1FFFFFu) == 0u)
+                    if (traceThreadStatusEnabled() && (stepCount & 0x1FFFFFu) == 0u)
                     {
                         RUNTIME_LOG("[StartThread] id=" << tid
                                   << " heartbeat pc=0x" << std::hex << pc
@@ -412,7 +848,7 @@ namespace ps2_syscalls
                         {
                             std::this_thread::yield();
                         }
-                        if ((samePcCount % kSamePcWarnInterval) == 0u)
+                        if (traceThreadStatusEnabled() && (samePcCount % kSamePcWarnInterval) == 0u)
                         {
                             RUNTIME_LOG("[StartThread] id=" << tid
                                       << " spinning at pc=0x" << std::hex << pc
@@ -426,15 +862,28 @@ namespace ps2_syscalls
                         lastPc = pc;
                     }
 
-                    PS2Runtime::RecompiledFunction step = runtime->lookupFunction(pc);
-                    if (!step)
+                    if (serialGuestExecution)
                     {
-                        std::cerr << "[StartThread] id=" << tid << " missing function for pc=0x"
-                                  << std::hex << pc << std::dec << std::endl;
-                        throw ThreadExitException();
+                        PS2Runtime::RecompiledFunction step = runtime->lookupFunction(pc);
+                        if (!step)
+                        {
+                            std::cerr << "[StartThread] id=" << tid << " missing function for pc=0x"
+                                      << std::hex << pc << std::dec << std::endl;
+                            throw ThreadExitException();
+                        }
+                        step(rdram, threadCtx, runtime);
+                        yieldSerialGuestExecutionIfContended(runtime);
                     }
+                    else
                     {
                         PS2Runtime::GuestExecutionScope guestExecution(runtime);
+                        PS2Runtime::RecompiledFunction step = runtime->lookupFunction(pc);
+                        if (!step)
+                        {
+                            std::cerr << "[StartThread] id=" << tid << " missing function for pc=0x"
+                                      << std::hex << pc << std::dec << std::endl;
+                            throw ThreadExitException();
+                        }
                         step(rdram, threadCtx, runtime);
                     }
                 }
@@ -448,7 +897,7 @@ namespace ps2_syscalls
                 std::cerr << "[StartThread] id=" << tid << " exception: " << e.what() << std::endl;
             }
 
-            if (!exited)
+            if (!exited && traceThreadStatusEnabled())
             {
                 RUNTIME_LOG("[StartThread] id=" << tid << " returned (pc=0x"
                           << std::hex << threadCtx->pc << std::dec << ")" << std::endl);
@@ -620,15 +1069,29 @@ namespace ps2_syscalls
             return;
         }
 
+        int statusAfter = THS_DORMANT;
+        int waitTypeAfter = TSW_NONE;
+        int suspendCountAfter = 0;
         {
             std::lock_guard<std::mutex> lock(info->m);
             if (info->status == THS_DORMANT)
             {
                 setReturnS32(ctx, KE_DORMANT);
+                if (traceThreadStatusEnabled())
+                {
+                    RUNTIME_LOG("[SuspendThread] caller=" << g_currentThreadId
+                                                          << " tid=" << tid
+                                                          << " ret=" << KE_DORMANT
+                                                          << " status=0x" << std::hex << info->status
+                                                          << std::dec << std::endl);
+                }
                 return;
             }
             info->suspendCount++;
             applySuspendStatusLocked(*info);
+            statusAfter = info->status;
+            waitTypeAfter = info->waitType;
+            suspendCountAfter = info->suspendCount;
         }
         info->cv.notify_all();
 
@@ -645,6 +1108,28 @@ namespace ps2_syscalls
                 throw ThreadExitException();
             }
             info->status = THS_RUN;
+            statusAfter = info->status;
+            waitTypeAfter = info->waitType;
+            suspendCountAfter = info->suspendCount;
+        }
+
+        if (traceThreadStatusEnabled())
+        {
+            static std::atomic<uint32_t> s_suspendTraceCount{0};
+            const uint32_t traceCount = s_suspendTraceCount.fetch_add(1, std::memory_order_relaxed);
+            if (traceCount < 128u || (traceCount & 0x3ffu) == 0u)
+            {
+                RUNTIME_LOG("[SuspendThread] caller=" << g_currentThreadId
+                                                      << " tid=" << tid
+                                                      << " ret=" << KE_OK
+                                                      << " status=0x" << std::hex << statusAfter
+                                                      << " waitType=0x" << waitTypeAfter
+                                                      << std::dec
+                                                      << " suspendCount=" << suspendCountAfter
+                                                      << " pc=0x" << std::hex << ctx->pc
+                                                      << " ra=0x" << getRegU32(ctx, 31)
+                                                      << std::dec << std::endl);
+            }
         }
 
         setReturnS32(ctx, KE_OK);
@@ -663,33 +1148,70 @@ namespace ps2_syscalls
             return;
         }
 
+        int ret = KE_OK;
+        int statusAfter = THS_DORMANT;
+        int waitTypeAfter = TSW_NONE;
+        int suspendCountAfter = 0;
         {
             std::lock_guard<std::mutex> lock(info->m);
             if (info->status == THS_DORMANT)
             {
-                setReturnS32(ctx, KE_DORMANT);
-                return;
+                ret = KE_DORMANT;
+                statusAfter = info->status;
+                waitTypeAfter = info->waitType;
+                suspendCountAfter = info->suspendCount;
             }
-            if (info->suspendCount <= 0)
+            else if (info->suspendCount <= 0)
             {
-                setReturnS32(ctx, KE_NOT_SUSPEND);
-                return;
+                ret = KE_NOT_SUSPEND;
+                statusAfter = info->status;
+                waitTypeAfter = info->waitType;
+                suspendCountAfter = info->suspendCount;
             }
-            info->suspendCount--;
-            if (info->suspendCount == 0)
+            else
             {
-                if (info->waitType != TSW_NONE)
+                info->suspendCount--;
+                if (info->suspendCount == 0)
                 {
-                    info->status = THS_WAIT;
+                    if (info->waitType != TSW_NONE)
+                    {
+                        info->status = THS_WAIT;
+                    }
+                    else
+                    {
+                        info->status = (tid == g_currentThreadId) ? THS_RUN : THS_READY;
+                    }
                 }
-                else
-                {
-                    info->status = (tid == g_currentThreadId) ? THS_RUN : THS_READY;
-                }
+                statusAfter = info->status;
+                waitTypeAfter = info->waitType;
+                suspendCountAfter = info->suspendCount;
             }
         }
-        info->cv.notify_all();
-        setReturnS32(ctx, KE_OK);
+        if (ret == KE_OK)
+        {
+            info->cv.notify_all();
+        }
+
+        if (traceThreadStatusEnabled())
+        {
+            static std::atomic<uint32_t> s_resumeTraceCount{0};
+            const uint32_t traceCount = s_resumeTraceCount.fetch_add(1, std::memory_order_relaxed);
+            if (traceCount < 128u || (traceCount & 0x3ffu) == 0u)
+            {
+                RUNTIME_LOG("[ResumeThread] caller=" << g_currentThreadId
+                                                     << " tid=" << tid
+                                                     << " ret=" << ret
+                                                     << " status=0x" << std::hex << statusAfter
+                                                     << " waitType=0x" << waitTypeAfter
+                                                     << std::dec
+                                                     << " suspendCount=" << suspendCountAfter
+                                                     << " pc=0x" << std::hex << ctx->pc
+                                                     << " ra=0x" << getRegU32(ctx, 31)
+                                                     << std::dec << std::endl);
+            }
+        }
+
+        setReturnS32(ctx, ret);
     }
 
     void GetThreadId(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
@@ -721,19 +1243,67 @@ namespace ps2_syscalls
             return;
         }
 
-        std::lock_guard<std::mutex> lock(info->m);
-        status->status = info->status;
-        status->func = info->entry;
-        status->stack = info->stack;
-        status->stack_size = info->stackSize;
-        status->gp_reg = info->gp;
-        status->initial_priority = info->priority;
-        status->current_priority = info->currentPriority;
-        status->attr = info->attr;
-        status->option = info->option;
-        status->waitType = info->waitType;
-        status->waitId = info->waitId;
-        status->wakeupCount = info->wakeupCount;
+        int statusValue = 0;
+        int waitType = 0;
+        int waitId = 0;
+        int suspendCount = 0;
+        int wakeupCount = 0;
+        bool started = false;
+        uint32_t entry = 0;
+        {
+            std::lock_guard<std::mutex> lock(info->m);
+            statusValue = info->status;
+            waitType = info->waitType;
+            waitId = info->waitId;
+            suspendCount = info->suspendCount;
+            wakeupCount = info->wakeupCount;
+            started = info->started;
+            entry = info->entry;
+            status->status = info->status;
+            status->func = info->entry;
+            status->stack = info->stack;
+            status->stack_size = info->stackSize;
+            status->gp_reg = info->gp;
+            status->initial_priority = info->priority;
+            status->current_priority = info->currentPriority;
+            status->attr = info->attr;
+            status->option = info->option;
+            status->waitType = info->waitType;
+            status->waitId = info->waitId;
+            status->wakeupCount = info->wakeupCount;
+        }
+
+        if (traceThreadStatusEnabled())
+        {
+            static std::atomic<uint32_t> s_traceCount{0};
+            const uint32_t traceCount = s_traceCount.fetch_add(1, std::memory_order_relaxed);
+            if (traceCount < 256u || (traceCount & 0x3ffu) == 0u)
+            {
+                RUNTIME_LOG("[ReferThreadStatus] caller=" << g_currentThreadId
+                                                          << " tid=" << tid
+                                                          << " status=0x" << std::hex << statusValue
+                                                          << " waitType=0x" << waitType
+                                                          << " waitId=0x" << waitId
+                                                          << " wakeup=" << std::dec << wakeupCount
+                                                          << " suspendCount=" << suspendCount
+                                                          << " started=" << started
+                                                          << " entry=0x" << std::hex << entry
+                                                          << " pc=0x" << ctx->pc
+                                                          << " ra=0x" << getRegU32(ctx, 31)
+                                                          << std::dec << std::endl);
+            }
+        }
+        traceKofxiFrameThreadEvent("ReferThreadStatus",
+                                   rdram,
+                                   tid,
+                                   ctx,
+                                   statusValue,
+                                   waitType,
+                                   waitId,
+                                   suspendCount,
+                                   wakeupCount,
+                                   KE_OK);
+
         setReturnS32(ctx, KE_OK);
     }
 
@@ -766,20 +1336,34 @@ namespace ps2_syscalls
         }
         else
         {
-            static std::atomic<uint32_t> s_sleepBlockLogs{0};
-            const uint32_t sleepBlockLog = s_sleepBlockLogs.fetch_add(1, std::memory_order_relaxed);
-            if (sleepBlockLog < 256u)
+            if (traceThreadStatusEnabled())
             {
-                RUNTIME_LOG("[SleepThread:block] tid=" << g_currentThreadId
-                                                       << " pc=0x" << std::hex << ctx->pc
-                                                       << " ra=0x" << getRegU32(ctx, 31)
-                                                       << std::dec << std::endl);
+                static std::atomic<uint32_t> s_sleepBlockLogs{0};
+                const uint32_t sleepBlockLog = s_sleepBlockLogs.fetch_add(1, std::memory_order_relaxed);
+                if (sleepBlockLog < 256u)
+                {
+                    RUNTIME_LOG("[SleepThread:block] tid=" << g_currentThreadId
+                                                           << " pc=0x" << std::hex << ctx->pc
+                                                           << " ra=0x" << getRegU32(ctx, 31)
+                                                           << std::dec << std::endl);
+                }
             }
+            maybeDumpThreadDebugTable("SleepThread:block", g_currentThreadId);
 
-            info->status = THS_WAIT;
+            info->status = (info->suspendCount > 0) ? THS_WAITSUSPEND : THS_WAIT;
             info->waitType = TSW_SLEEP;
             info->waitId = 0;
             info->forceRelease = false;
+            traceKofxiFrameThreadEvent("SleepThread:block",
+                                       rdram,
+                                       g_currentThreadId,
+                                       ctx,
+                                       info->status,
+                                       info->waitType,
+                                       info->waitId,
+                                       info->suspendCount,
+                                       info->wakeupCount,
+                                       ret);
 
             {
                 PS2Runtime::GuestExecutionReleaseScope releaseGuestExecution(runtime);
@@ -809,15 +1393,29 @@ namespace ps2_syscalls
             }
         }
 
-        static std::atomic<uint32_t> s_sleepWakeLogs{0};
-        const uint32_t sleepWakeLog = s_sleepWakeLogs.fetch_add(1, std::memory_order_relaxed);
-        if (sleepWakeLog < 256u)
+        if (traceThreadStatusEnabled())
         {
-            RUNTIME_LOG("[SleepThread:wake] tid=" << g_currentThreadId
-                                                  << " ret=" << ret
-                                                  << " wakeupCount=" << info->wakeupCount
-                                                  << std::endl);
+            static std::atomic<uint32_t> s_sleepWakeLogs{0};
+            const uint32_t sleepWakeLog = s_sleepWakeLogs.fetch_add(1, std::memory_order_relaxed);
+            if (sleepWakeLog < 256u)
+            {
+                RUNTIME_LOG("[SleepThread:wake] tid=" << g_currentThreadId
+                                                      << " ret=" << ret
+                                                      << " wakeupCount=" << info->wakeupCount
+                                                      << std::endl);
+            }
         }
+        traceKofxiFrameThreadEvent("SleepThread:wake",
+                                   rdram,
+                                   g_currentThreadId,
+                                   ctx,
+                                   info->status,
+                                   info->waitType,
+                                   info->waitId,
+                                   info->suspendCount,
+                                   info->wakeupCount,
+                                   ret);
+        maybeDumpThreadDebugTable("SleepThread:wake", g_currentThreadId);
 
         lock.unlock();
         waitWhileSuspended(info, runtime);
@@ -827,13 +1425,35 @@ namespace ps2_syscalls
     void WakeupThread(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         int tid = static_cast<int>(getRegU32(ctx, 4));
+        auto traceWakeupReject = [&](const char *reason, int ret)
+        {
+            if (!traceThreadStatusEnabled())
+            {
+                return;
+            }
+
+            static std::atomic<uint32_t> s_rejectLogs{0u};
+            const uint32_t rejectLog = s_rejectLogs.fetch_add(1u, std::memory_order_relaxed);
+            if (rejectLog < 128u)
+            {
+                RUNTIME_LOG("[WakeupThread:reject] caller=" << g_currentThreadId
+                                                            << " target=" << tid
+                                                            << " reason=" << reason
+                                                            << " ret=" << ret
+                                                            << " pc=0x" << std::hex << (ctx ? ctx->pc : 0u)
+                                                            << std::dec << std::endl);
+            }
+        };
+
         if (tid == 0)
         {
+            traceWakeupReject("zero", KE_ILLEGAL_THID);
             setReturnS32(ctx, KE_ILLEGAL_THID);
             return;
         }
         if (tid == g_currentThreadId)
         {
+            traceWakeupReject("self", KE_ILLEGAL_THID);
             setReturnS32(ctx, KE_ILLEGAL_THID);
             return;
         }
@@ -841,20 +1461,26 @@ namespace ps2_syscalls
         auto info = lookupThreadInfo(tid);
         if (!info)
         {
+            traceWakeupReject("unknown", KE_UNKNOWN_THID);
             setReturnS32(ctx, KE_UNKNOWN_THID);
             return;
         }
 
         int newWakeupCount = 0;
         int statusAfter = THS_DORMANT;
+        int waitTypeAfter = TSW_NONE;
+        int waitIdAfter = 0;
+        int suspendCountAfter = 0;
+        uint32_t targetEntry = 0u;
         {
             std::lock_guard<std::mutex> lock(info->m);
             if (info->status == THS_DORMANT)
             {
+                traceWakeupReject("dormant", KE_DORMANT);
                 setReturnS32(ctx, KE_DORMANT);
                 return;
             }
-            if (info->status == THS_WAIT && info->waitType == TSW_SLEEP)
+            if ((info->status == THS_WAIT || info->status == THS_WAITSUSPEND) && info->waitType == TSW_SLEEP)
             {
                 if (info->suspendCount > 0)
                 {
@@ -875,19 +1501,46 @@ namespace ps2_syscalls
             }
             newWakeupCount = info->wakeupCount;
             statusAfter = info->status;
+            waitTypeAfter = info->waitType;
+            waitIdAfter = info->waitId;
+            suspendCountAfter = info->suspendCount;
+            targetEntry = info->entry;
         }
 
-        static std::atomic<uint32_t> s_wakeupLogs{0};
-        const uint32_t wakeupLog = s_wakeupLogs.fetch_add(1, std::memory_order_relaxed);
-        if (wakeupLog < 256u)
+        if (traceThreadStatusEnabled())
         {
-            RUNTIME_LOG("[WakeupThread] tid=" << g_currentThreadId
-                                              << " target=" << tid
-                                              << " status=" << statusAfter
-                                              << " wakeupCount=" << newWakeupCount
-                                              << std::endl);
+            static std::atomic<uint32_t> s_wakeupLogs{0};
+            const uint32_t wakeupLog = s_wakeupLogs.fetch_add(1, std::memory_order_relaxed);
+            if (wakeupLog < 256u)
+            {
+                RUNTIME_LOG("[WakeupThread] tid=" << g_currentThreadId
+                                                  << " target=" << tid
+                                                  << " callerPc=0x" << std::hex << (ctx ? ctx->pc : 0u)
+                                                  << " callerRa=0x" << (ctx ? getRegU32(ctx, 31) : 0u)
+                                                  << " targetEntry=0x" << targetEntry
+                                                  << std::dec
+                                                  << " status=" << statusAfter
+                                                  << " waitType=0x" << std::hex << waitTypeAfter
+                                                  << " waitId=0x" << waitIdAfter
+                                                  << std::dec
+                                                  << " suspendCount=" << suspendCountAfter
+                                                  << " wakeupCount=" << newWakeupCount
+                                                  << std::endl);
+            }
         }
+        traceKofxiFrameThreadEvent("WakeupThread",
+                                   rdram,
+                                   tid,
+                                   ctx,
+                                   statusAfter,
+                                   waitTypeAfter,
+                                   waitIdAfter,
+                                   suspendCountAfter,
+                                   newWakeupCount,
+                                   KE_OK);
+        maybeDumpThreadDebugTable("WakeupThread", tid);
         setReturnS32(ctx, KE_OK);
+        handOffSerialGuestExecutionAfterWake(runtime);
     }
 
     void iWakeupThread(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)

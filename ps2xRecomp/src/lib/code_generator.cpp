@@ -835,6 +835,61 @@ namespace ps2recomp
             }
         }
 
+        auto isNopInstruction = [](const Instruction &inst) -> bool
+        {
+            return inst.raw == 0u ||
+                   (inst.opcode == OPCODE_SPECIAL &&
+                    inst.function == SPECIAL_SLL &&
+                    inst.rt == 0 &&
+                    inst.rd == 0 &&
+                    inst.sa == 0);
+        };
+
+        auto isTerminalUnconditionalExit = [&](const Instruction &inst) -> bool
+        {
+            if (inst.opcode == OPCODE_J)
+            {
+                const uint32_t target = buildAbsoluteJumpTarget(inst.address, inst.target);
+                return target < function.start || target >= function.end;
+            }
+
+            return inst.opcode == OPCODE_SPECIAL &&
+                   inst.function == SPECIAL_JR &&
+                   inst.rs == 31;
+        };
+
+        for (const Instruction &inst : instructions)
+        {
+            if (!isTerminalUnconditionalExit(inst))
+            {
+                continue;
+            }
+
+            const uint32_t afterDelaySlot = inst.address + (inst.hasDelaySlot ? 8u : 4u);
+            auto entryIt = std::lower_bound(
+                instructions.begin(),
+                instructions.end(),
+                afterDelaySlot,
+                [](const Instruction &candidate, uint32_t address)
+                { return candidate.address < address; });
+
+            while (entryIt != instructions.end() && isNopInstruction(*entryIt))
+            {
+                ++entryIt;
+            }
+
+            if (entryIt == instructions.end() ||
+                entryIt->address == function.start ||
+                entryIt->address >= function.end ||
+                !instructionAddresses.contains(entryIt->address))
+            {
+                continue;
+            }
+
+            result.entryPoints.insert(entryIt->address);
+            result.resumeEntryPoints.insert(entryIt->address);
+        }
+
         if (hasIndirectRegisterJump)
         {
             bool needsIndirectFallback = false;
@@ -1169,6 +1224,12 @@ namespace ps2recomp
 
                 throw;
             }
+        }
+
+        if (!instructions.empty())
+        {
+            ss << "    ctx->pc = 0x" << std::hex << function.end << "u;\n"
+               << std::dec;
         }
 
         ss << "}\n";
@@ -1758,9 +1819,9 @@ namespace ps2recomp
                     "return;"                      // Stop execution in this recompiled block
                 );
             case COP0_CO_EI:
-                return fmt::format("ctx->cop0_status |= 0x10000; // Enable interrupts");
+                return fmt::format("ctx->cop0_status |= 0x10000u; // Enable guest EIE interrupt state");
             case COP0_CO_DI:
-                return fmt::format("ctx->cop0_status &= ~0x10000; // Disable interrupts");
+                return fmt::format("ctx->cop0_status &= ~0x10000u; // Disable guest EIE interrupt state");
             default:
                 return fmt::format("// Unhandled COP0 CO-OP: 0x{:X}", function);
             }

@@ -42,8 +42,9 @@ namespace ps2_syscalls
 
     static const char *translateFioMode(int ps2Flags)
     {
-        bool read = (ps2Flags & PS2_FIO_O_RDONLY) || (ps2Flags & PS2_FIO_O_RDWR);
-        bool write = (ps2Flags & PS2_FIO_O_WRONLY) || (ps2Flags & PS2_FIO_O_RDWR);
+        const uint32_t access = static_cast<uint32_t>(ps2Flags) & PS2_FIO_O_RDWR;
+        bool read = access == PS2_FIO_O_RDONLY || access == PS2_FIO_O_RDWR;
+        bool write = access == PS2_FIO_O_WRONLY || access == PS2_FIO_O_RDWR;
         bool append = (ps2Flags & PS2_FIO_O_APPEND);
         bool create = (ps2Flags & PS2_FIO_O_CREAT);
         bool truncate = (ps2Flags & PS2_FIO_O_TRUNC);
@@ -73,6 +74,259 @@ namespace ps2_syscalls
         return "rb";
     }
 
+    static bool fioOpenMayReadExistingFile(int ps2Flags)
+    {
+        const bool writes = (ps2Flags & PS2_FIO_O_WRONLY) ||
+                            (ps2Flags & PS2_FIO_O_CREAT) ||
+                            (ps2Flags & PS2_FIO_O_TRUNC) ||
+                            (ps2Flags & PS2_FIO_O_APPEND);
+        return !writes;
+    }
+
+    static std::string normalizeCdLooseFileKey(std::string value)
+    {
+        value = stripIsoVersionSuffix(toLowerAscii(std::move(value)));
+        std::string normalized;
+        normalized.reserve(value.size());
+
+        for (std::size_t i = 0; i < value.size();)
+        {
+            if (!std::isdigit(static_cast<unsigned char>(value[i])))
+            {
+                normalized.push_back(value[i]);
+                ++i;
+                continue;
+            }
+
+            std::size_t end = i + 1;
+            while (end < value.size() && std::isdigit(static_cast<unsigned char>(value[end])))
+            {
+                ++end;
+            }
+
+            std::size_t firstNonZero = i;
+            while (firstNonZero + 1 < end && value[firstNonZero] == '0')
+            {
+                ++firstNonZero;
+            }
+
+            normalized.append(value, firstNonZero, end - firstNonZero);
+            i = end;
+        }
+
+        return normalized;
+    }
+
+    static bool shouldTryLooseCdReadOpen(const char *ps2Path)
+    {
+        if (!ps2Path || !*ps2Path)
+        {
+            return false;
+        }
+
+        const std::string path(ps2Path);
+        const std::string lower = toLowerAscii(path);
+        if (lower.rfind("mc0:", 0) == 0 ||
+            lower.rfind("host0:", 0) == 0 ||
+            lower.rfind("host:", 0) == 0)
+        {
+            return false;
+        }
+
+        if (path.size() > 1 && path[1] == ':' &&
+            lower.rfind("cdrom0:", 0) != 0 &&
+            lower.rfind("cdrom:", 0) != 0)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    static std::string normalizeCdOpenSuffixForLooseResolve(std::string path)
+    {
+        std::string lower = toLowerAscii(path);
+        if (lower.rfind("cdrom0:", 0) == 0)
+        {
+            path = path.substr(7);
+        }
+        else if (lower.rfind("cdrom:", 0) == 0)
+        {
+            path = path.substr(6);
+        }
+
+        return normalizePs2PathSuffix(std::move(path));
+    }
+
+    static bool isLooseParentSuffixMatch(const std::string &candidateParent, const std::string &requestedParent)
+    {
+        if (requestedParent.empty() || candidateParent == requestedParent)
+        {
+            return true;
+        }
+        if (candidateParent.size() <= requestedParent.size())
+        {
+            return false;
+        }
+
+        const std::size_t suffixStart = candidateParent.size() - requestedParent.size();
+        return candidateParent.compare(suffixStart, requestedParent.size(), requestedParent) == 0 &&
+               candidateParent[suffixStart - 1] == '/';
+    }
+
+    static bool resolveExistingPathCaseInsensitive(const std::filesystem::path &root,
+                                                   const std::filesystem::path &relative,
+                                                   std::filesystem::path &resolvedOut)
+    {
+        std::filesystem::path current = root;
+        for (const auto &component : relative)
+        {
+            const std::filesystem::path direct = current / component;
+            std::error_code ec;
+            if (std::filesystem::exists(direct, ec) && !ec)
+            {
+                current = direct;
+                continue;
+            }
+
+            bool matched = false;
+            const std::string needle = toLowerAscii(component.string());
+            std::error_code iterEc;
+            for (const auto &entry : std::filesystem::directory_iterator(current, iterEc))
+            {
+                if (iterEc)
+                {
+                    break;
+                }
+
+                if (toLowerAscii(entry.path().filename().string()) == needle)
+                {
+                    current = entry.path();
+                    matched = true;
+                    break;
+                }
+            }
+
+            if (!matched)
+            {
+                return false;
+            }
+        }
+
+        std::error_code fileEc;
+        if (std::filesystem::is_regular_file(current, fileEc) && !fileEc)
+        {
+            resolvedOut = current;
+            return true;
+        }
+        return false;
+    }
+
+    static bool resolveExistingCdFileLoose(const std::string &ps2Path, std::filesystem::path &resolvedOut)
+    {
+        const std::string normalized = normalizeCdOpenSuffixForLooseResolve(ps2Path);
+        if (normalized.empty())
+        {
+            return false;
+        }
+
+        const std::filesystem::path root = getConfiguredCdRoot();
+        std::error_code ec;
+        if (!std::filesystem::exists(root, ec) || ec)
+        {
+            return false;
+        }
+
+        const std::filesystem::path relative(normalized);
+        const std::filesystem::path direct = root / relative;
+        if (std::filesystem::is_regular_file(direct, ec) && !ec)
+        {
+            resolvedOut = direct;
+            return true;
+        }
+
+        if (resolveExistingPathCaseInsensitive(root, relative, resolvedOut))
+        {
+            return true;
+        }
+
+        const std::string requestedParent = toLowerAscii(relative.parent_path().generic_string());
+        const std::string requestedLeaf = normalizeCdLooseFileKey(relative.filename().string());
+        if (requestedLeaf.empty())
+        {
+            return false;
+        }
+
+        std::filesystem::path leafFallback;
+        for (const auto &entry : std::filesystem::recursive_directory_iterator(
+                 root, std::filesystem::directory_options::skip_permission_denied, ec))
+        {
+            if (ec)
+            {
+                break;
+            }
+            if (!entry.is_regular_file())
+            {
+                continue;
+            }
+
+            std::error_code relEc;
+            const std::filesystem::path entryRelative = std::filesystem::relative(entry.path(), root, relEc);
+            if (relEc)
+            {
+                continue;
+            }
+
+            if (normalizeCdLooseFileKey(entryRelative.filename().string()) != requestedLeaf)
+            {
+                continue;
+            }
+
+            if (leafFallback.empty())
+            {
+                leafFallback = entry.path();
+            }
+
+            const std::string entryParent = toLowerAscii(entryRelative.parent_path().generic_string());
+            if (isLooseParentSuffixMatch(entryParent, requestedParent))
+            {
+                resolvedOut = entry.path();
+                return true;
+            }
+        }
+
+        if (!leafFallback.empty())
+        {
+            resolvedOut = leafFallback;
+            return true;
+        }
+        return false;
+    }
+
+    std::string resolvePs2PathForReadOpen(const char *ps2Path)
+    {
+        const std::string translated = translatePs2Path(ps2Path);
+        if (translated.empty())
+        {
+            return {};
+        }
+
+        std::error_code ec;
+        if (std::filesystem::is_regular_file(translated, ec) && !ec)
+        {
+            return translated;
+        }
+
+        std::filesystem::path loosePath;
+        if (shouldTryLooseCdReadOpen(ps2Path) &&
+            resolveExistingCdFileLoose(ps2Path ? ps2Path : "", loosePath))
+        {
+            return loosePath.lexically_normal().string();
+        }
+
+        return translated;
+    }
+
     void fioOpen(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         uint32_t pathAddr = getRegU32(ctx, 4); // $a0
@@ -86,7 +340,9 @@ namespace ps2_syscalls
             return;
         }
 
-        std::string hostPath = translatePs2Path(ps2Path);
+        std::string hostPath = fioOpenMayReadExistingFile(flags)
+                                   ? resolvePs2PathForReadOpen(ps2Path)
+                                   : translatePs2Path(ps2Path);
         if (hostPath.empty())
         {
             std::cerr << "fioOpen error: Failed to translate path '" << ps2Path << "'" << std::endl;

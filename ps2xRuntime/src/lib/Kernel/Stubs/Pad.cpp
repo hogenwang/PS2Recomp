@@ -1,6 +1,8 @@
 #include "Common.h"
 #include "Pad.h"
 
+#include <chrono>
+
 namespace ps2_stubs
 {
     namespace
@@ -57,6 +59,30 @@ namespace ps2_stubs
         PadInputState g_padOverrideState{};
         PadPortState g_padPorts[kPadPortCount]{};
         int g_padReadLogCount = 0;
+        uint64_t g_padScriptReadCount = 0;
+
+        struct PadScriptEvent
+        {
+            bool timed = false;
+            uint64_t startRead = 0u;
+            uint64_t durationReads = 0u;
+            double startSeconds = 0.0;
+            double durationSeconds = 0.0;
+            uint16_t pressedMask = 0u;
+            std::string label;
+        };
+
+        struct PadScriptState
+        {
+            std::string spec;
+            std::vector<PadScriptEvent> events;
+            uint64_t baseRead = 0u;
+            std::chrono::steady_clock::time_point baseTime{};
+            bool loggedConfig = false;
+        };
+
+        std::mutex g_padScriptMutex;
+        PadScriptState g_padScript;
 
         uint8_t axisToByte(float axis)
         {
@@ -70,6 +96,391 @@ namespace ps2_stubs
             if (pressed)
             {
                 state.buttons = static_cast<uint16_t>(state.buttons & ~mask);
+            }
+        }
+
+        bool envEnabled(const char *name)
+        {
+            const char *value = std::getenv(name);
+            if (!value || value[0] == '\0')
+            {
+                return false;
+            }
+            return std::strcmp(value, "0") != 0 &&
+                   std::strcmp(value, "false") != 0 &&
+                   std::strcmp(value, "FALSE") != 0 &&
+                   std::strcmp(value, "off") != 0 &&
+                   std::strcmp(value, "OFF") != 0;
+        }
+
+        std::string trimCopy(const std::string &value)
+        {
+            size_t begin = 0u;
+            while (begin < value.size() &&
+                   std::isspace(static_cast<unsigned char>(value[begin])))
+            {
+                ++begin;
+            }
+
+            size_t end = value.size();
+            while (end > begin &&
+                   std::isspace(static_cast<unsigned char>(value[end - 1u])))
+            {
+                --end;
+            }
+
+            return value.substr(begin, end - begin);
+        }
+
+        std::string lowerToken(std::string value)
+        {
+            std::transform(value.begin(), value.end(), value.begin(),
+                           [](unsigned char ch)
+                           { return static_cast<char>(std::tolower(ch)); });
+            value.erase(std::remove_if(value.begin(), value.end(),
+                                       [](char ch)
+                                       { return ch == '_' || ch == '-'; }),
+                        value.end());
+            return value;
+        }
+
+        bool parseUnsigned(const std::string &token, uint64_t &out)
+        {
+            const std::string trimmed = trimCopy(token);
+            if (trimmed.empty())
+            {
+                return false;
+            }
+
+            char *end = nullptr;
+            const unsigned long long value = std::strtoull(trimmed.c_str(), &end, 0);
+            if (end == trimmed.c_str())
+            {
+                return false;
+            }
+
+            out = static_cast<uint64_t>(value);
+            return true;
+        }
+
+        bool parseDouble(const std::string &token, double &out)
+        {
+            const std::string trimmed = trimCopy(token);
+            if (trimmed.empty())
+            {
+                return false;
+            }
+
+            char *end = nullptr;
+            const double value = std::strtod(trimmed.c_str(), &end);
+            if (end == trimmed.c_str())
+            {
+                return false;
+            }
+
+            out = value;
+            return true;
+        }
+
+        bool parsePadButtonToken(const std::string &rawToken, uint16_t &mask)
+        {
+            const std::string token = lowerToken(trimCopy(rawToken));
+            if (token.empty() || token == "none" || token == "release")
+            {
+                return true;
+            }
+
+            if (token.rfind("0x", 0) == 0)
+            {
+                uint64_t parsed = 0u;
+                if (!parseUnsigned(token, parsed))
+                {
+                    return false;
+                }
+                mask = static_cast<uint16_t>(mask | static_cast<uint16_t>(parsed & 0xFFFFu));
+                return true;
+            }
+
+            uint16_t buttonMask = 0u;
+            if (token == "select")
+                buttonMask = kPadBtnSelect;
+            else if (token == "l3")
+                buttonMask = kPadBtnL3;
+            else if (token == "r3")
+                buttonMask = kPadBtnR3;
+            else if (token == "start")
+                buttonMask = kPadBtnStart;
+            else if (token == "up" || token == "dpadup")
+                buttonMask = kPadBtnUp;
+            else if (token == "right" || token == "dpadright")
+                buttonMask = kPadBtnRight;
+            else if (token == "down" || token == "dpaddown")
+                buttonMask = kPadBtnDown;
+            else if (token == "left" || token == "dpadleft")
+                buttonMask = kPadBtnLeft;
+            else if (token == "l2")
+                buttonMask = kPadBtnL2;
+            else if (token == "r2")
+                buttonMask = kPadBtnR2;
+            else if (token == "l1")
+                buttonMask = kPadBtnL1;
+            else if (token == "r1")
+                buttonMask = kPadBtnR1;
+            else if (token == "triangle")
+                buttonMask = kPadBtnTriangle;
+            else if (token == "circle" || token == "o" || token == "confirm" || token == "maru")
+                buttonMask = kPadBtnCircle;
+            else if (token == "cross" || token == "x" || token == "cancel" || token == "batsu")
+                buttonMask = kPadBtnCross;
+            else if (token == "square")
+                buttonMask = kPadBtnSquare;
+            else
+                return false;
+
+            mask = static_cast<uint16_t>(mask | buttonMask);
+            return true;
+        }
+
+        bool parsePadButtonList(const std::string &rawList, uint16_t &mask)
+        {
+            std::string list = rawList;
+            std::replace(list.begin(), list.end(), '|', '+');
+            std::replace(list.begin(), list.end(), '&', '+');
+
+            size_t begin = 0u;
+            while (begin <= list.size())
+            {
+                const size_t plus = list.find('+', begin);
+                const std::string token = list.substr(begin, plus == std::string::npos ? std::string::npos : plus - begin);
+                if (!parsePadButtonToken(token, mask))
+                {
+                    return false;
+                }
+                if (plus == std::string::npos)
+                {
+                    break;
+                }
+                begin = plus + 1u;
+            }
+
+            return true;
+        }
+
+        bool parsePadScriptTimeToken(const std::string &rawToken, bool &timed, double &seconds, uint64_t &reads)
+        {
+            std::string token = trimCopy(rawToken);
+            if (token.empty())
+            {
+                return false;
+            }
+
+            bool forceTime = false;
+            bool forceRead = false;
+            if (token[0] == 't' || token[0] == 'T')
+            {
+                forceTime = true;
+                token.erase(token.begin());
+            }
+            else if (token[0] == 'r' || token[0] == 'R')
+            {
+                forceRead = true;
+                token.erase(token.begin());
+            }
+
+            if (!token.empty() && (token.back() == 's' || token.back() == 'S'))
+            {
+                forceTime = true;
+                token.pop_back();
+            }
+
+            if (forceTime || (!forceRead && token.find('.') != std::string::npos))
+            {
+                timed = true;
+                return parseDouble(token, seconds);
+            }
+
+            timed = false;
+            return parseUnsigned(token, reads);
+        }
+
+        std::vector<std::string> splitPadScriptFields(const std::string &eventSpec)
+        {
+            std::vector<std::string> fields;
+            size_t begin = 0u;
+            while (begin <= eventSpec.size())
+            {
+                const size_t colon = eventSpec.find(':', begin);
+                fields.push_back(trimCopy(eventSpec.substr(
+                    begin, colon == std::string::npos ? std::string::npos : colon - begin)));
+                if (colon == std::string::npos)
+                {
+                    break;
+                }
+                begin = colon + 1u;
+            }
+            return fields;
+        }
+
+        std::vector<PadScriptEvent> parsePadScriptSpec(const std::string &spec)
+        {
+            std::vector<PadScriptEvent> events;
+            size_t begin = 0u;
+            while (begin <= spec.size())
+            {
+                const size_t semi = spec.find(';', begin);
+                const std::string eventSpec = trimCopy(spec.substr(
+                    begin, semi == std::string::npos ? std::string::npos : semi - begin));
+                if (!eventSpec.empty())
+                {
+                    const std::vector<std::string> fields = splitPadScriptFields(eventSpec);
+                    if (fields.size() >= 2u)
+                    {
+                        PadScriptEvent event{};
+                        event.label = eventSpec;
+                        uint64_t startReads = 0u;
+                        double startSeconds = 0.0;
+                        if (parsePadScriptTimeToken(fields[0], event.timed, startSeconds, startReads) &&
+                            parsePadButtonList(fields[1], event.pressedMask))
+                        {
+                            if (event.timed)
+                            {
+                                event.startSeconds = std::max(0.0, startSeconds);
+                                event.durationSeconds = 0.25;
+                                if (fields.size() >= 3u)
+                                {
+                                    bool durationTimed = true;
+                                    uint64_t ignoredReads = 0u;
+                                    double durationSeconds = 0.0;
+                                    if (parsePadScriptTimeToken(fields[2], durationTimed, durationSeconds, ignoredReads))
+                                    {
+                                        event.durationSeconds = durationTimed ? durationSeconds : static_cast<double>(ignoredReads);
+                                    }
+                                }
+                                event.durationSeconds = std::clamp(event.durationSeconds, 0.001, 60.0);
+                            }
+                            else
+                            {
+                                event.startRead = std::max<uint64_t>(1u, startReads);
+                                event.durationReads = 4u;
+                                if (fields.size() >= 3u)
+                                {
+                                    bool durationTimed = false;
+                                    uint64_t durationReads = 0u;
+                                    double ignoredSeconds = 0.0;
+                                    if (parsePadScriptTimeToken(fields[2], durationTimed, ignoredSeconds, durationReads))
+                                    {
+                                        event.durationReads = durationTimed
+                                                                  ? std::max<uint64_t>(1u, static_cast<uint64_t>(std::llround(ignoredSeconds)))
+                                                                  : durationReads;
+                                    }
+                                }
+                                event.durationReads = std::clamp<uint64_t>(event.durationReads, 1u, 1000000u);
+                            }
+                            events.push_back(event);
+                        }
+                        else
+                        {
+                            std::cerr << "[pad:script] ignoring malformed event: " << eventSpec << std::endl;
+                        }
+                    }
+                    else
+                    {
+                        std::cerr << "[pad:script] ignoring malformed event: " << eventSpec << std::endl;
+                    }
+                }
+
+                if (semi == std::string::npos)
+                {
+                    break;
+                }
+                begin = semi + 1u;
+            }
+            return events;
+        }
+
+        void applyPadScriptState(PadInputState &state, int port, int slot, uint64_t readIndex)
+        {
+            if (port != 0 || slot != 0)
+            {
+                return;
+            }
+
+            const char *env = std::getenv("PS2X_PAD_SCRIPT");
+            const std::string spec = env ? env : "";
+            if (spec.empty())
+            {
+                return;
+            }
+
+            std::lock_guard<std::mutex> lock(g_padScriptMutex);
+            const auto now = std::chrono::steady_clock::now();
+            if (spec != g_padScript.spec)
+            {
+                g_padScript.spec = spec;
+                g_padScript.events = parsePadScriptSpec(spec);
+                g_padScript.baseRead = readIndex;
+                g_padScript.baseTime = now;
+                g_padScript.loggedConfig = false;
+            }
+
+            if (g_padScript.events.empty())
+            {
+                return;
+            }
+
+            if (!g_padScript.loggedConfig && envEnabled("PS2X_TRACE_PAD_SCRIPT"))
+            {
+                std::cout << "[pad:script] configured events=" << g_padScript.events.size()
+                          << " spec=\"" << g_padScript.spec << "\"" << std::endl;
+                g_padScript.loggedConfig = true;
+            }
+
+            const uint64_t relativeRead = (readIndex >= g_padScript.baseRead)
+                                              ? (readIndex - g_padScript.baseRead + 1u)
+                                              : 0u;
+            const double elapsedSeconds =
+                std::chrono::duration<double>(now - g_padScript.baseTime).count();
+
+            uint16_t pressedMask = 0u;
+            for (const PadScriptEvent &event : g_padScript.events)
+            {
+                bool active = false;
+                if (event.timed)
+                {
+                    active = elapsedSeconds >= event.startSeconds &&
+                             elapsedSeconds < event.startSeconds + event.durationSeconds;
+                }
+                else
+                {
+                    active = relativeRead >= event.startRead &&
+                             relativeRead < event.startRead + event.durationReads;
+                }
+
+                if (active)
+                {
+                    pressedMask = static_cast<uint16_t>(pressedMask | event.pressedMask);
+                }
+            }
+
+            if (pressedMask == 0u)
+            {
+                return;
+            }
+
+            state.buttons = static_cast<uint16_t>(state.buttons & ~pressedMask);
+
+            if (envEnabled("PS2X_TRACE_PAD_SCRIPT"))
+            {
+                static uint32_t s_traceCount = 0u;
+                if (s_traceCount < 128u)
+                {
+                    std::cout << "[pad:script] read=" << relativeRead
+                              << " elapsed=" << elapsedSeconds
+                              << " pressedMask=0x" << std::hex << pressedMask
+                              << " buttons=0x" << state.buttons
+                              << std::dec << std::endl;
+                    ++s_traceCount;
+                }
             }
         }
 
@@ -297,6 +708,9 @@ namespace ps2_stubs
                     applyKeyboardState(state, portState.analogMode);
                 }
             }
+
+            const uint64_t readIndex = ++g_padScriptReadCount;
+            applyPadScriptState(state, port, slot, readIndex);
 
             fillPadStatus(outData, state, portState);
 

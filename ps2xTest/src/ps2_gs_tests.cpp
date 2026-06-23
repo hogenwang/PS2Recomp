@@ -1820,6 +1820,53 @@ void register_ps2_gs_tests()
             t.IsTrue(imageOk, "NREG=0 REGLIST should consume 16 data words and keep following tag aligned");
         });
 
+        tc.Run("GIF alternate IMAGE format writes host-to-local data into GS VRAM", [](TestCase &t)
+        {
+            std::vector<uint8_t> vram(PS2_GS_VRAM_SIZE, 0u);
+            GS gs;
+            gs.init(vram.data(), static_cast<uint32_t>(vram.size()), nullptr);
+
+            const uint64_t bitblt =
+                (static_cast<uint64_t>(0u) << 0) |
+                (static_cast<uint64_t>(1u) << 16) |
+                (static_cast<uint64_t>(0u) << 24) |
+                (static_cast<uint64_t>(0u) << 32) |
+                (static_cast<uint64_t>(1u) << 48) |
+                (static_cast<uint64_t>(0u) << 56);
+            gs.writeRegister(GS_REG_BITBLTBUF, bitblt);
+            gs.writeRegister(GS_REG_TRXPOS, 0ull);
+            gs.writeRegister(GS_REG_TRXREG, (4ull << 0) | (1ull << 32));
+            gs.writeRegister(GS_REG_TRXDIR, 0ull);
+
+            std::vector<uint8_t> packet;
+            appendU64(packet, makeGifTag(1u, GIF_FMT_DISABLED, 0u, true));
+            appendU64(packet, 0ull);
+            const uint8_t payload[16] = {
+                0x71u, 0x72u, 0x73u, 0x74u,
+                0x75u, 0x76u, 0x77u, 0x78u,
+                0x79u, 0x7Au, 0x7Bu, 0x7Cu,
+                0x7Du, 0x7Eu, 0x7Fu, 0x80u,
+            };
+            packet.insert(packet.end(), payload, payload + sizeof(payload));
+
+            gs.processGIFPacket(packet.data(), static_cast<uint32_t>(packet.size()));
+
+            bool imageOk = true;
+            for (uint32_t x = 0; x < 4u && imageOk; ++x)
+            {
+                const uint32_t off = referenceAddrPSMCT32(0u, 1u, x, 0u);
+                for (uint32_t c = 0; c < 4u; ++c)
+                {
+                    if (vram[off + c] != payload[x * 4u + c])
+                    {
+                        imageOk = false;
+                        break;
+                    }
+                }
+            }
+            t.IsTrue(imageOk, "GIF FLG=3 should be treated as the alternate IMAGE transfer format");
+        });
+
         tc.Run("GS SIGNAL and FINISH set CSR bits that clear by CSR write-one acknowledge", [](TestCase &t)
         {
             PS2Memory mem;
@@ -1897,6 +1944,204 @@ void register_ps2_gs_tests()
                 }
             }
             t.IsTrue(same, "GIF IMAGE transfer should write payload bytes into GS VRAM");
+        });
+
+        tc.Run("GIF IMAGE empty tag can continue with raw host-to-local payload", [](TestCase &t)
+        {
+            std::vector<uint8_t> vram(PS2_GS_VRAM_SIZE, 0u);
+            GS gs;
+            gs.init(vram.data(), static_cast<uint32_t>(vram.size()), nullptr);
+
+            const uint64_t bitblt =
+                (static_cast<uint64_t>(0u) << 0) |
+                (static_cast<uint64_t>(1u) << 16) |
+                (static_cast<uint64_t>(0u) << 24) |
+                (static_cast<uint64_t>(0u) << 32) |
+                (static_cast<uint64_t>(1u) << 48) |
+                (static_cast<uint64_t>(0u) << 56);
+            gs.writeRegister(GS_REG_BITBLTBUF, bitblt);
+            gs.writeRegister(GS_REG_TRXPOS, 0ull);
+            gs.writeRegister(GS_REG_TRXREG, (2ull << 0) | (2ull << 32));
+            gs.writeRegister(GS_REG_TRXDIR, 0ull);
+
+            std::vector<uint8_t> tagOnly;
+            appendU64(tagOnly, makeGifTag(0u, GIF_FMT_IMAGE, 0u, true));
+            appendU64(tagOnly, 0ull);
+            gs.processGIFPacket(tagOnly.data(), static_cast<uint32_t>(tagOnly.size()));
+
+            const uint8_t payload[16] = {
+                0x11u, 0x12u, 0x13u, 0x14u,
+                0x21u, 0x22u, 0x23u, 0x24u,
+                0x31u, 0x32u, 0x33u, 0x34u,
+                0x41u, 0x42u, 0x43u, 0x44u,
+            };
+            gs.processGIFPacket(payload, sizeof(payload));
+
+            bool same = true;
+            for (uint32_t y = 0; y < 2u && same; ++y)
+            {
+                for (uint32_t x = 0; x < 2u; ++x)
+                {
+                    const uint32_t pixelIndex = y * 2u + x;
+                    const uint32_t off = referenceAddrPSMCT32(0u, 1u, x, y);
+                    for (uint32_t c = 0; c < 4u; ++c)
+                    {
+                        if (vram[off + c] != payload[pixelIndex * 4u + c])
+                        {
+                            same = false;
+                            break;
+                        }
+                    }
+                    if (!same)
+                        break;
+                }
+            }
+            t.IsTrue(same, "empty IMAGE tag should use TRXREG to consume the following raw payload");
+        });
+
+        tc.Run("GIF incomplete IMAGE tag is not consumed as raw data while a transfer is active", [](TestCase &t)
+        {
+            std::vector<uint8_t> vram(PS2_GS_VRAM_SIZE, 0u);
+            GS gs;
+            gs.init(vram.data(), static_cast<uint32_t>(vram.size()), nullptr);
+
+            const uint64_t bitblt =
+                (static_cast<uint64_t>(0u) << 0) |
+                (static_cast<uint64_t>(1u) << 16) |
+                (static_cast<uint64_t>(0u) << 24) |
+                (static_cast<uint64_t>(0u) << 32) |
+                (static_cast<uint64_t>(1u) << 48) |
+                (static_cast<uint64_t>(0u) << 56);
+            gs.writeRegister(GS_REG_BITBLTBUF, bitblt);
+            gs.writeRegister(GS_REG_TRXPOS, 0ull);
+            gs.writeRegister(GS_REG_TRXREG, (4ull << 0) | (1ull << 32));
+            gs.writeRegister(GS_REG_TRXDIR, 0ull);
+
+            std::vector<uint8_t> tagOnly;
+            appendU64(tagOnly, makeGifTag(1u, GIF_FMT_IMAGE, 0u, true));
+            appendU64(tagOnly, 0ull);
+            gs.processGIFPacket(tagOnly.data(), static_cast<uint32_t>(tagOnly.size()));
+
+            const uint8_t payload[16] = {
+                0x61u, 0x62u, 0x63u, 0x64u,
+                0x65u, 0x66u, 0x67u, 0x68u,
+                0x69u, 0x6Au, 0x6Bu, 0x6Cu,
+                0x6Du, 0x6Eu, 0x6Fu, 0x70u,
+            };
+            gs.processGIFPacket(payload, sizeof(payload));
+
+            bool same = true;
+            for (uint32_t x = 0; x < 4u && same; ++x)
+            {
+                const uint32_t off = referenceAddrPSMCT32(0u, 1u, x, 0u);
+                for (uint32_t c = 0; c < 4u; ++c)
+                {
+                    if (vram[off + c] != payload[x * 4u + c])
+                    {
+                        same = false;
+                        break;
+                    }
+                }
+            }
+            t.IsTrue(same, "tag-only IMAGE packets should still arm pending payload handling");
+        });
+
+        tc.Run("GIF IMAGE pending raw payload is not reinterpreted as an oversized IMAGE tag", [](TestCase &t)
+        {
+            std::vector<uint8_t> vram(PS2_GS_VRAM_SIZE, 0u);
+            GS gs;
+            gs.init(vram.data(), static_cast<uint32_t>(vram.size()), nullptr);
+
+            const uint64_t bitblt =
+                (static_cast<uint64_t>(0u) << 0) |
+                (static_cast<uint64_t>(1u) << 16) |
+                (static_cast<uint64_t>(0u) << 24) |
+                (static_cast<uint64_t>(0u) << 32) |
+                (static_cast<uint64_t>(1u) << 48) |
+                (static_cast<uint64_t>(0u) << 56);
+            gs.writeRegister(GS_REG_BITBLTBUF, bitblt);
+            gs.writeRegister(GS_REG_TRXPOS, 0ull);
+            gs.writeRegister(GS_REG_TRXREG, (4ull << 0) | (1ull << 32));
+            gs.writeRegister(GS_REG_TRXDIR, 0ull);
+
+            std::vector<uint8_t> tagOnly;
+            appendU64(tagOnly, makeGifTag(0u, GIF_FMT_IMAGE, 0u, true));
+            appendU64(tagOnly, 0ull);
+            gs.processGIFPacket(tagOnly.data(), static_cast<uint32_t>(tagOnly.size()));
+
+            const uint8_t payload[16] = {
+                0xFFu, 0xFFu, 0xFFu, 0xFFu,
+                0xFFu, 0xFFu, 0xFFu, 0xFFu,
+                0xFFu, 0xFFu, 0xFFu, 0xFFu,
+                0xFFu, 0xFFu, 0xFFu, 0xFFu,
+            };
+            gs.processGIFPacket(payload, sizeof(payload));
+
+            bool same = true;
+            for (uint32_t x = 0; x < 4u && same; ++x)
+            {
+                const uint32_t off = referenceAddrPSMCT32(0u, 1u, x, 0u);
+                for (uint32_t c = 0; c < 4u; ++c)
+                {
+                    if (vram[off + c] != payload[x * 4u + c])
+                    {
+                        same = false;
+                        break;
+                    }
+                }
+            }
+            t.IsTrue(same, "pending IMAGE payload bytes that resemble an oversized GIFtag should still write to VRAM");
+        });
+
+        tc.Run("GIF host-to-local setup can be followed by raw DMA image data without IMAGE tag", [](TestCase &t)
+        {
+            std::vector<uint8_t> vram(PS2_GS_VRAM_SIZE, 0u);
+            GS gs;
+            gs.init(vram.data(), static_cast<uint32_t>(vram.size()), nullptr);
+
+            const uint64_t bitblt =
+                (static_cast<uint64_t>(0u) << 0) |
+                (static_cast<uint64_t>(1u) << 16) |
+                (static_cast<uint64_t>(0u) << 24) |
+                (static_cast<uint64_t>(0u) << 32) |
+                (static_cast<uint64_t>(1u) << 48) |
+                (static_cast<uint64_t>(0u) << 56);
+
+            std::vector<uint8_t> setup;
+            appendU64(setup, makeGifTag(4u, GIF_FMT_PACKED, 1u, false));
+            appendU64(setup, 0x0Eull);
+            appendU64(setup, bitblt);
+            appendU64(setup, GS_REG_BITBLTBUF);
+            appendU64(setup, 0ull);
+            appendU64(setup, GS_REG_TRXPOS);
+            appendU64(setup, (4ull << 0) | (1ull << 32));
+            appendU64(setup, GS_REG_TRXREG);
+            appendU64(setup, 0ull);
+            appendU64(setup, GS_REG_TRXDIR);
+            gs.processGIFPacket(setup.data(), static_cast<uint32_t>(setup.size()));
+
+            const uint8_t payload[16] = {
+                0xFFu, 0xFEu, 0xFDu, 0xFCu,
+                0xFBu, 0xFAu, 0xF9u, 0xF8u,
+                0xF7u, 0xF6u, 0xF5u, 0xF4u,
+                0xF3u, 0xF2u, 0xF1u, 0xF0u,
+            };
+            gs.processGIFPacket(payload, sizeof(payload));
+
+            bool same = true;
+            for (uint32_t x = 0; x < 4u && same; ++x)
+            {
+                const uint32_t off = referenceAddrPSMCT32(0u, 1u, x, 0u);
+                for (uint32_t c = 0; c < 4u; ++c)
+                {
+                    if (vram[off + c] != payload[x * 4u + c])
+                    {
+                        same = false;
+                        break;
+                    }
+                }
+            }
+            t.IsTrue(same, "TRXDIR=GIF->VRAM state should consume raw follow-up DMA as HWREG image data");
         });
 
         tc.Run("GS local-to-host transfer supports partial incremental reads", [](TestCase &t)

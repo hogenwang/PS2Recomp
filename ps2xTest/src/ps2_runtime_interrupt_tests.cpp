@@ -129,40 +129,45 @@ void register_ps2_runtime_interrupt_tests()
 {
     MiniTest::Case("PS2RuntimeInterrupt", [](TestCase &tc)
     {
-        tc.Run("SetVSyncFlag updates guest flag and monotonic tick", [](TestCase &t)
+        tc.Run("SetVSyncFlag updates guest flag and GS CSR snapshot", [](TestCase &t)
         {
             notifyRuntimeStop();
             TestEnv env;
 
             constexpr uint32_t kFlagAddr = 0x1000u;
-            constexpr uint32_t kTickAddr = 0x1010u;
+            constexpr uint32_t kCsrAddr = 0x1010u;
+            constexpr uint64_t kCsrValue = 0x0000000000002008ull;
+            env.runtime.memory().gs().csr = kCsrValue;
 
             writeGuestU32(env.rdram.data(), kFlagAddr, 0xDEADBEEFu);
-            writeGuestU32(env.rdram.data(), kTickAddr + 0u, 0xAAAAAAAAu);
-            writeGuestU32(env.rdram.data(), kTickAddr + 4u, 0xBBBBBBBBu);
+            writeGuestU32(env.rdram.data(), kCsrAddr + 0u, 0xAAAAAAAAu);
+            writeGuestU32(env.rdram.data(), kCsrAddr + 4u, 0xBBBBBBBBu);
 
             R5900Context ctx{};
             setRegU32(ctx, 4, kFlagAddr);
-            setRegU32(ctx, 5, kTickAddr);
+            setRegU32(ctx, 5, kCsrAddr);
             t.IsTrue(callSyscall(0x73u, env.rdram.data(), &ctx, &env.runtime), "SetVSyncFlag syscall should dispatch");
             t.Equals(getRegS32(ctx, 2), KE_OK, "SetVSyncFlag should return KE_OK");
             t.Equals(readGuestU32(env.rdram.data(), kFlagAddr), 0u, "SetVSyncFlag should reset flag to zero");
-            t.Equals(readGuestU64(env.rdram.data(), kTickAddr), 0ull, "SetVSyncFlag should reset tick counter to zero");
+            t.Equals(readGuestU64(env.rdram.data(), kCsrAddr), 0ull, "SetVSyncFlag should reset CSR snapshot to zero");
 
-            const bool firstTickSeen = waitUntil([&]() {
-                return readGuestU64(env.rdram.data(), kTickAddr) > 0u;
+            const bool firstVsyncSeen = waitUntil([&]() {
+                return readGuestU32(env.rdram.data(), kFlagAddr) == 1u &&
+                       readGuestU64(env.rdram.data(), kCsrAddr) == kCsrValue;
             }, std::chrono::milliseconds(300));
-            t.IsTrue(firstTickSeen, "VSync worker should update tick value");
+            t.IsTrue(firstVsyncSeen, "VSync worker should update guest flag and CSR snapshot");
 
-            const uint64_t firstTick = readGuestU64(env.rdram.data(), kTickAddr);
+            const uint64_t firstTick = GetCurrentVSyncTick();
             t.IsTrue(firstTick > 0u, "First observed VSync tick should be positive");
             t.Equals(readGuestU32(env.rdram.data(), kFlagAddr), 1u, "VSync worker should set flag to one");
+            t.Equals(readGuestU64(env.rdram.data(), kCsrAddr), kCsrValue, "VSync worker should copy GS CSR, not the runtime tick");
 
             const bool secondTickSeen = waitUntil([&]() {
-                return readGuestU64(env.rdram.data(), kTickAddr) > firstTick;
+                return GetCurrentVSyncTick() > firstTick;
             }, std::chrono::milliseconds(300));
-            t.IsTrue(secondTickSeen, "VSync tick should continue to advance");
-            t.IsTrue(readGuestU64(env.rdram.data(), kTickAddr) > firstTick, "tick should be monotonic");
+            t.IsTrue(secondTickSeen, "runtime VSync tick should continue to advance");
+            t.IsTrue(GetCurrentVSyncTick() > firstTick, "runtime tick should be monotonic");
+            t.Equals(readGuestU64(env.rdram.data(), kCsrAddr), kCsrValue, "guest CSR snapshot should remain a CSR value across ticks");
 
             cleanupRuntime(env);
         });
@@ -247,6 +252,34 @@ void register_ps2_runtime_interrupt_tests()
             const uint32_t lastArg = g_lastIntcArg.load(std::memory_order_relaxed);
             t.IsTrue(lastArg == 0xCAFE0002u || lastArg == 0xCAFE0003u,
                      "handler should receive configured argument value");
+
+            cleanupRuntime(env);
+        });
+
+        tc.Run("VSync worker raises pollable INTC VBLANK status bits", [](TestCase &t)
+        {
+            notifyRuntimeStop();
+            TestEnv env;
+
+            constexpr uint32_t kFlagAddr = 0x1200u;
+            constexpr uint32_t kCsrAddr = 0x1210u;
+            constexpr uint32_t kIStat = 0x1000F000u;
+
+            R5900Context vsyncCtx{};
+            setRegU32(vsyncCtx, 4, kFlagAddr);
+            setRegU32(vsyncCtx, 5, kCsrAddr);
+            t.IsTrue(callSyscall(0x73u, env.rdram.data(), &vsyncCtx, &env.runtime), "SetVSyncFlag syscall should dispatch");
+
+            env.runtime.memory().writeIORegister(kIStat, 1u << 2);
+            t.Equals(env.runtime.memory().readIORegister(kIStat) & (1u << 2), 0u, "I_STAT write-one should clear VBON");
+
+            const bool vbonSeen = waitUntil([&]() {
+                return (env.runtime.memory().readIORegister(kIStat) & (1u << 2)) != 0u;
+            }, std::chrono::milliseconds(300));
+            t.IsTrue(vbonSeen, "VSync worker should set pollable VBON status");
+
+            env.runtime.memory().writeIORegister(kIStat, 1u << 2);
+            t.Equals(env.runtime.memory().readIORegister(kIStat) & (1u << 2), 0u, "I_STAT VBON should clear again on write-one acknowledge");
 
             cleanupRuntime(env);
         });
@@ -497,12 +530,13 @@ void register_ps2_runtime_interrupt_tests()
                 TestEnv wakeEnv;
                 R5900Context setCtx{};
                 constexpr uint32_t kWakeFlagAddr = 0x1500u;
-                constexpr uint32_t kWakeTickAddr = 0x1510u;
+                constexpr uint32_t kWakeCsrAddr = 0x1510u;
                 setRegU32(setCtx, 4, kWakeFlagAddr);
-                setRegU32(setCtx, 5, kWakeTickAddr);
+                setRegU32(setCtx, 5, kWakeCsrAddr);
                 (void)callSyscall(0x73u, wakeEnv.rdram.data(), &setCtx, &wakeEnv.runtime);
+                const uint64_t initialTick = GetCurrentVSyncTick();
                 (void)waitUntil([&]() {
-                    return readGuestU64(wakeEnv.rdram.data(), kWakeTickAddr) > 0u;
+                    return GetCurrentVSyncTick() > initialTick;
                 }, std::chrono::milliseconds(300));
                 wakeEnv.runtime.requestStop();
                 wokeOnStop = waitUntil([&]() {

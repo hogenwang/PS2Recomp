@@ -350,6 +350,85 @@ void register_ps2_runtime_io_tests()
                 "mc0: directory should NOT exist under cdRoot");
         });
 
+        tc.Run("fioOpen resolves loose CD paths under DATA", [](TestCase &t)
+        {
+            TestContext test;
+
+            std::filesystem::create_directories(test.paths.cdRoot / "DATA" / "ZDX");
+            {
+                std::ofstream out(test.paths.cdRoot / "DATA" / "ZDX" / "KOFXIBGM.AFS", std::ios::binary);
+                const char payload[] = {'A', 'F', 'S', '\0', 'b', 'g', 'm'};
+                out.write(payload, static_cast<std::streamsize>(sizeof(payload)));
+            }
+
+            constexpr uint32_t pathAddr = GUEST_STRING_AREA_START + 0x700;
+            constexpr uint32_t bufAddr = GUEST_BUFFER_AREA_START + 0x700;
+            writeGuestString(test.rdram.data(), pathAddr, "\\zdx\\kofxibgm.afs");
+
+            clearContext(test.ctx);
+            setRegU32(test.ctx, 4, pathAddr);
+            setRegU32(test.ctx, 5, PS2_FIO_O_RDONLY);
+            fioOpen(test.rdram.data(), &test.ctx, nullptr);
+
+            const int32_t fd = getRegS32(&test.ctx, 2);
+            t.IsTrue(fd >= 0, "fioOpen should resolve the extracted DATA/ZDX AFS file");
+
+            clearContext(test.ctx);
+            setRegU32(test.ctx, 4, static_cast<uint32_t>(fd));
+            setRegU32(test.ctx, 5, bufAddr);
+            setRegU32(test.ctx, 6, 4u);
+            fioRead(test.rdram.data(), &test.ctx, nullptr);
+
+            t.Equals(getRegS32(&test.ctx, 2), 4, "fioRead should read the AFS magic");
+            t.Equals(std::memcmp(test.rdram.data() + bufAddr, "AFS", 3), 0,
+                     "loose CD path should point at the AFS file");
+
+            clearContext(test.ctx);
+            setRegU32(test.ctx, 4, static_cast<uint32_t>(fd));
+            fioClose(test.rdram.data(), &test.ctx, nullptr);
+        });
+
+        tc.Run("fopen resolves loose CD paths under DATA", [](TestCase &t)
+        {
+            TestContext test;
+
+            std::filesystem::create_directories(test.paths.cdRoot / "DATA" / "ZDX");
+            {
+                std::ofstream out(test.paths.cdRoot / "DATA" / "ZDX" / "KOFXIBGM.AFS", std::ios::binary);
+                const char payload[] = {'A', 'F', 'S', '\0', 's', 't', 'd', 'i', 'o'};
+                out.write(payload, static_cast<std::streamsize>(sizeof(payload)));
+            }
+
+            constexpr uint32_t pathAddr = GUEST_STRING_AREA_START + 0x900;
+            constexpr uint32_t modeAddr = GUEST_STRING_AREA_START + 0x980;
+            constexpr uint32_t bufAddr = GUEST_BUFFER_AREA_START + 0x900;
+            writeGuestString(test.rdram.data(), pathAddr, "\\zdx\\kofxibgm.afs");
+            writeGuestString(test.rdram.data(), modeAddr, "rb");
+
+            clearContext(test.ctx);
+            setRegU32(test.ctx, 4, pathAddr);
+            setRegU32(test.ctx, 5, modeAddr);
+            ps2_stubs::fopen(test.rdram.data(), &test.ctx, nullptr);
+
+            const uint32_t handle = ::getRegU32(&test.ctx, 2);
+            t.IsTrue(handle != 0u, "fopen should resolve the extracted DATA/ZDX AFS file");
+
+            clearContext(test.ctx);
+            setRegU32(test.ctx, 4, bufAddr);
+            setRegU32(test.ctx, 5, 1u);
+            setRegU32(test.ctx, 6, 4u);
+            setRegU32(test.ctx, 7, handle);
+            ps2_stubs::fread(test.rdram.data(), &test.ctx, nullptr);
+
+            t.Equals(::getRegU32(&test.ctx, 2), 4u, "fread should read four bytes from the AFS file");
+            t.Equals(std::memcmp(test.rdram.data() + bufAddr, "AFS", 3), 0,
+                     "fopen loose CD path should point at the AFS file");
+
+            clearContext(test.ctx);
+            setRegU32(test.ctx, 4, handle);
+            ps2_stubs::fclose(test.rdram.data(), &test.ctx, nullptr);
+        });
+
         tc.Run("sceMc open write read and close roundtrip through sync", [](TestCase &t)
         {
             TestContext test;

@@ -2,10 +2,48 @@
 #include "LibC.h"
 #include "ps2_log.h"
 
+namespace ps2_syscalls
+{
+    std::string resolvePs2PathForReadOpen(const char *ps2Path);
+}
+
 namespace ps2_stubs
 {
     namespace
     {
+        constexpr uint16_t kNewlibFileWriteFlag = 0x0008u;
+        constexpr uint16_t kNewlibFileStringFlag = 0x0200u;
+        constexpr uint32_t kNewlibFileReentOffset = 0x54u;
+        constexpr size_t kSafeGuestStringFileBytes = 256u;
+
+        struct GuestStringFile
+        {
+            uint32_t fileAddr = 0u;
+            uint32_t cursorAddr = 0u;
+            uint32_t remaining = 0u;
+            uint16_t flags = 0u;
+            uint32_t baseAddr = 0u;
+            uint32_t bufferSize = 0u;
+        };
+
+        bool fopenModeMayReadExistingFile(const char *mode)
+        {
+            if (!mode || !*mode)
+            {
+                return false;
+            }
+
+            for (const char *p = mode; *p; ++p)
+            {
+                if (*p == 'w' || *p == 'a' || *p == '+')
+                {
+                    return false;
+                }
+            }
+
+            return mode[0] == 'r';
+        }
+
         uint32_t sanitizeMemTransferSize(uint32_t size, const char *op)
         {
             constexpr uint32_t kMaxTransfer = PS2_RAM_SIZE;
@@ -43,6 +81,225 @@ namespace ps2_stubs
                 return (offset < PS2_SCRATCHPAD_SIZE) ? (PS2_SCRATCHPAD_SIZE - offset) : 0u;
             }
             return (offset < PS2_RAM_SIZE) ? (PS2_RAM_SIZE - offset) : 0u;
+        }
+
+        bool writeGuestU32(uint8_t *rdram, PS2Runtime *runtime, uint32_t addr, uint32_t value)
+        {
+            const uint8_t bytes[4] = {
+                static_cast<uint8_t>(value & 0xFFu),
+                static_cast<uint8_t>((value >> 8u) & 0xFFu),
+                static_cast<uint8_t>((value >> 16u) & 0xFFu),
+                static_cast<uint8_t>((value >> 24u) & 0xFFu),
+            };
+            return writeGuestBytes(rdram, runtime, addr, bytes, sizeof(bytes));
+        }
+
+        bool tryReadGuestStringFile(uint8_t *rdram, PS2Runtime *runtime, uint32_t fileAddr, GuestStringFile &outFile)
+        {
+            uint32_t cursorAddr = 0u;
+            uint32_t remaining = 0u;
+            uint32_t flagsAndFile = 0u;
+            uint32_t baseAddr = 0u;
+            uint32_t bufferSize = 0u;
+
+            if (fileAddr == 0u ||
+                !tryReadWordFromGuest(rdram, runtime, fileAddr + 0x00u, cursorAddr) ||
+                !tryReadWordFromGuest(rdram, runtime, fileAddr + 0x08u, remaining) ||
+                !tryReadWordFromGuest(rdram, runtime, fileAddr + 0x0Cu, flagsAndFile) ||
+                !tryReadWordFromGuest(rdram, runtime, fileAddr + 0x10u, baseAddr) ||
+                !tryReadWordFromGuest(rdram, runtime, fileAddr + 0x14u, bufferSize))
+            {
+                return false;
+            }
+
+            const uint16_t flags = static_cast<uint16_t>(flagsAndFile & 0xFFFFu);
+            if ((flags & kNewlibFileStringFlag) == 0u || (flags & kNewlibFileWriteFlag) == 0u)
+            {
+                return false;
+            }
+
+            const uint32_t writeAddr = (cursorAddr != 0u) ? cursorAddr : baseAddr;
+            if (writeAddr == 0u || guestContiguousBytes(writeAddr) == 0u)
+            {
+                return false;
+            }
+
+            outFile = GuestStringFile{
+                fileAddr,
+                writeAddr,
+                remaining,
+                flags,
+                baseAddr,
+                bufferSize,
+            };
+            return true;
+        }
+
+        bool tryReadGuestWritableFile(uint8_t *rdram, PS2Runtime *runtime, uint32_t fileAddr, uint16_t &outFlags)
+        {
+            if (fileAddr == 0u || guestContiguousBytes(fileAddr) < 0x10u)
+            {
+                return false;
+            }
+
+            uint32_t flagsAndFile = 0u;
+            if (!tryReadWordFromGuest(rdram, runtime, fileAddr + 0x0Cu, flagsAndFile))
+            {
+                return false;
+            }
+
+            const uint16_t flags = static_cast<uint16_t>(flagsAndFile & 0xFFFFu);
+            if ((flags & kNewlibFileWriteFlag) == 0u)
+            {
+                return false;
+            }
+
+            outFlags = flags;
+            return true;
+        }
+
+        bool tryReadGuestNewlibStdFileSink(uint8_t *rdram, PS2Runtime *runtime, uint32_t fileAddr, uint32_t &outReentAddr)
+        {
+            if (fileAddr == 0u || guestContiguousBytes(fileAddr) < kNewlibFileReentOffset + sizeof(uint32_t))
+            {
+                return false;
+            }
+
+            uint32_t flagsAndFile = 0u;
+            uint32_t reentAddr = 0u;
+            if (!tryReadWordFromGuest(rdram, runtime, fileAddr + 0x0Cu, flagsAndFile) ||
+                !tryReadWordFromGuest(rdram, runtime, fileAddr + kNewlibFileReentOffset, reentAddr))
+            {
+                return false;
+            }
+
+            const uint16_t flags = static_cast<uint16_t>(flagsAndFile & 0xFFFFu);
+            if (flags != 0u || reentAddr == 0u || guestContiguousBytes(reentAddr) < 0x20u)
+            {
+                return false;
+            }
+
+            const uint32_t distance = (fileAddr > reentAddr) ? (fileAddr - reentAddr) : (reentAddr - fileAddr);
+            if (distance > 0x4000u)
+            {
+                return false;
+            }
+
+            outReentAddr = reentAddr;
+            return true;
+        }
+
+        bool writeGuestStringFile(uint8_t *rdram, PS2Runtime *runtime, const GuestStringFile &file, const std::string &rendered)
+        {
+            size_t maxPayload = kSafeGuestStringFileBytes - 1u;
+            if (file.remaining != 0u && file.remaining < maxPayload)
+            {
+                maxPayload = file.remaining;
+            }
+            if (file.bufferSize != 0u && file.bufferSize < 0x01000000u && file.bufferSize < maxPayload)
+            {
+                maxPayload = file.bufferSize;
+            }
+
+            const size_t contiguous = guestContiguousBytes(file.cursorAddr);
+            if (contiguous == 0u)
+            {
+                return false;
+            }
+            maxPayload = std::min(maxPayload, contiguous - 1u);
+
+            const size_t copyLen = std::min(rendered.size(), maxPayload);
+            std::vector<uint8_t> output(copyLen + 1u, 0u);
+            if (copyLen > 0u)
+            {
+                std::memcpy(output.data(), rendered.data(), copyLen);
+            }
+
+            if (!writeGuestBytes(rdram, runtime, file.cursorAddr, output.data(), output.size()))
+            {
+                return false;
+            }
+            ps2TraceGuestRangeWrite(rdram, file.cursorAddr, static_cast<uint32_t>(output.size()), "vfprintf-string-file", nullptr);
+
+            const uint32_t nextCursor = file.cursorAddr + static_cast<uint32_t>(copyLen);
+            (void)writeGuestU32(rdram, runtime, file.fileAddr + 0x00u, nextCursor);
+            if (file.remaining != 0u && file.remaining != 0x7FFFFFFFu)
+            {
+                const uint32_t nextRemaining = (file.remaining > copyLen) ? (file.remaining - static_cast<uint32_t>(copyLen)) : 0u;
+                (void)writeGuestU32(rdram, runtime, file.fileAddr + 0x08u, nextRemaining);
+            }
+
+            return true;
+        }
+
+        bool libcTraceEnvEnabled(const char *name)
+        {
+            const char *value = std::getenv(name);
+            if (!value || value[0] == '\0')
+            {
+                return false;
+            }
+
+            return std::strcmp(value, "0") != 0 &&
+                   std::strcmp(value, "false") != 0 &&
+                   std::strcmp(value, "FALSE") != 0 &&
+                   std::strcmp(value, "off") != 0 &&
+                   std::strcmp(value, "OFF") != 0;
+        }
+
+        std::string formatGuestWordDump(uint8_t *rdram, PS2Runtime *runtime, uint32_t addr, uint32_t bytes)
+        {
+            std::ostringstream dump;
+            for (uint32_t offset = 0u; offset < bytes; offset += 4u)
+            {
+                uint32_t word = 0u;
+                dump << " +" << std::hex << offset << "=0x";
+                if (tryReadWordFromGuest(rdram, runtime, addr + offset, word))
+                {
+                    dump << word;
+                }
+                else
+                {
+                    dump << "????????";
+                }
+            }
+            return dump.str();
+        }
+
+        void traceInvalidGuestFileHandle(uint8_t *rdram,
+                                         R5900Context *ctx,
+                                         PS2Runtime *runtime,
+                                         uint32_t fileHandle,
+                                         uint32_t formatAddr,
+                                         uint32_t vaListAddr,
+                                         const std::string &formatOwned)
+        {
+            if (!libcTraceEnvEnabled("PS2X_TRACE_VFPRINTF_FILE"))
+            {
+                return;
+            }
+
+            static uint32_t s_traceCount = 0u;
+            if (s_traceCount >= 32u)
+            {
+                return;
+            }
+            ++s_traceCount;
+
+            const uint32_t pc = ctx ? ctx->pc : 0u;
+            const uint32_t ra = ctx ? getRegU32(ctx, 31) : 0u;
+            const uint32_t sp = ctx ? getRegU32(ctx, 29) : 0u;
+
+            std::cerr << "[vfprintf:guest-file] #" << s_traceCount
+                      << " pc=0x" << std::hex << pc
+                      << " ra=0x" << ra
+                      << " sp=0x" << sp
+                      << " file=0x" << fileHandle
+                      << " format=0x" << formatAddr
+                      << " va=0x" << vaListAddr
+                      << " fmt=\"" << sanitizeForLog(formatOwned) << "\""
+                      << " words:" << formatGuestWordDump(rdram, runtime, fileHandle, 0x80u)
+                      << std::dec << std::endl;
         }
     }
 
@@ -654,10 +911,13 @@ namespace ps2_stubs
 
         if (hostPath && hostMode)
         {
-            // TODO: Add translation for PS2 paths like mc0:, host:, cdrom:, etc.
-            // treating as direct host path
-            RUNTIME_LOG("ps2_stub fopen: path='" << hostPath << "', mode='" << hostMode << "'");
-            FILE *fp = ::fopen(hostPath, hostMode);
+            const std::string resolvedPath = fopenModeMayReadExistingFile(hostMode)
+                                                 ? ps2_syscalls::resolvePs2PathForReadOpen(hostPath)
+                                                 : translatePs2Path(hostPath);
+            RUNTIME_LOG("ps2_stub fopen: path='" << hostPath
+                                                 << "', host='" << resolvedPath
+                                                 << "', mode='" << hostMode << "'");
+            FILE *fp = resolvedPath.empty() ? nullptr : ::fopen(resolvedPath.c_str(), hostMode);
             if (fp)
             {
                 std::lock_guard<std::mutex> lock(g_file_mutex);
@@ -667,7 +927,10 @@ namespace ps2_stubs
             }
             else
             {
-                std::cerr << "ps2_stub fopen error: Failed to open '" << hostPath << "' with mode '" << hostMode << "'. Error: " << strerror(errno) << std::endl;
+                std::cerr << "ps2_stub fopen error: Failed to open '" << hostPath
+                          << "' as '" << resolvedPath
+                          << "' with mode '" << hostMode
+                          << "'. Error: " << strerror(errno) << std::endl;
             }
         }
         else
@@ -1074,6 +1337,9 @@ namespace ps2_stubs
         uint32_t format_addr = getRegU32(ctx, 5);  // $a1
         uint32_t va_list_addr = getRegU32(ctx, 6); // $a2
         FILE *fp = get_file_ptr(file_handle);
+        GuestStringFile stringFile{};
+        uint16_t guestFileFlags = 0u;
+        uint32_t guestStdFileReent = 0u;
         const std::string formatOwned = readPs2CStringBounded(rdram, runtime, format_addr, 1024);
         int ret = -1;
 
@@ -1082,8 +1348,46 @@ namespace ps2_stubs
             std::string rendered = formatPs2StringWithVaList(rdram, runtime, formatOwned.c_str(), va_list_addr);
             ret = std::fprintf(fp, "%s", rendered.c_str());
         }
+        else if (format_addr != 0 && tryReadGuestStringFile(rdram, runtime, file_handle, stringFile))
+        {
+            const std::string rendered = formatPs2StringWithVaList(rdram, runtime, formatOwned.c_str(), va_list_addr);
+            if (writeGuestStringFile(rdram, runtime, stringFile, rendered))
+            {
+                ret = static_cast<int>(std::min(rendered.size(), kSafeGuestStringFileBytes - 1u));
+            }
+            else
+            {
+                std::cerr << "vfprintf error: Failed to write guest string FILE at 0x"
+                          << std::hex << file_handle << std::dec << std::endl;
+            }
+        }
+        else if (format_addr != 0 && tryReadGuestWritableFile(rdram, runtime, file_handle, guestFileFlags))
+        {
+            const std::string rendered = formatPs2StringWithVaList(rdram, runtime, formatOwned.c_str(), va_list_addr);
+            ret = static_cast<int>(std::min(rendered.size(), kMaxFormattedOutputBytes));
+            PS2_IF_AGRESSIVE_LOGS({
+                const std::string logLine = sanitizeForLog(rendered);
+                RUNTIME_LOG("PS2 vfprintf guest FILE 0x" << std::hex << file_handle
+                                                         << " flags=0x" << guestFileFlags
+                                                         << ": " << logLine << std::dec);
+                RUNTIME_LOG(std::flush);
+            });
+        }
+        else if (format_addr != 0 && tryReadGuestNewlibStdFileSink(rdram, runtime, file_handle, guestStdFileReent))
+        {
+            const std::string rendered = formatPs2StringWithVaList(rdram, runtime, formatOwned.c_str(), va_list_addr);
+            ret = static_cast<int>(std::min(rendered.size(), kMaxFormattedOutputBytes));
+            PS2_IF_AGRESSIVE_LOGS({
+                const std::string logLine = sanitizeForLog(rendered);
+                RUNTIME_LOG("PS2 vfprintf guest newlib std FILE 0x" << std::hex << file_handle
+                                                                    << " reent=0x" << guestStdFileReent
+                                                                    << ": " << logLine << std::dec);
+                RUNTIME_LOG(std::flush);
+            });
+        }
         else
         {
+            traceInvalidGuestFileHandle(rdram, ctx, runtime, file_handle, format_addr, va_list_addr, formatOwned);
             std::cerr << "vfprintf error: Invalid file handle or format address."
                       << " Handle: 0x" << std::hex << file_handle << " (file valid: " << (fp != nullptr) << ")"
                       << ", Format: 0x" << format_addr << std::dec

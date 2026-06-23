@@ -26,6 +26,19 @@ static Instruction makeNopLike(uint32_t address)
     return inst;
 }
 
+static Instruction makeAddiu(uint32_t address, uint32_t rt = 2, uint16_t immediate = 1)
+{
+    Instruction inst{};
+    inst.address = address;
+    inst.opcode = OPCODE_ADDIU;
+    inst.rs = 0;
+    inst.rt = rt;
+    inst.immediate = immediate;
+    inst.simmediate = immediate;
+    inst.raw = (OPCODE_ADDIU << 26) | (rt << 16) | immediate;
+    return inst;
+}
+
 static Instruction makeAbsJump(uint32_t address, uint32_t target, uint32_t opcode)
 {
     Instruction inst{};
@@ -287,6 +300,79 @@ void register_ps2_recompiler_tests()
                     t.Equals(decoded2008It->second.front().address, 0x2008u,
                              "return entry 0x2008 slice should begin at the JAL fallthrough");
                 }
+            }
+        });
+
+        tc.Run("dead code after terminal exits becomes entry wrappers", [](TestCase &t) {
+            std::vector<Section> sections = {
+                {".text", 0x1000u, 0x3000u, 0u, true, false, false, true, nullptr}
+            };
+
+            std::vector<Function> functions = {
+                makeFunction("container", 0x1000u, 0x1030u)
+            };
+
+            std::unordered_map<uint32_t, std::vector<Instruction>> decodedFunctions;
+            decodedFunctions[0x1000u] = {
+                makeAbsJump(0x1000u, 0x2000u, OPCODE_J),
+                makeNopLike(0x1004u),
+                makeNopLike(0x1008u),
+                makeAddiu(0x100Cu),
+                makeJrRa(0x1010u),
+                makeNopLike(0x1014u),
+                makeAddiu(0x1018u),
+                makeAddiu(0x101Cu),
+                makeJrRa(0x1020u),
+                makeNopLike(0x1024u)
+            };
+
+            size_t discovered = PS2Recompiler::DiscoverAdditionalEntryPoints(
+                functions, decodedFunctions, sections);
+            t.Equals(discovered, static_cast<size_t>(2),
+                     "tail jump and jr ra should promote following code islands to entries");
+
+            auto findByStart = [&](uint32_t start) -> const Function* {
+                auto it = std::find_if(functions.begin(), functions.end(),
+                                       [&](const Function &fn) { return fn.start == start; });
+                if (it == functions.end())
+                {
+                    return nullptr;
+                }
+                return &(*it);
+            };
+
+            const Function *entry100C = findByStart(0x100Cu);
+            const Function *entry1018 = findByStart(0x1018u);
+            t.IsNotNull(entry100C, "code after terminal tail jump should be promoted");
+            t.IsNotNull(entry1018, "code after jr ra should be promoted");
+            if (entry100C)
+            {
+                t.Equals(entry100C->end, 0x1018u,
+                         "first dead-code entry should stop at the next discovered island");
+            }
+            if (entry1018)
+            {
+                t.Equals(entry1018->end, 0x1030u,
+                         "second dead-code entry should run to the container end");
+            }
+
+            auto decoded100CIt = decodedFunctions.find(0x100Cu);
+            auto decoded1018It = decodedFunctions.find(0x1018u);
+            t.IsTrue(decoded100CIt != decodedFunctions.end(),
+                     "decoded slice for tail-jump island should exist");
+            t.IsTrue(decoded1018It != decodedFunctions.end(),
+                     "decoded slice for return island should exist");
+            if (decoded100CIt != decodedFunctions.end() && !decoded100CIt->second.empty())
+            {
+                t.Equals(decoded100CIt->second.front().address, 0x100Cu,
+                         "tail-jump island slice should skip NOP padding");
+                t.Equals(decoded100CIt->second.back().address, 0x1014u,
+                         "tail-jump island slice should stop before the next entry");
+            }
+            if (decoded1018It != decodedFunctions.end() && !decoded1018It->second.empty())
+            {
+                t.Equals(decoded1018It->second.front().address, 0x1018u,
+                         "return island slice should start at the first non-NOP instruction");
             }
         });
 
@@ -845,6 +931,70 @@ void register_ps2_recompiler_tests()
                 { return fn.start == 0x00100010u; });
             t.IsFalse(stillHasFallbackOnlyStart,
                       "fallback-only function starts should be removed once ghidra map is loaded");
+
+            std::error_code removeError;
+            std::filesystem::remove(elfPath, removeError);
+            std::filesystem::remove(mapPath, removeError);
+        });
+
+        tc.Run("ghidra map can overlay names without pruning fallback starts", [](TestCase &t) {
+            const auto uniqueSuffix = std::to_string(
+                static_cast<unsigned long long>(std::chrono::steady_clock::now().time_since_epoch().count()));
+            const std::filesystem::path elfPath =
+                std::filesystem::temp_directory_path() / ("ps2recomp-ghidra-overlay-" + uniqueSuffix + ".elf");
+            const std::filesystem::path mapPath =
+                std::filesystem::temp_directory_path() / ("ps2recomp-ghidra-overlay-" + uniqueSuffix + ".csv");
+
+            const bool writeOk = writeMinimalMipsElfWithJalFallbackTarget(elfPath);
+            t.IsTrue(writeOk, "temporary ELF should be generated");
+            if (!writeOk)
+            {
+                return;
+            }
+
+            ElfParser parser(elfPath.string());
+            const bool parseOk = parser.parse();
+            t.IsTrue(parseOk, "generated ELF should parse");
+            if (!parseOk)
+            {
+                std::error_code removeError;
+                std::filesystem::remove(elfPath, removeError);
+                return;
+            }
+
+            std::ofstream mapFile(mapPath);
+            t.IsTrue(static_cast<bool>(mapFile), "ghidra overlay file should be writable");
+            if (!mapFile)
+            {
+                std::error_code removeError;
+                std::filesystem::remove(elfPath, removeError);
+                return;
+            }
+            mapFile << "name,start,end,size\n";
+            mapFile << "namedEntry,0x00100000,0x00100010,0x10\n";
+            mapFile.close();
+
+            const bool mapLoaded = parser.loadGhidraFunctionMap(mapPath.string(), false);
+            t.IsTrue(mapLoaded, "ghidra overlay should load");
+
+            const auto functions = parser.extractFunctions();
+            const auto entryIt = std::find_if(
+                functions.begin(), functions.end(),
+                [](const Function &fn)
+                { return fn.start == 0x00100000u; });
+            t.IsTrue(entryIt != functions.end(), "overlay entry should exist");
+            if (entryIt != functions.end())
+            {
+                t.Equals(entryIt->name, std::string("namedEntry"),
+                         "overlay name should win over fallback auto-name");
+            }
+
+            const bool stillHasFallbackOnlyStart = std::any_of(
+                functions.begin(), functions.end(),
+                [](const Function &fn)
+                { return fn.start == 0x00100010u; });
+            t.IsTrue(stillHasFallbackOnlyStart,
+                     "fallback-only function starts should remain when ghidra pruning is disabled");
 
             std::error_code removeError;
             std::filesystem::remove(elfPath, removeError);

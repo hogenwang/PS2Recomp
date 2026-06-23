@@ -132,6 +132,40 @@ namespace ps2_syscalls
         setReturnS32(ctx, 0);
     }
 
+    void SetCPUTimerHandler(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        (void)rdram;
+        (void)runtime;
+
+        static uint32_t s_cpuTimerHandler = 0u;
+        static uint32_t s_cpuTimerCommon = 0u;
+
+        const uint32_t prevHandler = s_cpuTimerHandler;
+        s_cpuTimerHandler = getRegU32(ctx, 4);
+        s_cpuTimerCommon = getRegU32(ctx, 5);
+
+        setReturnU32(ctx, prevHandler);
+    }
+
+    void SetCPUTimer(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        (void)rdram;
+        (void)runtime;
+        (void)getRegU32(ctx, 4);
+
+        setReturnS32(ctx, 0);
+    }
+
+    void SetOsdConfigParam2(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        SetOsdConfigParam(rdram, ctx, runtime);
+    }
+
+    void GetOsdConfigParam2(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        GetOsdConfigParam(rdram, ctx, runtime);
+    }
+
     void GetRomName(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         uint32_t bufAddr = getRegU32(ctx, 4); // $a0
@@ -611,6 +645,13 @@ namespace ps2_syscalls
         setReturnU32(ctx, PS2_RAM_SIZE);
     }
 
+    void ExecOSD(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        (void)rdram;
+        (void)runtime;
+        setReturnS32(ctx, KE_OK);
+    }
+
     static inline uint32_t normalizeKernelAlias(uint32_t addr)
     {
         if (addr >= 0x80000000u && addr < 0xC0000000u)
@@ -902,6 +943,20 @@ namespace ps2_syscalls
         (void)rdram;
         (void)runtime;
         setReturnS32(ctx, KE_OK);
+    }
+
+    void PSMode(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        (void)rdram;
+        (void)runtime;
+        setReturnS32(ctx, KE_OK);
+    }
+
+    void MachineType(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        (void)rdram;
+        (void)runtime;
+        setReturnU32(ctx, 0u);
     }
 
     // 0x5A QueryBootMode (stub): return 0 for now

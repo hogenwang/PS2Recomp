@@ -253,6 +253,21 @@ namespace ps2_syscalls
         case 0x64:
             FlushCache(rdram, ctx, runtime);
             return true;
+        case 0x6B:
+            ps2_stubs::sceSifStopDma(rdram, ctx, runtime);
+            return true;
+        case 0x6C:
+            SetCPUTimerHandler(rdram, ctx, runtime);
+            return true;
+        case 0x6D:
+            SetCPUTimer(rdram, ctx, runtime);
+            return true;
+        case 0x6E:
+            SetOsdConfigParam2(rdram, ctx, runtime);
+            return true;
+        case 0x6F:
+            GetOsdConfigParam2(rdram, ctx, runtime);
+            return true;
         case 0x70:
             GsGetIMR(rdram, ctx, runtime);
             return true;
@@ -282,6 +297,27 @@ namespace ps2_syscalls
         case 0x78:
         case static_cast<uint32_t>(-0x78):
             ps2_stubs::sceSifSetDChain(rdram, ctx, runtime);
+            return true;
+        case 0x79:
+            ps2_stubs::sceSifSetReg(rdram, ctx, runtime);
+            return true;
+        case 0x7A:
+            ps2_stubs::sceSifGetReg(rdram, ctx, runtime);
+            return true;
+        case 0x7B:
+            ExecOSD(rdram, ctx, runtime);
+            return true;
+        case 0x7C:
+            Deci2Call(rdram, ctx, runtime);
+            return true;
+        case 0x7D:
+            PSMode(rdram, ctx, runtime);
+            return true;
+        case 0x7E:
+            MachineType(rdram, ctx, runtime);
+            return true;
+        case 0x7F:
+            GetMemorySize(rdram, ctx, runtime);
             return true;
         case 0x83:
             FindAddress(rdram, ctx, runtime);

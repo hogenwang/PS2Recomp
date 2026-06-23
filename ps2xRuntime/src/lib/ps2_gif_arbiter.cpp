@@ -3,12 +3,19 @@
 #include <algorithm>
 #include <atomic>
 #include <cstring>
+#include <cstdlib>
 #include <iostream>
 
 namespace
 {
     std::atomic<uint32_t> s_debugGifArbiterSubmitCount{0};
     std::atomic<uint32_t> s_debugGifArbiterDrainCount{0};
+
+    bool traceGifArbiterEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_GIF_ARBITER");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
 
     const char *pathName(GifPathId id)
     {
@@ -48,7 +55,7 @@ void GifArbiter::submit(GifPathId pathId, const uint8_t *data, uint32_t sizeByte
         return;
 
     const uint32_t debugIndex = s_debugGifArbiterSubmitCount.fetch_add(1, std::memory_order_relaxed);
-    if (debugIndex < 96u)
+    if (traceGifArbiterEnabled() && debugIndex < 96u)
     {
         uint64_t tagLo = 0;
         std::memcpy(&tagLo, data, sizeof(tagLo));
@@ -101,7 +108,7 @@ void GifArbiter::drain()
         if (!pkt.data.empty())
         {
             const uint32_t debugIndex = s_debugGifArbiterDrainCount.fetch_add(1, std::memory_order_relaxed);
-            if (debugIndex < 96u)
+            if (traceGifArbiterEnabled() && debugIndex < 96u)
             {
                 uint64_t tagLo = 0;
                 std::memcpy(&tagLo, pkt.data.data(), sizeof(tagLo));

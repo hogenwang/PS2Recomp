@@ -4,6 +4,11 @@
 out
 .vscode
 build
+doc/
+temp/
+.codex/
+PS2_PROJECT_STATE.md
+run_game_agent.bat
 
 *.exe
 *.ilk
@@ -16,5 +21,6 @@ build
 ps2xRuntime/include/ps2_recompiled_functions.h
 ps2xRuntime/include/ps2_recompiled_stubs.h
 ps2xRuntime/src/runner/ps2_recompiled_functions.cpp
+ps2xRuntime/src/runner/sub_*.cpp
 ps2xRuntime/src/runner/register_functions.cpp
 ps2xRuntime/output

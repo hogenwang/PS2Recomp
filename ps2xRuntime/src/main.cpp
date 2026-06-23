@@ -85,6 +85,62 @@ namespace
         throw std::runtime_error("Unable to determine executable path. Pass the guest ELF as argv[1] or define PS2X_DEFAULT_BOOT_ELF.");
 #endif
     }
+
+    std::filesystem::path getEnvPath(const char *name)
+    {
+        const char *value = std::getenv(name);
+        if (!value || value[0] == '\0')
+        {
+            return {};
+        }
+
+        return std::filesystem::path(value);
+    }
+
+    void applyIoPathEnvironmentOverrides()
+    {
+        PS2Runtime::IoPaths paths = PS2Runtime::getIoPaths();
+        bool changed = false;
+
+        if (std::filesystem::path hostRoot = getEnvPath("PS2X_HOST_ROOT"); !hostRoot.empty())
+        {
+            paths.hostRoot = hostRoot;
+            changed = true;
+        }
+
+        if (std::filesystem::path cdRoot = getEnvPath("PS2X_CD_ROOT"); !cdRoot.empty())
+        {
+            paths.cdRoot = cdRoot;
+            changed = true;
+        }
+
+        if (std::filesystem::path cdImage = getEnvPath("PS2X_CD_IMAGE"); !cdImage.empty())
+        {
+            paths.cdImage = cdImage;
+            changed = true;
+        }
+
+        if (std::filesystem::path mcRoot = getEnvPath("PS2X_MC_ROOT"); !mcRoot.empty())
+        {
+            paths.mcRoot = mcRoot;
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        PS2Runtime::setIoPaths(paths);
+
+        const PS2Runtime::IoPaths &configured = PS2Runtime::getIoPaths();
+        std::cout << "Configured IO paths from environment:"
+                  << " hostRoot=\"" << configured.hostRoot.string() << "\""
+                  << " cdRoot=\"" << configured.cdRoot.string() << "\""
+                  << " cdImage=\"" << configured.cdImage.string() << "\""
+                  << " mcRoot=\"" << configured.mcRoot.string() << "\""
+                  << std::endl;
+    }
 }
 
 int main(int argc, char *argv[])
@@ -127,6 +183,8 @@ int main(int argc, char *argv[])
             std::cerr << "Failed to load ELF file: " << filePathStr << std::endl;
             return 1;
         }
+
+        applyIoPathEnvironmentOverrides();
 
         runtime.run();
 

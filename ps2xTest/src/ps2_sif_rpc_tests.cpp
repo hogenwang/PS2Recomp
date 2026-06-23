@@ -541,9 +541,9 @@ void register_ps2_sif_rpc_tests()
             setRegU32(env.ctx, 5, 0x99u);
             setRegU32(env.ctx, 6, 0u);
             setRegU32(env.ctx, 7, kSendAddr);
-            setRegU32(env.ctx, 8, 0x03000000u); // implausible size (> 0x02000000 threshold)
-            setRegU32(env.ctx, 9, 0x00000004u); // implausible guest pointer
-            setRegU32(env.ctx, 10, 0x03000001u);
+            setRegU32(env.ctx, 8, 0x00405704u); // stale pointer-like value seen before stack ABI selection
+            setRegU32(env.ctx, 9, 0u);
+            setRegU32(env.ctx, 10, 0u);
             setRegU32(env.ctx, 11, 0u);
 
             SifCallRpc(env.rdram.data(), &env.ctx, &env.runtime);

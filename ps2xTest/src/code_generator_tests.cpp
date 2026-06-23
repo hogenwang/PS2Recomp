@@ -152,6 +152,26 @@ void register_code_generator_tests()
                  "MULT1 should write low product to rd on R5900");
     });
 
+    tc.Run("COP0 EI and DI update guest EIE state without clearing IE", [](TestCase &t) {
+        CodeGenerator gen({}, {});
+
+        Instruction ei{};
+        ei.opcode = OPCODE_COP0;
+        ei.rs = COP0_CO;
+        ei.raw = (OPCODE_COP0 << 26) | (COP0_CO << 21) | COP0_CO_EI;
+        std::string generated = gen.translateInstruction(ei);
+        t.IsTrue(generated.find("ctx->cop0_status |= 0x10000u") != std::string::npos,
+                 "EI should set the guest EIE interrupt bit");
+
+        Instruction di{};
+        di.opcode = OPCODE_COP0;
+        di.rs = COP0_CO;
+        di.raw = (OPCODE_COP0 << 26) | (COP0_CO << 21) | COP0_CO_DI;
+        generated = gen.translateInstruction(di);
+        t.IsTrue(generated.find("ctx->cop0_status &= ~0x10000u") != std::string::npos,
+                 "DI should clear guest EIE without clearing IE");
+    });
+
         tc.Run("emits labels and gotos for internal branches", [](TestCase &t) {
             Function func;
             func.name = "test_func";

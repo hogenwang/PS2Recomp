@@ -1,6 +1,17 @@
 #include "Common.h"
 #include "RPC.h"
 
+#include <cstdlib>
+
+namespace ps2_stubs
+{
+    void syncKofxiDtxSjrmtObjectState(uint32_t handle,
+                                      uint32_t readPos,
+                                      uint32_t writePos,
+                                      uint32_t roomBytes,
+                                      uint32_t dataBytes);
+}
+
 namespace ps2_syscalls
 {
     namespace
@@ -19,6 +30,7 @@ namespace ps2_syscalls
         constexpr uint32_t kSoundDriverStorageAlignment = 0x1000u;
         constexpr uint32_t kSoundDriverGuestPoolBase = 0x00120000u;
         constexpr uint32_t kSoundDriverGuestPoolLimit = 0x00200000u;
+        constexpr uint32_t kMaxSifRpcTransferBytes = 1u * 1024u * 1024u;
 
         void resetDtxRpcStateUnlocked()
         {
@@ -667,6 +679,161 @@ namespace ps2_syscalls
             }
         }
 
+        bool traceKofxiDtxStateEnabled()
+        {
+            const char *value = std::getenv("PS2X_TRACE_KOFXI_DTX_STATE");
+            if (!value || value[0] == '\0')
+            {
+                return false;
+            }
+
+            return std::strcmp(value, "0") != 0 &&
+                   std::strcmp(value, "false") != 0 &&
+                   std::strcmp(value, "FALSE") != 0 &&
+                   std::strcmp(value, "off") != 0 &&
+                   std::strcmp(value, "OFF") != 0;
+        }
+
+        struct DtxSjrmtStateSnapshot
+        {
+            uint32_t handle = 0u;
+            uint32_t readPos = 0u;
+            uint32_t writePos = 0u;
+            uint32_t roomBytes = 0u;
+            uint32_t dataBytes = 0u;
+        };
+
+        void syncDtxSjrmtObjectsToKofxi()
+        {
+            std::vector<DtxSjrmtStateSnapshot> snapshots;
+            {
+                std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
+                snapshots.reserve(g_dtx_sjrmt_by_handle.size());
+                for (const auto &entry : g_dtx_sjrmt_by_handle)
+                {
+                    const DtxSjrmtState &state = entry.second;
+                    DtxSjrmtStateSnapshot snapshot{};
+                    snapshot.handle = state.handle;
+                    snapshot.readPos = state.readPos;
+                    snapshot.writePos = state.writePos;
+                    snapshot.roomBytes = state.roomBytes;
+                    snapshot.dataBytes = state.dataBytes;
+                    snapshots.push_back(snapshot);
+                }
+            }
+
+            for (const DtxSjrmtStateSnapshot &snapshot : snapshots)
+            {
+                ps2_stubs::syncKofxiDtxSjrmtObjectState(snapshot.handle,
+                                                        snapshot.readPos,
+                                                        snapshot.writePos,
+                                                        snapshot.roomBytes,
+                                                        snapshot.dataBytes);
+            }
+        }
+
+        void traceDtxSifDmaState(
+            const char *stage,
+            const uint8_t *rdram,
+            const DtxTransferState &transfer,
+            uint32_t srcAddr,
+            uint32_t dstAddr,
+            uint32_t sizeBytes,
+            uint32_t ticketNo)
+        {
+            static std::atomic<uint32_t> s_traceCount{0u};
+            const uint32_t traceIndex = s_traceCount.fetch_add(1u, std::memory_order_relaxed);
+            if (traceIndex >= 128u)
+            {
+                return;
+            }
+
+            uint32_t commandCount = 0u;
+            (void)readGuestU32(rdram, transfer.eeWorkAddr, commandCount);
+
+            uint32_t totalRoom = 0u;
+            uint32_t totalData = 0u;
+            uint32_t sjrmtCount = 0u;
+            uint32_t ps2RnaCount = 0u;
+            {
+                std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
+                sjrmtCount = static_cast<uint32_t>(g_dtx_sjrmt_by_handle.size());
+                ps2RnaCount = static_cast<uint32_t>(g_dtx_ps2rna_by_handle.size());
+                for (const auto &entry : g_dtx_sjrmt_by_handle)
+                {
+                    totalRoom += entry.second.roomBytes;
+                    totalData += entry.second.dataBytes;
+                }
+            }
+
+            RUNTIME_LOG("[sceSifSetDma:DTX_STATE] stage=" << stage
+                                                          << " dtxId=0x" << std::hex << transfer.dtxId
+                                                          << " ee=0x" << transfer.eeWorkAddr
+                                                          << " iop=0x" << transfer.iopWorkAddr
+                                                          << " src=0x" << srcAddr
+                                                          << " dst=0x" << dstAddr
+                                                          << " size=0x" << sizeBytes
+                                                          << " ticket=0x" << ticketNo
+                                                          << " commands=0x" << commandCount
+                                                          << " sjrmtCount=0x" << sjrmtCount
+                                                          << " ps2rnaCount=0x" << ps2RnaCount
+                                                          << " totalRoom=0x" << totalRoom
+                                                          << " totalData=0x" << totalData
+                                                          << std::dec << std::endl);
+
+            const uint32_t cappedCommands = std::min(commandCount, 4u);
+            for (uint32_t i = 0u; i < cappedCommands; ++i)
+            {
+                const uint32_t cmdAddr = transfer.eeWorkAddr + 16u + (i * 16u);
+                if (transfer.dtxId == 0u)
+                {
+                    const uint8_t *cmdPtr = getConstMemPtr(rdram, cmdAddr);
+                    if (!cmdPtr)
+                    {
+                        break;
+                    }
+
+                    uint16_t xid = 0u;
+                    uint32_t handle = 0u;
+                    uint32_t dataAddr = 0u;
+                    uint32_t len = 0u;
+                    std::memcpy(&xid, cmdPtr + 2u, sizeof(xid));
+                    std::memcpy(&handle, cmdPtr + 4u, sizeof(handle));
+                    std::memcpy(&dataAddr, cmdPtr + 8u, sizeof(dataAddr));
+                    std::memcpy(&len, cmdPtr + 12u, sizeof(len));
+                    RUNTIME_LOG("[sceSifSetDma:DTX_CMD] stage=" << stage
+                                                                << " idx=" << i
+                                                                << " kind=sjx"
+                                                                << " cmd=0x" << std::hex << static_cast<uint32_t>(cmdPtr[0])
+                                                                << " line=0x" << static_cast<uint32_t>(cmdPtr[1])
+                                                                << " xid=0x" << xid
+                                                                << " handle=0x" << handle
+                                                                << " data=0x" << dataAddr
+                                                                << " len=0x" << len
+                                                                << std::dec << std::endl);
+                }
+                else
+                {
+                    uint16_t cmdNo = 0u;
+                    uint32_t handle = 0u;
+                    uint32_t arg1 = 0u;
+                    uint32_t arg2 = 0u;
+                    (void)readGuestU16(rdram, cmdAddr + 0u, cmdNo);
+                    (void)readGuestU32(rdram, cmdAddr + 4u, handle);
+                    (void)readGuestU32(rdram, cmdAddr + 8u, arg1);
+                    (void)readGuestU32(rdram, cmdAddr + 12u, arg2);
+                    RUNTIME_LOG("[sceSifSetDma:DTX_CMD] stage=" << stage
+                                                                << " idx=" << i
+                                                                << " kind=ps2rna"
+                                                                << " cmd=0x" << std::hex << cmdNo
+                                                                << " handle=0x" << handle
+                                                                << " arg1=0x" << arg1
+                                                                << " arg2=0x" << arg2
+                                                                << std::dec << std::endl);
+                }
+            }
+        }
+
         bool dtxMatchesTransfer(const DtxTransferState &state, uint32_t srcAddr, uint32_t dstAddr, uint32_t sizeBytes)
         {
             (void)dstAddr;
@@ -944,7 +1111,7 @@ namespace ps2_syscalls
         bool found = false;
         {
             std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
-            if (!g_dtxCompatLayout.isConfigured())
+            if (!g_dtxCompatLayout.isConfigured() && g_dtx_transfer_by_id.empty())
             {
                 return;
             }
@@ -1003,6 +1170,12 @@ namespace ps2_syscalls
             return;
         }
 
+        const bool traceDtxState = traceKofxiDtxStateEnabled();
+        if (traceDtxState)
+        {
+            traceDtxSifDmaState("before", rdram, matched, normalizedSrc, normalizedDst, sizeBytes, ticketNo);
+        }
+
         (void)writeGuestU32(rdram, footerTicketAddr, ticketNo + 1u);
 
         if (matched.dtxId == 0u)
@@ -1012,6 +1185,13 @@ namespace ps2_syscalls
         else if (matched.dtxId == 1u)
         {
             dtxApplyPs2RnaPayload(rdram, matched);
+        }
+
+        syncDtxSjrmtObjectsToKofxi();
+
+        if (traceDtxState)
+        {
+            traceDtxSifDmaState("after", rdram, matched, normalizedSrc, normalizedDst, sizeBytes, ticketNo + 1u);
         }
 
         static uint32_t dtxAckLogCount = 0u;
@@ -1036,6 +1216,163 @@ namespace ps2_syscalls
             RUNTIME_LOG(std::dec << std::endl);
             ++dtxAckLogCount;
         }
+    }
+
+    uint32_t registerDtxSifTransfer(
+        uint8_t *rdram,
+        uint32_t dtxId,
+        uint32_t eeWorkAddr,
+        uint32_t iopWorkAddr,
+        uint32_t wkSize,
+        uint32_t preferredRemoteHandle)
+    {
+        uint32_t normalizedEeWorkAddr = 0u;
+        uint32_t normalizedIopWorkAddr = 0u;
+        (void)normalizeGuestLinearAddr(eeWorkAddr, normalizedEeWorkAddr);
+        (void)normalizeGuestLinearAddr(iopWorkAddr, normalizedIopWorkAddr);
+
+        uint32_t remoteHandle = 0u;
+        {
+            std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
+            auto it = g_dtx_remote_by_id.find(dtxId);
+            if (it != g_dtx_remote_by_id.end())
+            {
+                remoteHandle = it->second;
+            }
+            if (!remoteHandle && preferredRemoteHandle != 0u)
+            {
+                remoteHandle = preferredRemoteHandle;
+            }
+            if (!remoteHandle)
+            {
+                remoteHandle = rpcAllocServerAddr(rdram);
+                if (!remoteHandle)
+                {
+                    remoteHandle = rpcAllocPacketAddr(rdram);
+                }
+                if (!remoteHandle)
+                {
+                    remoteHandle = kRpcServerPoolBase + ((dtxId & 0xFFu) * kRpcServerStride);
+                }
+                g_dtx_remote_by_id[dtxId] = remoteHandle;
+            }
+
+            DtxTransferState state{};
+            state.dtxId = dtxId;
+            state.remoteHandle = remoteHandle;
+            state.eeWorkAddr = normalizedEeWorkAddr;
+            state.iopWorkAddr = normalizedIopWorkAddr;
+            state.wkSize = wkSize;
+            g_dtx_transfer_by_id[dtxId] = state;
+        }
+
+        return remoteHandle;
+    }
+
+    void registerDtxSjrmtObject(uint32_t handle, uint32_t mode, uint32_t wkAddr, uint32_t wkSize)
+    {
+        std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
+        const uint32_t normalizedSize = dtxNormalizeSjrmtCapacity(wkSize);
+        DtxSjrmtState state{};
+        state.handle = handle;
+        state.mode = mode;
+        state.wkAddr = wkAddr;
+        state.wkSize = normalizedSize;
+        state.roomBytes = normalizedSize;
+        state.uuid0 = 0x53524D54u; // "SRMT"
+        state.uuid1 = handle;
+        state.uuid2 = wkAddr;
+        state.uuid3 = normalizedSize;
+        g_dtx_sjrmt_by_handle[handle] = state;
+    }
+
+    void syncDtxSjrmtObjectState(uint32_t handle,
+                                 uint32_t readPos,
+                                 uint32_t writePos,
+                                 uint32_t roomBytes,
+                                 uint32_t dataBytes)
+    {
+        std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
+        auto it = g_dtx_sjrmt_by_handle.find(handle);
+        if (it == g_dtx_sjrmt_by_handle.end())
+        {
+            return;
+        }
+
+        DtxSjrmtState &state = it->second;
+        const uint32_t cap = dtxNormalizeSjrmtCapacity(state.wkSize);
+        state.readPos = (cap != 0u) ? (readPos % cap) : 0u;
+        state.writePos = (cap != 0u) ? (writePos % cap) : 0u;
+        state.roomBytes = std::min(cap, roomBytes);
+        state.dataBytes = std::min(cap, dataBytes);
+    }
+
+    void eraseDtxSjrmtObject(uint32_t handle)
+    {
+        std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
+        g_dtx_sjrmt_by_handle.erase(handle);
+    }
+
+    void resetDtxSjrmtObject(uint32_t handle)
+    {
+        std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
+        auto it = g_dtx_sjrmt_by_handle.find(handle);
+        if (it == g_dtx_sjrmt_by_handle.end())
+        {
+            return;
+        }
+
+        const uint32_t cap = dtxNormalizeSjrmtCapacity(it->second.wkSize);
+        it->second.readPos = 0u;
+        it->second.writePos = 0u;
+        it->second.roomBytes = cap;
+        it->second.dataBytes = 0u;
+    }
+
+    void registerDtxSjxObject(uint32_t handle, uint32_t srcSjHandle, uint32_t dstSjHandle, uint32_t line, uint32_t eeObjAddr)
+    {
+        std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
+        DtxSjxState state{};
+        state.handle = handle;
+        state.srcSjHandle = srcSjHandle;
+        state.dstSjHandle = dstSjHandle;
+        state.line = line;
+        state.eeObjAddr = eeObjAddr;
+        g_dtx_sjx_by_handle[handle] = state;
+    }
+
+    void eraseDtxSjxObject(uint32_t handle)
+    {
+        std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
+        g_dtx_sjx_by_handle.erase(handle);
+    }
+
+    void resetDtxSjxObject(uint32_t handle, uint32_t xid)
+    {
+        std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
+        auto it = g_dtx_sjx_by_handle.find(handle);
+        if (it != g_dtx_sjx_by_handle.end())
+        {
+            it->second.xid = static_cast<uint16_t>(xid & 0xFFFFu);
+        }
+    }
+
+    void registerDtxPs2RnaObject(uint32_t handle, uint32_t maxChannels, uint32_t sjHandle0, uint32_t sjHandle1)
+    {
+        std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
+        DtxPs2RnaState state{};
+        state.handle = handle;
+        state.maxChannels = maxChannels;
+        state.sjHandle0 = sjHandle0;
+        state.sjHandle1 = sjHandle1;
+        state.channelCount = maxChannels;
+        g_dtx_ps2rna_by_handle[handle] = state;
+    }
+
+    void eraseDtxPs2RnaObject(uint32_t handle)
+    {
+        std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
+        g_dtx_ps2rna_by_handle.erase(handle);
     }
 
     void resetSoundDriverRpcState()
@@ -1300,7 +1637,7 @@ namespace ps2_syscalls
 
         auto looksLikeSize = [&](uint32_t v) -> bool
         {
-            return v <= 0x2000000u;
+            return v <= kMaxSifRpcTransferBytes;
         };
 
         auto looksLikeFunc = [&](uint32_t v) -> bool
@@ -1583,36 +1920,12 @@ namespace ps2_syscalls
                 (void)normalizeGuestLinearAddr(eeWorkAddr, normalizedEeWorkAddr);
                 (void)normalizeGuestLinearAddr(iopWorkAddr, normalizedIopWorkAddr);
 
-                uint32_t remoteHandle = 0;
-                {
-                    std::lock_guard<std::mutex> lock(g_dtx_rpc_mutex);
-                    auto it = g_dtx_remote_by_id.find(dtxId);
-                    if (it != g_dtx_remote_by_id.end())
-                    {
-                        remoteHandle = it->second;
-                    }
-                    if (!remoteHandle)
-                    {
-                        remoteHandle = rpcAllocServerAddr(rdram);
-                        if (!remoteHandle)
-                        {
-                            remoteHandle = rpcAllocPacketAddr(rdram);
-                        }
-                        if (!remoteHandle)
-                        {
-                            remoteHandle = kRpcServerPoolBase + ((dtxId & 0xFFu) * kRpcServerStride);
-                        }
-                        g_dtx_remote_by_id[dtxId] = remoteHandle;
-                    }
-
-                    DtxTransferState state{};
-                    state.dtxId = dtxId;
-                    state.remoteHandle = remoteHandle;
-                    state.eeWorkAddr = normalizedEeWorkAddr;
-                    state.iopWorkAddr = normalizedIopWorkAddr;
-                    state.wkSize = wkSize;
-                    g_dtx_transfer_by_id[dtxId] = state;
-                }
+                const uint32_t remoteHandle = registerDtxSifTransfer(
+                    rdram,
+                    dtxId,
+                    normalizedEeWorkAddr,
+                    normalizedIopWorkAddr,
+                    wkSize);
 
                 (void)writeRpcU32(recvBuf, remoteHandle);
                 if (recvSize > sizeof(uint32_t))

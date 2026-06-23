@@ -395,6 +395,64 @@ namespace ps2recomp
                     pendingStarts.insert(target);
                 };
 
+                auto isNopInstruction = [](const Instruction &inst) -> bool
+                {
+                    return inst.raw == 0u ||
+                           (inst.opcode == OPCODE_SPECIAL &&
+                            inst.function == SPECIAL_SLL &&
+                            inst.rt == 0 &&
+                            inst.rd == 0 &&
+                            inst.sa == 0);
+                };
+
+                auto isTerminalUnconditionalExit = [&](const Function &function, const Instruction &inst) -> bool
+                {
+                    if (inst.opcode == OPCODE_J)
+                    {
+                        const uint32_t target = ((inst.address + 4u) & 0xF0000000u) | (inst.target << 2);
+                        return target < function.start || target >= function.end;
+                    }
+
+                    return inst.opcode == OPCODE_SPECIAL &&
+                           inst.function == SPECIAL_JR &&
+                           inst.rs == 31;
+                };
+
+                auto queueDeadCodeEntriesAfterTerminalExits = [&](const Function &function,
+                                                                   const std::vector<Instruction> &instructions)
+                {
+                    for (const Instruction &inst : instructions)
+                    {
+                        if (!isTerminalUnconditionalExit(function, inst))
+                        {
+                            continue;
+                        }
+
+                        const uint32_t afterDelaySlot = inst.address + (inst.hasDelaySlot ? 8u : 4u);
+                        auto entryIt = std::lower_bound(
+                            instructions.begin(),
+                            instructions.end(),
+                            afterDelaySlot,
+                            [](const Instruction &candidate, uint32_t address)
+                            { return candidate.address < address; });
+
+                        while (entryIt != instructions.end() && isNopInstruction(*entryIt))
+                        {
+                            ++entryIt;
+                        }
+
+                        if (entryIt == instructions.end())
+                        {
+                            continue;
+                        }
+
+                        if (entryIt->address < function.end)
+                        {
+                            queuePendingEntry(entryIt->address);
+                        }
+                    }
+                };
+
                 for (const auto &function : functions)
                 {
                     if (!function.isRecompiled || function.isStub || function.isSkipped)
@@ -435,6 +493,8 @@ namespace ps2recomp
                     {
                         queuePendingEntry(target);
                     }
+
+                    queueDeadCodeEntriesAfterTerminalExits(function, instructions);
                 }
 
                 if (pendingEntries.empty())
@@ -790,7 +850,7 @@ namespace ps2recomp
 
             if (!m_config.ghidraMapPath.empty())
             {
-                m_elfParser->loadGhidraFunctionMap(m_config.ghidraMapPath);
+                m_elfParser->loadGhidraFunctionMap(m_config.ghidraMapPath, m_config.ghidraPruneFallback);
             }
 
             m_functions = m_elfParser->extractFunctions();

@@ -3,8 +3,14 @@
 #include "ps2_log.h"
 #include "Stubs/GS.h"
 
+#include <cstdlib>
+#include <cstring>
+
 namespace ps2_syscalls
 {
+    void RaiseIntcStatus(uint32_t cause);
+    uint32_t AcknowledgeIntcStatus(uint32_t mask);
+
     namespace interrupt_state
     {
         constexpr uint32_t kIntcVblankStart = 2u;
@@ -23,9 +29,54 @@ namespace ps2_syscalls
         uint32_t g_enabled_dmac_mask = 0xFFFFFFFFu;
         uint64_t g_vsync_tick_counter = 0u;
         VSyncFlagRegistration g_vsync_registration{};
+        bool g_vsync_registration_one_shot = false;
     }
 
     using namespace interrupt_state;
+
+    void resetInterruptState()
+    {
+        stopInterruptWorker();
+        {
+            std::lock_guard<std::mutex> lock(g_irq_handler_mutex);
+            g_intcHandlers.clear();
+            g_dmacHandlers.clear();
+            g_nextIntcHandlerId = 1;
+            g_nextDmacHandlerId = 1;
+            g_intc_head_order = 0;
+            g_intc_tail_order = 1000;
+            g_dmac_head_order = 0;
+            g_dmac_tail_order = 1000;
+            g_enabled_intc_mask = 0xFFFFFFFFu;
+            g_enabled_dmac_mask = 0xFFFFFFFFu;
+        }
+        {
+            std::lock_guard<std::mutex> lock(g_vsync_flag_mutex);
+            g_vsync_registration = {};
+            g_vsync_registration_one_shot = false;
+            g_vsync_tick_counter = 0u;
+        }
+        AcknowledgeIntcStatus(0xFFFFFFFFu);
+    }
+
+    static bool traceInterruptEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_INTERRUPT");
+            if (!value || value[0] == '\0')
+            {
+                return false;
+            }
+
+            return std::strcmp(value, "0") != 0 &&
+                   std::strcmp(value, "false") != 0 &&
+                   std::strcmp(value, "FALSE") != 0 &&
+                   std::strcmp(value, "off") != 0 &&
+                   std::strcmp(value, "OFF") != 0;
+        }();
+        return enabled;
+    }
 
     static void writeGuestU32NoThrow(uint8_t *rdram, uint32_t addr, uint32_t value)
     {
@@ -75,6 +126,26 @@ namespace ps2_syscalls
         return value;
     }
 
+    static bool isLikelyGuestStackVSyncRegistration(uint32_t flagAddr, uint32_t csrAddr)
+    {
+        if (flagAddr == 0u || csrAddr == 0u)
+        {
+            return false;
+        }
+
+        constexpr uint32_t kGuestAddressMask = 0x1FFFFFFFu;
+        constexpr uint32_t kHighStackWindowSize = 0x00100000u;
+        constexpr uint32_t kMaxStackRegistrationSpan = 0x40u;
+        const uint32_t flagPhys = flagAddr & kGuestAddressMask;
+        const uint32_t csrPhys = csrAddr & kGuestAddressMask;
+        const auto inHighGuestStack = [](uint32_t addr)
+        {
+            return addr >= (PS2_RAM_SIZE - kHighStackWindowSize) && addr < PS2_RAM_SIZE;
+        };
+        const uint32_t span = (flagPhys > csrPhys) ? (flagPhys - csrPhys) : (csrPhys - flagPhys);
+        return inHighGuestStack(flagPhys) && inHighGuestStack(csrPhys) && span <= kMaxStackRegistrationSpan;
+    }
+
     static uint32_t getAsyncHandlerStackTop(PS2Runtime *runtime)
     {
         constexpr uint32_t kAsyncHandlerStackSize = 0x4000u;
@@ -95,6 +166,25 @@ namespace ps2_syscalls
         return (s_cachedStackTop != 0u) ? s_cachedStackTop : (PS2_RAM_SIZE - 0x10u);
     }
 
+    struct ScopedCurrentThreadId
+    {
+        explicit ScopedCurrentThreadId(int tid, bool forceSet = false)
+            : previous(g_currentThreadId)
+        {
+            if (forceSet || tid > 0)
+            {
+                g_currentThreadId = tid;
+            }
+        }
+
+        ~ScopedCurrentThreadId()
+        {
+            g_currentThreadId = previous;
+        }
+
+        int previous;
+    };
+
     static void dispatchIntcHandlersForCause(uint8_t *rdram, PS2Runtime *runtime, uint32_t cause)
     {
         if (!rdram || !runtime)
@@ -103,10 +193,28 @@ namespace ps2_syscalls
         }
 
         std::vector<IrqHandlerInfo> handlers;
+        size_t registeredHandlerCount = 0;
+        uint32_t enabledMask = 0u;
         {
             std::lock_guard<std::mutex> lock(g_irq_handler_mutex);
+            registeredHandlerCount = g_intcHandlers.size();
+            enabledMask = g_enabled_intc_mask;
             if (cause < 32u && (g_enabled_intc_mask & (1u << cause)) == 0u)
             {
+                if (traceInterruptEnabled() && (cause == kIntcVblankStart || cause == kIntcVblankEnd))
+                {
+                    static std::atomic<uint32_t> s_disabledLogCount{0u};
+                    const uint32_t logIndex = s_disabledLogCount.fetch_add(1u, std::memory_order_relaxed);
+                    if (logIndex < 32u)
+                    {
+                        auto flags = std::cout.flags();
+                        std::cout << "[INTC:disabled] cause=" << cause
+                                  << " registered=" << registeredHandlerCount
+                                  << " mask=0x" << std::hex << enabledMask
+                                  << std::dec << std::endl;
+                        std::cout.flags(flags);
+                    }
+                }
                 return;
             }
 
@@ -132,13 +240,32 @@ namespace ps2_syscalls
                       { return a.order < b.order; });
         }
 
+        if (traceInterruptEnabled() && (cause == kIntcVblankStart || cause == kIntcVblankEnd))
+        {
+            static std::atomic<uint32_t> s_dispatchLogCount{0u};
+            const uint32_t logIndex = s_dispatchLogCount.fetch_add(1u, std::memory_order_relaxed);
+            if (logIndex < 128u)
+            {
+                auto flags = std::cout.flags();
+                std::cout << "[INTC:dispatch] cause=" << cause
+                          << " handlers=" << handlers.size()
+                          << " registered=" << registeredHandlerCount
+                          << " mask=0x" << std::hex << enabledMask
+                          << std::dec
+                          << " currentTid=" << g_currentThreadId
+                          << std::endl;
+                std::cout.flags(flags);
+            }
+        }
+
         for (const IrqHandlerInfo &info : handlers)
         {
             if (!runtime->hasFunction(info.handler))
             {
                 if (cause == kIntcVblankStart)
                 {
-                    PS2_IF_AGRESSIVE_LOGS({
+                    if (traceInterruptEnabled())
+                    {
                         static std::atomic<uint32_t> s_missingHandlerLogCount{0u};
                         const uint32_t logIndex = s_missingHandlerLogCount.fetch_add(1u, std::memory_order_relaxed);
                         if (logIndex < 32u)
@@ -151,13 +278,36 @@ namespace ps2_syscalls
                                       << std::endl;
                             std::cout.flags(flags);
                         }
-                    });
+                    }
                 }
                 continue;
             }
 
             try
             {
+                // INTC callbacks run from the host interrupt worker, not from the
+                // EE thread that registered the handler. Keep the owner's GP but
+                // do not make WakeupThread(ownerTid) look like a self-wakeup.
+                ScopedCurrentThreadId currentThread(-1, true);
+                if (traceInterruptEnabled() && (cause == kIntcVblankStart || cause == kIntcVblankEnd))
+                {
+                    static std::atomic<uint32_t> s_handlerLogCount{0u};
+                    const uint32_t logIndex = s_handlerLogCount.fetch_add(1u, std::memory_order_relaxed);
+                    if (logIndex < 128u)
+                    {
+                        auto flags = std::cout.flags();
+                        std::cout << "[INTC:handler] cause=" << cause
+                                  << " handler=0x" << std::hex << info.handler
+                                  << " arg=0x" << info.arg
+                                  << " gp=0x" << info.gp
+                                  << std::dec
+                                  << " ownerTid=" << info.ownerThreadId
+                                  << " runTid=" << g_currentThreadId
+                                  << " id=" << info.id
+                                  << std::endl;
+                        std::cout.flags(flags);
+                    }
+                }
                 R5900Context irqCtx{};
                 SET_GPR_U32(&irqCtx, 28, info.gp);
                 SET_GPR_U32(&irqCtx, 29, getAsyncHandlerStackTop(runtime));
@@ -175,8 +325,8 @@ namespace ps2_syscalls
                     {
                         break;
                     }
-                    // Interrupt handlers must be able to preempt a guest thread that is
-                    // spinning on interrupt-produced state, such as a vblank counter.
+                    // Vblank INTC callbacks intentionally run outside the guest execution
+                    // lock so they can preempt guest loops waiting on interrupt state.
                     step(rdram, &irqCtx, runtime);
                 }
             }
@@ -204,8 +354,12 @@ namespace ps2_syscalls
         }
 
         std::vector<IrqHandlerInfo> handlers;
+        size_t registeredHandlerCount = 0;
+        uint32_t enabledMask = 0;
         {
             std::lock_guard<std::mutex> lock(g_irq_handler_mutex);
+            registeredHandlerCount = g_dmacHandlers.size();
+            enabledMask = g_enabled_dmac_mask;
             if (cause < 32u && (g_enabled_dmac_mask & (1u << cause)) == 0u)
             {
                 return;
@@ -233,15 +387,41 @@ namespace ps2_syscalls
                       { return a.order < b.order; });
         }
 
+        if (traceInterruptEnabled())
+        {
+            static std::atomic<uint32_t> s_dmacDispatchLogCount{0u};
+            const uint32_t dispatchLog = s_dmacDispatchLogCount.fetch_add(1u, std::memory_order_relaxed);
+            if (dispatchLog < 64u)
+            {
+                auto flags = std::cout.flags();
+                std::cout << "[DMAC:dispatch] cause=" << cause
+                          << " handlers=" << handlers.size()
+                          << " registered=" << registeredHandlerCount
+                          << " mask=0x" << std::hex << enabledMask
+                          << std::dec << std::endl;
+                std::cout.flags(flags);
+            }
+        }
+
         for (const IrqHandlerInfo &info : handlers)
         {
             if (!runtime->hasFunction(info.handler))
             {
+                static std::atomic<uint32_t> s_dmacMissingLogCount{0u};
+                const uint32_t missingLog = s_dmacMissingLogCount.fetch_add(1u, std::memory_order_relaxed);
+                if (missingLog < 32u)
+                {
+                    std::cerr << "[DMAC:missing] cause=" << cause
+                              << " handler=0x" << std::hex << info.handler
+                              << " arg=0x" << info.arg
+                              << std::dec << std::endl;
+                }
                 continue;
             }
 
             try
             {
+                ScopedCurrentThreadId currentThread(info.ownerThreadId, true);
                 R5900Context irqCtx{};
                 SET_GPR_U32(&irqCtx, 28, info.gp);
                 SET_GPR_U32(&irqCtx, 29, getAsyncHandlerStackTop(runtime));
@@ -259,6 +439,7 @@ namespace ps2_syscalls
                     {
                         break;
                     }
+                    PS2Runtime::GuestExecutionScope guestExecution(runtime);
                     step(rdram, &irqCtx, runtime);
                 }
             }
@@ -278,25 +459,37 @@ namespace ps2_syscalls
         }
     }
 
-    static uint64_t signalVSyncFlag(uint8_t *rdram)
+    static uint64_t readGsCsrSnapshot(PS2Runtime *runtime)
+    {
+        return runtime ? runtime->memory().gs().csr : 0ull;
+    }
+
+    static uint64_t signalVSyncFlag(uint8_t *rdram, PS2Runtime *runtime)
     {
         VSyncFlagRegistration reg{};
+        bool clearRegistrationAfterSignal = false;
         uint64_t tickValue = 0u;
         {
             std::lock_guard<std::mutex> lock(g_vsync_flag_mutex);
             reg = g_vsync_registration;
+            clearRegistrationAfterSignal = g_vsync_registration_one_shot;
+            if (clearRegistrationAfterSignal)
+            {
+                g_vsync_registration = {};
+                g_vsync_registration_one_shot = false;
+            }
             tickValue = ++g_vsync_tick_counter;
         }
 
         g_vsync_cv.notify_all();
 
+        if (reg.tickAddr != 0u)
+        {
+            writeGuestU64NoThrow(rdram, reg.tickAddr, readGsCsrSnapshot(runtime));
+        }
         if (reg.flagAddr != 0u)
         {
             writeGuestU32NoThrow(rdram, reg.flagAddr, 1u);
-        }
-        if (reg.tickAddr != 0u)
-        {
-            writeGuestU64NoThrow(rdram, reg.tickAddr, tickValue);
         }
         return tickValue;
     }
@@ -333,10 +526,12 @@ namespace ps2_syscalls
 
             for (int i = 0; i < ticksToProcess; ++i)
             {
-                const uint64_t tickValue = signalVSyncFlag(rdram);
+                const uint64_t tickValue = signalVSyncFlag(rdram, runtime);
                 ps2_stubs::dispatchGsSyncVCallback(rdram, runtime, tickValue);
+                RaiseIntcStatus(kIntcVblankStart);
                 dispatchIntcHandlersForCause(rdram, runtime, kIntcVblankStart);
                 std::this_thread::sleep_for(std::chrono::microseconds(500));
+                RaiseIntcStatus(kIntcVblankEnd);
                 dispatchIntcHandlersForCause(rdram, runtime, kIntcVblankEnd);
             }
         }
@@ -412,16 +607,33 @@ namespace ps2_syscalls
     void SetVSyncFlag(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         const uint32_t flagAddr = getRegU32(ctx, 4);
-        const uint32_t tickAddr = getRegU32(ctx, 5);
+        const uint32_t csrAddr = getRegU32(ctx, 5);
+        const bool stackOneShotRegistration = isLikelyGuestStackVSyncRegistration(flagAddr, csrAddr);
 
         {
             std::lock_guard<std::mutex> lock(g_vsync_flag_mutex);
             g_vsync_registration.flagAddr = flagAddr;
-            g_vsync_registration.tickAddr = tickAddr;
+            g_vsync_registration.tickAddr = csrAddr;
+            g_vsync_registration_one_shot = stackOneShotRegistration;
         }
 
         writeGuestU32NoThrow(rdram, flagAddr, 0u);
-        writeGuestU64NoThrow(rdram, tickAddr, 0u);
+        writeGuestU64NoThrow(rdram, csrAddr, 0u);
+        if (traceInterruptEnabled())
+        {
+            static std::atomic<uint32_t> s_setFlagLogCount{0u};
+            const uint32_t logIndex = s_setFlagLogCount.fetch_add(1u, std::memory_order_relaxed);
+            if (logIndex < 32u)
+            {
+                auto flags = std::cout.flags();
+                std::cout << "[SetVSyncFlag] flag=0x" << std::hex << flagAddr
+                          << " csr=0x" << csrAddr
+                          << " sp=0x" << getRegU32(ctx, 29)
+                          << " oneShot=" << (stackOneShotRegistration ? 1 : 0)
+                          << std::dec << std::endl;
+                std::cout.flags(flags);
+            }
+        }
         ensureInterruptWorkerRunning(rdram, runtime);
         setReturnS32(ctx, KE_OK);
     }
@@ -489,6 +701,7 @@ namespace ps2_syscalls
         info.arg = getRegU32(ctx, 7);
         info.gp = getRegU32(ctx, 28);
         info.sp = getRegU32(ctx, 29);
+        info.ownerThreadId = g_currentThreadId;
         info.enabled = true;
 
         int handlerId = 0;
@@ -500,9 +713,10 @@ namespace ps2_syscalls
             g_intcHandlers[handlerId] = info;
         }
 
-        if (info.cause == kIntcVblankStart)
+        if (traceInterruptEnabled() || info.cause == kIntcVblankStart)
         {
-            PS2_IF_AGRESSIVE_LOGS({
+            if (traceInterruptEnabled())
+            {
                 static std::atomic<uint32_t> s_addHandlerLogCount{0u};
                 const uint32_t logIndex = s_addHandlerLogCount.fetch_add(1u, std::memory_order_relaxed);
                 if (logIndex < 32u)
@@ -514,11 +728,33 @@ namespace ps2_syscalls
                               << " gp=0x" << info.gp
                               << " sp=0x" << info.sp
                               << std::dec
+                              << " ownerTid=" << info.ownerThreadId
                               << " id=" << handlerId
                               << std::endl;
                     std::cout.flags(flags);
                 }
-            });
+            }
+            else
+            {
+                PS2_IF_AGRESSIVE_LOGS({
+                    static std::atomic<uint32_t> s_addHandlerLogCount{0u};
+                    const uint32_t logIndex = s_addHandlerLogCount.fetch_add(1u, std::memory_order_relaxed);
+                    if (logIndex < 32u)
+                    {
+                        auto flags = std::cout.flags();
+                        std::cout << "[AddIntcHandler] cause=" << info.cause
+                                  << " handler=0x" << std::hex << info.handler
+                                  << " arg=0x" << info.arg
+                                  << " gp=0x" << info.gp
+                                  << " sp=0x" << info.sp
+                                  << std::dec
+                                  << " ownerTid=" << info.ownerThreadId
+                                  << " id=" << handlerId
+                                  << std::endl;
+                        std::cout.flags(flags);
+                    }
+                });
+            }
         }
 
         ensureInterruptWorkerRunning(rdram, runtime);
@@ -555,6 +791,7 @@ namespace ps2_syscalls
         info.arg = getRegU32(ctx, 7);
         info.gp = getRegU32(ctx, 28);
         info.sp = getRegU32(ctx, 29);
+        info.ownerThreadId = g_currentThreadId;
         info.enabled = true;
 
         int handlerId = 0;
@@ -564,6 +801,22 @@ namespace ps2_syscalls
             handlerId = g_nextDmacHandlerId++;
             info.id = handlerId;
             g_dmacHandlers[handlerId] = info;
+        }
+        static std::atomic<uint32_t> s_addDmacLogCount{0u};
+        const uint32_t addLog = s_addDmacLogCount.fetch_add(1u, std::memory_order_relaxed);
+        if (addLog < 64u)
+        {
+            auto flags = std::cout.flags();
+            std::cout << "[AddDmacHandler] cause=" << info.cause
+                      << " handler=0x" << std::hex << info.handler
+                      << " arg=0x" << info.arg
+                      << " gp=0x" << info.gp
+                      << " sp=0x" << info.sp
+                      << std::dec
+                      << " ownerTid=" << info.ownerThreadId
+                      << " id=" << handlerId
+                      << std::endl;
+            std::cout.flags(flags);
         }
         setReturnS32(ctx, handlerId);
     }
