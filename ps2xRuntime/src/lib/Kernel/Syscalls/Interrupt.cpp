@@ -464,6 +464,18 @@ namespace ps2_syscalls
         return runtime ? runtime->memory().gs().csr : 0ull;
     }
 
+    static void updateGsCsrFieldForVSync(PS2Runtime *runtime, uint64_t tickValue)
+    {
+        if (!runtime)
+        {
+            return;
+        }
+
+        constexpr uint64_t kGsCsrFieldMask = 0x2000ull;
+        uint64_t &csr = runtime->memory().gs().csr;
+        csr = (csr & ~kGsCsrFieldMask) | ((tickValue & 1ull) ? kGsCsrFieldMask : 0ull);
+    }    }
+
     static uint64_t signalVSyncFlag(uint8_t *rdram, PS2Runtime *runtime)
     {
         VSyncFlagRegistration reg{};
@@ -482,6 +494,7 @@ namespace ps2_syscalls
         }
 
         g_vsync_cv.notify_all();
+        updateGsCsrFieldForVSync(runtime, tickValue);
 
         if (reg.tickAddr != 0u)
         {
@@ -591,12 +604,20 @@ namespace ps2_syscalls
         ensureInterruptWorkerRunning(rdram, runtime);
         std::unique_lock<std::mutex> lock(g_vsync_flag_mutex);
         uint64_t current = g_vsync_tick_counter;
-        {
-            PS2Runtime::GuestExecutionReleaseScope releaseGuestExecution(runtime);
-            g_vsync_cv.wait(lock, [current, runtime]()
-                            { return g_vsync_tick_counter > current || (runtime != nullptr && runtime->isStopRequested()); });
-        }
-        return g_vsync_tick_counter;
+        uint64_t result = current;
+        waitWithGuestExecutionReleasedUntilUnlocked(
+            runtime,
+            lock,
+            [&]()
+            {
+                g_vsync_cv.wait(lock, [current, runtime]()
+                                { return g_vsync_tick_counter > current || (runtime != nullptr && runtime->isStopRequested()); });
+            },
+            [&]()
+            {
+                result = g_vsync_tick_counter;
+            });
+        return result;
     }
 
     void WaitVSyncTick(uint8_t *rdram, PS2Runtime *runtime)

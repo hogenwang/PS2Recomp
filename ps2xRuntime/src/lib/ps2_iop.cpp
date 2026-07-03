@@ -1,14 +1,13 @@
 #include "runtime/ps2_iop.h"
 #include "runtime/ps2_iop_audio.h"
+#include "runtime/ps2_iop_cl.h"
 #include "runtime/ps2_iop_dbcman.h"
+#include "runtime/ps2_iop_sdrdrv.h"
 #include "runtime/ps2_memory.h"
 #include "ps2_runtime.h"
 #include "Kernel/Syscalls/RPC.h"
 
-#include <algorithm>
 #include <cstring>
-
-// ps2_iop.cpp
 
 namespace
 {
@@ -141,57 +140,46 @@ namespace
 
         switch (rpcNum)
         {
-        case 0xFEu: // XMCSERV init, returns mcRpcStat_t.
+        case 0xFEu:
             writeMcservRpcStat(rdram, recvBufAddr, recvSize);
             return true;
-
-        case 0x70u: // MCSERV init fallback, returns result only.
+        case 0x70u:
             writeMcservRpcResult(rdram, recvBufAddr, recvSize, kMcResultSucceed);
             return true;
-
-        case 0x01u: // XMCSERV get info.
+        case 0x01u:
             (void)writeMcservGetInfoPayload(rdram, sendBufAddr, true);
             writeMcservRpcResult(rdram, recvBufAddr, recvSize, kMcResultSucceed);
             return true;
-
-        case 0x78u: // MCSERV get info.
+        case 0x78u:
             (void)writeMcservGetInfoPayload(rdram, sendBufAddr, false);
             writeMcservRpcResult(rdram, recvBufAddr, recvSize, kMcResultSucceed);
             return true;
-
-        case 0x0Au: // XMCSERV flush.
-        case 0x7Au: // MCSERV flush.
+        case 0x0Au:
+        case 0x7Au:
         {
             uint32_t fd = 0u;
             (void)readGuestU32(rdram, sendBufAddr, fd);
-            writeMcservRpcResult(
-                rdram,
-                recvBufAddr,
-                recvSize,
-                fd == 0xFFFFFFFFu ? kMcResultDeniedPermit : kMcResultSucceed);
+            writeMcservRpcResult(rdram, recvBufAddr, recvSize, fd == 0xFFFFFFFFu ? kMcResultDeniedPermit : kMcResultSucceed);
             return true;
         }
-
-        case 0x02u: // XMCSERV open.
-        case 0x71u: // MCSERV open.
+        case 0x02u:
+        case 0x71u:
             writeMcservRpcResult(rdram, recvBufAddr, recvSize, kMcResultNoEntry);
             return true;
-
-        case 0x12u: // XMCSERV get entry space.
+        case 0x12u:
             writeMcservRpcResult(rdram, recvBufAddr, recvSize, 1024);
             return true;
-
-        case 0x03u: // close
-        case 0x04u: // seek
-        case 0x05u: // read
-        case 0x06u: // write
-        case 0x0Cu: // chdir
-        case 0x0Du: // getdir
-        case 0x0Eu: // set info
-        case 0x0Fu: // delete
-        case 0x10u: // format
-        case 0x11u: // unformat
-        case 0x33u: // check block
+        case 0x03u:
+        case 0x04u:
+        case 0x05u:
+        case 0x06u:
+        case 0x0Cu:
+        case 0x0Du:
+        case 0x0Eu:
+        case 0x0Fu:
+        case 0x10u:
+        case 0x11u:
+        case 0x33u:
         case 0x72u:
         case 0x73u:
         case 0x74u:
@@ -207,12 +195,12 @@ namespace
         case 0x80u:
             writeMcservRpcResult(rdram, recvBufAddr, recvSize, kMcResultSucceed);
             return true;
-
         default:
             return false;
         }
     }
 }
+
 ps2_iop::ps2_iop()
 {
     reset();
@@ -225,27 +213,32 @@ void ps2_iop::init(uint8_t *rdram)
 
 void ps2_iop::reset()
 {
+    ps2_iop_cl::reset();
+    ps2_iop_dbcman::reset();
+    ps2_iop_sdrdrv::reset();
 }
 
 bool ps2_iop::handleRPC(PS2Runtime *runtime,
-                        uint32_t sid, uint32_t rpcNum,
-                        uint32_t sendBufAddr, uint32_t sendSize,
-                        uint32_t recvBufAddr, uint32_t recvSize,
+                        uint32_t sid,
+                        uint32_t rpcNum,
+                        uint32_t sendBufAddr,
+                        uint32_t sendSize,
+                        uint32_t recvBufAddr,
+                        uint32_t recvSize,
                         uint32_t &resultPtr,
                         bool &signalNowaitCompletion)
 {
     resultPtr = 0u;
     signalNowaitCompletion = false;
 
-    if (!runtime || !m_rdram)
-    {
-        return false;
-    }
-
-    if (ps2_syscalls::handleSoundDriverRpcService(m_rdram, runtime,
-                                                  sid, rpcNum,
-                                                  sendBufAddr, sendSize,
-                                                  recvBufAddr, recvSize,
+    if (ps2_syscalls::handleSoundDriverRpcService(m_rdram,
+                                                  runtime,
+                                                  sid,
+                                                  rpcNum,
+                                                  sendBufAddr,
+                                                  sendSize,
+                                                  recvBufAddr,
+                                                  recvSize,
                                                   resultPtr,
                                                   signalNowaitCompletion))
     {
@@ -253,9 +246,12 @@ bool ps2_iop::handleRPC(PS2Runtime *runtime,
     }
 
     if (ps2_iop_dbcman::handleDbcManRpc(m_rdram,
-                                        sid, rpcNum,
-                                        sendBufAddr, sendSize,
-                                        recvBufAddr, recvSize,
+                                        sid,
+                                        rpcNum,
+                                        sendBufAddr,
+                                        sendSize,
+                                        recvBufAddr,
+                                        recvSize,
                                         resultPtr))
     {
         return true;
@@ -272,12 +268,41 @@ bool ps2_iop::handleRPC(PS2Runtime *runtime,
         return true;
     }
 
-    if (sid == IOP_SID_LIBSD)
+    if (ps2_iop_audio::handleLibSdRpc(m_rdram,
+                                      runtime,
+                                      sid,
+                                      rpcNum,
+                                      sendBufAddr,
+                                      sendSize,
+                                      recvBufAddr,
+                                      recvSize,
+                                      resultPtr))
     {
-        const uint8_t *sendPtr = sendBufAddr ? getConstMemPtr(m_rdram, sendBufAddr) : nullptr;
-        uint8_t *recvPtr = recvBufAddr ? getMemPtr(m_rdram, recvBufAddr) : nullptr;
-        ps2_iop_audio::handleLibSdRpc(runtime, sid, rpcNum, sendPtr, sendSize, recvPtr, recvSize);
-        resultPtr = recvBufAddr;
+        return true;
+    }
+
+    if (ps2_iop_cl::handleSoundRpc(m_rdram, sid,
+                                   rpcNum, sendBufAddr,
+                                   sendSize, recvBufAddr,
+                                   recvSize, resultPtr,
+                                   signalNowaitCompletion))
+    {
+        return true;
+    }
+
+    if (ps2_iop_cl::handleClFileRpc(m_rdram, sid,
+                                    rpcNum, sendBufAddr,
+                                    sendSize, recvBufAddr,
+                                    recvSize, resultPtr))
+    {
+        return true;
+    }
+
+    if (ps2_iop_sdrdrv::handleSdrdrvRpc(m_rdram, sid,
+                                        rpcNum, sendBufAddr,
+                                        sendSize, recvBufAddr,
+                                        recvSize, resultPtr))
+    {
         return true;
     }
 

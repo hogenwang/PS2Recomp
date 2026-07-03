@@ -13,6 +13,7 @@ namespace ps2_stubs
         constexpr int32_t kPadTypeDigital = 4;
         constexpr int32_t kPadTypeDualShock = 7;
         constexpr int32_t kPadStateDisconnected = 0;
+        constexpr int32_t kPadStateExecCmd = 5;
         constexpr int32_t kPadStateStable = 6;
         constexpr size_t kPadPortCount = 2;
         constexpr size_t kPadSlotCount = 1;
@@ -48,9 +49,17 @@ namespace ps2_stubs
             bool open = false;
             bool analogMode = true;
             bool pressureEnabled = false;
+            bool lastUsedOverride = false;
+            bool lastUsedBackend = false;
+            bool lastReadOk = false;
             uint16_t buttonMask = 0xFFFFu;
             uint32_t dmaAddr = 0u;
             uint32_t reqState = 0u;
+            uint32_t transientState = 0u;
+            PadInputState lastInput{};
+            uint8_t lastData[32]{};
+            uint32_t readCount = 0u;
+            uint32_t lastReadDataAddr = 0u;
         };
 
         std::mutex g_padOverrideMutex;
@@ -623,6 +632,12 @@ namespace ps2_stubs
             portState.buttonMask = 0xFFFFu;
             portState.dmaAddr = dmaAddr;
             portState.reqState = 0u;
+            portState.transientState = 0u;
+        }
+
+        void queueExecCmdStateLocked(PadPortState &portState)
+        {
+            portState.transientState = static_cast<uint32_t>(kPadStateExecCmd);
         }
 
         uint8_t pressureValue(const PadInputState &state, const PadPortState &portState, uint16_t mask)
@@ -662,7 +677,7 @@ namespace ps2_stubs
             data[19] = pressureValue(state, portState, kPadBtnR2);
         }
 
-        bool readPadPortData(int port, int slot, PS2Runtime *runtime, uint8_t *outData)
+        bool readPadPortData(int port, int slot, PS2Runtime *runtime, uint8_t *outData, uint32_t dataAddr)
         {
             if (!outData)
             {
@@ -691,6 +706,7 @@ namespace ps2_stubs
                 }
             }
 
+            bool usedBackend = false;
             if (!useOverride)
             {
                 uint8_t backendData[32]{};
@@ -701,6 +717,7 @@ namespace ps2_stubs
                     state.ry = backendData[5];
                     state.lx = backendData[6];
                     state.ly = backendData[7];
+                    usedBackend = true;
                 }
                 else
                 {
@@ -713,6 +730,20 @@ namespace ps2_stubs
             applyPadScriptState(state, port, slot, readIndex);
 
             fillPadStatus(outData, state, portState);
+
+            {
+                std::lock_guard<std::mutex> lock(g_padStateMutex);
+                if (PadPortState *sharedPortState = lookupPadPortStateLocked(port, slot))
+                {
+                    sharedPortState->lastInput = state;
+                    std::memcpy(sharedPortState->lastData, outData, sizeof(sharedPortState->lastData));
+                    sharedPortState->lastUsedOverride = useOverride;
+                    sharedPortState->lastUsedBackend = usedBackend;
+                    sharedPortState->lastReadOk = true;
+                    sharedPortState->lastReadDataAddr = dataAddr;
+                    ++sharedPortState->readCount;
+                }
+            }
 
             return true;
         }
@@ -748,6 +779,7 @@ namespace ps2_stubs
 
         portState->pressureEnabled = true;
         portState->reqState = 0u;
+        queueExecCmdStateLocked(*portState);
         setReturnS32(ctx, 1);
     }
 
@@ -765,6 +797,7 @@ namespace ps2_stubs
 
         portState->pressureEnabled = false;
         portState->reqState = 0u;
+        queueExecCmdStateLocked(*portState);
         setReturnS32(ctx, 1);
     }
 
@@ -836,9 +869,22 @@ namespace ps2_stubs
         (void)rdram;
         (void)runtime;
         std::lock_guard<std::mutex> lock(g_padStateMutex);
-        const PadPortState *portState = lookupPadPortStateLocked(static_cast<int>(getRegU32(ctx, 4)),
-                                                                 static_cast<int>(getRegU32(ctx, 5)));
-        setReturnS32(ctx, (portState && portState->open) ? kPadStateStable : kPadStateDisconnected);
+        PadPortState *portState = lookupPadPortStateLocked(static_cast<int>(getRegU32(ctx, 4)),
+                                                           static_cast<int>(getRegU32(ctx, 5)));
+        int32_t state = kPadStateDisconnected;
+        if (portState && portState->open)
+        {
+            if (portState->transientState != 0u)
+            {
+                state = static_cast<int32_t>(portState->transientState);
+                portState->transientState = 0u;
+            }
+            else
+            {
+                state = kPadStateStable;
+            }
+        }
+        setReturnS32(ctx, state);
     }
 
     void scePadInfoAct(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
@@ -959,6 +1005,7 @@ namespace ps2_stubs
         portState->open = false;
         portState->pressureEnabled = false;
         portState->reqState = 0u;
+        portState->transientState = 0u;
         setReturnS32(ctx, 1);
     }
 
@@ -982,6 +1029,7 @@ namespace ps2_stubs
         portState->buttonMask = 0xFFFFu;
         portState->dmaAddr = dmaAddr;
         portState->reqState = 0u;
+        portState->transientState = 0u;
         if (dmaStr)
         {
             std::memset(dmaStr, 0, 32);
@@ -1001,30 +1049,32 @@ namespace ps2_stubs
             return;
         }
 
-        if (!readPadPortData(port, slot, runtime, data))
+        if (!readPadPortData(port, slot, runtime, data, dataAddr))
         {
             setReturnS32(ctx, 0);
             return;
         }
 
-        if (g_padReadLogCount < 48)
-        {
-            const int gamepad = findFirstGamepad();
-            const bool gamepadStartPressed =
-                (gamepad >= 0) && IsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_MIDDLE_RIGHT);
-            const bool startPressed = (data[2] != 0xFFu || data[3] != 0xFFu ||
-                                       IsKeyDown(KEY_ENTER) || gamepadStartPressed);
-            if (startPressed)
+        PS2_IF_AGRESSIVE_LOGS({
+            if (g_padReadLogCount < 48)
             {
-                const uint32_t guestButtons =
-                    (static_cast<uint32_t>(static_cast<uint8_t>(data[2] ^ 0xFFu)) << 8) |
-                    static_cast<uint32_t>(static_cast<uint8_t>(data[3] ^ 0xFFu));
-                std::printf("[padread] port=%d slot=%d data2=0x%02x data3=0x%02x guestButtons=0x%04x enter=%d gamepadStart=%d\n",
-                            port, slot, data[2], data[3], guestButtons,
-                            IsKeyDown(KEY_ENTER) ? 1 : 0, gamepadStartPressed ? 1 : 0);
-                ++g_padReadLogCount;
+                const int gamepad = findFirstGamepad();
+                const bool gamepadStartPressed =
+                    (gamepad >= 0) && IsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_MIDDLE_RIGHT);
+                const bool startPressed = (data[2] != 0xFFu || data[3] != 0xFFu ||
+                                           IsKeyDown(KEY_ENTER) || gamepadStartPressed);
+                if (startPressed)
+                {
+                    const uint32_t guestButtons =
+                        (static_cast<uint32_t>(static_cast<uint8_t>(data[2] ^ 0xFFu)) << 8) |
+                        static_cast<uint32_t>(static_cast<uint8_t>(data[3] ^ 0xFFu));
+                    std::printf("[padread] port=%d slot=%d data2=0x%02x data3=0x%02x guestButtons=0x%04x enter=%d gamepadStart=%d\n",
+                                port, slot, data[2], data[3], guestButtons,
+                                IsKeyDown(KEY_ENTER) ? 1 : 0, gamepadStartPressed ? 1 : 0);
+                    ++g_padReadLogCount;
+                }
             }
-        }
+        });
 
         setReturnS32(ctx, 1);
     }
@@ -1072,6 +1122,7 @@ namespace ps2_stubs
         {
             portState->buttonMask = static_cast<uint16_t>(getRegU32(ctx, 6));
             portState->reqState = 0u;
+            queueExecCmdStateLocked(*portState);
         }
         setReturnS32(ctx, 1);
     }
@@ -1091,6 +1142,7 @@ namespace ps2_stubs
 
         portState->analogMode = (getRegU32(ctx, 6) != 0u);
         portState->reqState = 0u;
+        queueExecCmdStateLocked(*portState);
         setReturnS32(ctx, 1);
     }
 
@@ -1104,6 +1156,7 @@ namespace ps2_stubs
         if (portState && portState->open)
         {
             portState->reqState = static_cast<uint32_t>(getRegU32(ctx, 6) ? 1u : 0u);
+            queueExecCmdStateLocked(*portState);
         }
         setReturnS32(ctx, 1);
     }
@@ -1143,6 +1196,10 @@ namespace ps2_stubs
         {
             text = "FINDPAD";
         }
+        else if (state == 5)
+        {
+            text = "EXECCMD";
+        }
         else if (state == 0)
         {
             text = "DISCONNECTED";
@@ -1151,6 +1208,51 @@ namespace ps2_stubs
         std::strncpy(buf, text, 31);
         buf[31] = '\0';
         setReturnS32(ctx, 0);
+    }
+
+    PadDebugSnapshot getPadDebugSnapshot()
+    {
+        PadDebugSnapshot snapshot{};
+        {
+            std::lock_guard<std::mutex> lock(g_padOverrideMutex);
+            snapshot.overrideEnabled = g_padOverrideEnabled;
+            snapshot.overrideButtons = g_padOverrideState.buttons;
+            snapshot.overrideRx = g_padOverrideState.rx;
+            snapshot.overrideRy = g_padOverrideState.ry;
+            snapshot.overrideLx = g_padOverrideState.lx;
+            snapshot.overrideLy = g_padOverrideState.ly;
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(g_padStateMutex);
+            snapshot.readLogCount = g_padReadLogCount;
+            for (size_t port = 0; port < kPadDebugPortCount; ++port)
+            {
+                for (size_t slot = 0; slot < kPadDebugSlotCount; ++slot)
+                {
+                    const PadPortState &src = g_padPorts[port];
+                    PadDebugPortSnapshot &dst = snapshot.ports[port][slot];
+                    dst.open = src.open;
+                    dst.analogMode = src.analogMode;
+                    dst.pressureEnabled = src.pressureEnabled;
+                    dst.lastUsedOverride = src.lastUsedOverride;
+                    dst.lastUsedBackend = src.lastUsedBackend;
+                    dst.lastReadOk = src.lastReadOk;
+                    dst.buttonMask = src.buttonMask;
+                    dst.lastButtons = src.lastInput.buttons;
+                    dst.dmaAddr = src.dmaAddr;
+                    dst.reqState = src.reqState;
+                    dst.readCount = src.readCount;
+                    dst.lastReadDataAddr = src.lastReadDataAddr;
+                    dst.rx = src.lastInput.rx;
+                    dst.ry = src.lastInput.ry;
+                    dst.lx = src.lastInput.lx;
+                    dst.ly = src.lastInput.ly;
+                    std::memcpy(dst.lastData, src.lastData, sizeof(dst.lastData));
+                }
+            }
+        }
+        return snapshot;
     }
 
     void setPadOverrideState(uint16_t buttons, uint8_t lx, uint8_t ly, uint8_t rx, uint8_t ry)

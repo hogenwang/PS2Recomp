@@ -406,6 +406,26 @@ namespace ps2_syscalls
         }
     }
 
+    static void notifyThreadWaitObject(int waitType, int waitId)
+    {
+        if (waitType == TSW_SEMA)
+        {
+            auto sema = lookupSemaInfo(waitId);
+            if (sema)
+            {
+                sema->cv.notify_all();
+            }
+        }
+        else if (waitType == TSW_EVENT)
+        {
+            auto eventFlag = lookupEventFlagInfo(waitId);
+            if (eventFlag)
+            {
+                eventFlag->cv.notify_all();
+            }
+        }
+    }
+
     static void runExitHandlersForThread(int tid, uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         if (!runtime || !ctx)
@@ -800,7 +820,7 @@ namespace ps2_syscalls
 
                 uint32_t lastPc = 0xFFFFFFFFu;
                 uint32_t samePcCount = 0;
-                constexpr uint32_t kSamePcYieldMask = 0x3FFFu;
+                constexpr uint32_t kSamePcYieldMask = 0xFFu;
                 constexpr uint32_t kSamePcWarnInterval = 0x20000u;
                 uint64_t stepCount = 0u;
 
@@ -818,6 +838,7 @@ namespace ps2_syscalls
 
                     const uint32_t pc = threadCtx->pc;
                     const uint32_t ra = GPR_U32(threadCtx, 31);
+                    info->currentPc.store(pc, std::memory_order_relaxed);
                     if (pc == 0u || (pc < 0x00100000u && pc == ra))
                     {
                         if (pc != 0u && traceThreadStatusEnabled())
@@ -846,14 +867,21 @@ namespace ps2_syscalls
                         ++samePcCount;
                         if ((samePcCount & kSamePcYieldMask) == 0u)
                         {
-                            std::this_thread::yield();
+                            std::this_thread::sleep_for(std::chrono::milliseconds(1));
                         }
-                        if (traceThreadStatusEnabled() && (samePcCount % kSamePcWarnInterval) == 0u)
+                        if (samePcCount > kSamePcWarnInterval ||
+                            (traceThreadStatusEnabled() && (samePcCount % kSamePcWarnInterval) == 0u))
                         {
-                            RUNTIME_LOG("[StartThread] id=" << tid
-                                      << " spinning at pc=0x" << std::hex << pc
-                                      << " ra=0x" << GPR_U32(threadCtx, 31)
-                                      << std::dec << std::endl);
+                            // If a thread is spinning for an extremely long time (e.g. idle thread),
+                            // force a 1ms sleep to prevent host CPU starvation.
+                            if ((samePcCount % (kSamePcWarnInterval * 8u)) == 0u)
+                            {
+                                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                            }
+                            else if ((samePcCount % (kSamePcWarnInterval)) == 0u)
+                            {
+                                std::this_thread::yield();
+                            }
                         }
                     }
                     else
@@ -1031,6 +1059,8 @@ namespace ps2_syscalls
             return;
         }
 
+        int waitType = TSW_NONE;
+        int waitId = 0;
         {
             std::lock_guard<std::mutex> lock(info->m);
             if (info->status == THS_DORMANT)
@@ -1038,10 +1068,13 @@ namespace ps2_syscalls
                 setReturnS32(ctx, KE_DORMANT);
                 return;
             }
+            waitType = info->waitType;
+            waitId = info->waitId;
             info->terminated = true;
             info->forceRelease = true;
         }
         info->cv.notify_all();
+        notifyThreadWaitObject(waitType, waitId);
 
         if (tid == g_currentThreadId)
         {
@@ -1050,13 +1083,17 @@ namespace ps2_syscalls
         }
         else
         {
-            // Block until the target thread actually finishes unwinding and becomes dormant
+            // Block until the target thread actually finishes unwinding and becomes dormant.
+            // Drop the thread mutex before reacquiring GuestExecutionScope to avoid lock inversion.
             std::unique_lock<std::mutex> lock(info->m);
-            {
-                PS2Runtime::GuestExecutionReleaseScope releaseGuestExecution(runtime);
-                info->cv.wait(lock, [&]()
-                              { return !info->started && info->status == THS_DORMANT; });
-            }
+            waitWithGuestExecutionReleasedUntilUnlocked(
+                runtime,
+                lock,
+                [&]()
+                {
+                    info->cv.wait(lock, [&]()
+                                  { return !info->started && info->status == THS_DORMANT; });
+                });
         }
 
         setReturnS32(ctx, KE_OK);
@@ -1104,12 +1141,25 @@ namespace ps2_syscalls
         if (tid == g_currentThreadId)
         {
             std::unique_lock<std::mutex> lock(info->m);
-            {
-                PS2Runtime::GuestExecutionReleaseScope releaseGuestExecution(runtime);
-                info->cv.wait(lock, [&]()
-                              { return info->suspendCount == 0 || info->terminated.load(); });
-            }
-            if (info->terminated.load())
+            bool terminated = false;
+            waitWithGuestExecutionReleasedUntilUnlocked(
+                runtime,
+                lock,
+                [&]()
+                {
+                    info->cv.wait(lock, [&]()
+                                  { return info->suspendCount == 0 || info->terminated.load(); });
+                },
+                [&]()
+                {
+                    terminated = info->terminated.load();
+                    if (!terminated)
+                    {
+                        info->status = THS_RUN;
+                    }
+                });
+
+            if (terminated)
             {
                 throw ThreadExitException();
             }
@@ -1330,6 +1380,8 @@ namespace ps2_syscalls
         throwIfTerminated(info);
 
         int ret = 0;
+        int wakeupCountAfter = 0;
+        bool terminated = false;
         std::unique_lock<std::mutex> lock(info->m);
 
         if (info->wakeupCount > 0)
@@ -1339,6 +1391,7 @@ namespace ps2_syscalls
             info->waitType = TSW_NONE;
             info->waitId = 0;
             ret = 0;
+            wakeupCountAfter = info->wakeupCount;
         }
         else
         {
@@ -1371,32 +1424,46 @@ namespace ps2_syscalls
                                        info->wakeupCount,
                                        ret);
 
-            {
-                PS2Runtime::GuestExecutionReleaseScope releaseGuestExecution(runtime);
-                info->cv.wait(lock, [&]()
-                              { return info->wakeupCount > 0 || info->forceRelease.load() || info->terminated.load(); });
-            }
+            waitWithGuestExecutionReleasedUntilUnlocked(
+                runtime,
+                lock,
+                [&]()
+                {
+                    info->cv.wait(lock, [&]()
+                                  { return info->wakeupCount > 0 || info->forceRelease.load() || info->terminated.load(); });
+                },
+                [&]()
+                {
+                    terminated = info->terminated.load();
+                    if (terminated)
+                    {
+                        return;
+                    }
 
-            if (info->terminated.load())
-            {
-                throw ThreadExitException();
-            }
+                    info->status = THS_RUN;
+                    info->waitType = TSW_NONE;
+                    info->waitId = 0;
 
-            info->status = THS_RUN;
-            info->waitType = TSW_NONE;
-            info->waitId = 0;
+                    if (info->forceRelease.load())
+                    {
+                        info->forceRelease = false;
+                        ret = KE_RELEASE_WAIT;
+                    }
+                    else
+                    {
+                        if (info->wakeupCount > 0)
+                        {
+                            info->wakeupCount--;
+                        }
+                        ret = 0;
+                    }
+                    wakeupCountAfter = info->wakeupCount;
+                });
+        }
 
-            if (info->forceRelease.load())
-            {
-                info->forceRelease = false;
-                ret = KE_RELEASE_WAIT;
-            }
-            else
-            {
-                if (info->wakeupCount > 0)
-                    info->wakeupCount--;
-                ret = 0;
-            }
+        if (terminated)
+        {
+            throw ThreadExitException();
         }
 
         if (traceThreadStatusEnabled())
@@ -1407,10 +1474,9 @@ namespace ps2_syscalls
             {
                 RUNTIME_LOG("[SleepThread:wake] tid=" << g_currentThreadId
                                                       << " ret=" << ret
-                                                      << " wakeupCount=" << info->wakeupCount
+                                                      << " wakeupCount=" << wakeupCountAfter
                                                       << std::endl);
-            }
-        }
+            }        }
         traceKofxiFrameThreadEvent("SleepThread:wake",
                                    rdram,
                                    g_currentThreadId,
@@ -1423,7 +1489,10 @@ namespace ps2_syscalls
                                    ret);
         maybeDumpThreadDebugTable("SleepThread:wake", g_currentThreadId);
 
-        lock.unlock();
+        if (lock.owns_lock())
+        {
+            lock.unlock();
+        }
         waitWhileSuspended(info, runtime);
         setReturnS32(ctx, ret);
     }
@@ -1478,7 +1547,7 @@ namespace ps2_syscalls
         int waitIdAfter = 0;
         int suspendCountAfter = 0;
         uint32_t targetEntry = 0u;
-        {
+        bool wokeSleeper = false;        {
             std::lock_guard<std::mutex> lock(info->m);
             if (info->status == THS_DORMANT)
             {
@@ -1500,6 +1569,7 @@ namespace ps2_syscalls
                 info->waitId = 0;
                 info->wakeupCount++;
                 info->cv.notify_one();
+                wokeSleeper = true;
             }
             else
             {
@@ -1546,8 +1616,11 @@ namespace ps2_syscalls
                                    KE_OK);
         maybeDumpThreadDebugTable("WakeupThread", tid);
         setReturnS32(ctx, KE_OK);
-        handOffSerialGuestExecutionAfterWake(runtime);
-    }
+        if (wokeSleeper)
+        {
+            yieldGuestExecutionAfterWake(runtime);
+        }
+        handOffSerialGuestExecutionAfterWake(runtime);    }
 
     void iWakeupThread(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
@@ -1669,9 +1742,8 @@ namespace ps2_syscalls
             return;
         }
 
-        std::this_thread::yield();
-
         setReturnS32(ctx, KE_OK);
+        yieldGuestExecutionAfterWake(runtime);
     }
 
     void iRotateThreadReadyQueue(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
@@ -1727,24 +1799,9 @@ namespace ps2_syscalls
         }
 
         info->cv.notify_all();
-
-        if (waitType == TSW_SEMA)
-        {
-            auto sema = lookupSemaInfo(waitId);
-            if (sema)
-            {
-                sema->cv.notify_all();
-            }
-        }
-        else if (waitType == TSW_EVENT)
-        {
-            auto eventFlag = lookupEventFlagInfo(waitId);
-            if (eventFlag)
-            {
-                eventFlag->cv.notify_all();
-            }
-        }
+        notifyThreadWaitObject(waitType, waitId);
         setReturnS32(ctx, KE_OK);
+        yieldGuestExecutionAfterWake(runtime);
     }
 
     void iReleaseWaitThread(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
