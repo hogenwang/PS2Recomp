@@ -1,6 +1,10 @@
 #include "Common.h"
 #include "MemoryCard.h"
 
+#include <atomic>
+#include <cstdlib>
+#include <iostream>
+
 namespace ps2_stubs
 {
     namespace
@@ -93,6 +97,69 @@ namespace ps2_stubs
         constexpr int32_t kCvMcSaveCapacityBytes = 0x00080000;
         constexpr int32_t kCvMcConfigCapacityBytes = 0x00008000;
         constexpr int32_t kCvMcIconCapacityBytes = 0x00004000;
+        std::atomic<uint32_t> g_mcTraceCount{0u};
+
+        bool memoryCardTraceEnabled()
+        {
+            const char *value = std::getenv("PS2X_TRACE_KOFXI_MEMORY_CARD");
+            if (value && value[0] != '\0' && value[0] != '0')
+            {
+                return true;
+            }
+
+            value = std::getenv("PS2X_TRACE_MEMORY_CARD");
+            return value && value[0] != '\0' && value[0] != '0';
+        }
+
+        uint32_t memoryCardTraceLimit()
+        {
+            static const uint32_t limit = []()
+            {
+                const char *value = std::getenv("PS2X_TRACE_MEMORY_CARD_LIMIT");
+                if (!value || value[0] == '\0')
+                {
+                    value = std::getenv("PS2X_TRACE_KOFXI_MEMORY_CARD_LIMIT");
+                }
+                if (!value || value[0] == '\0')
+                {
+                    return 256u;
+                }
+
+                char *end = nullptr;
+                const unsigned long parsed = std::strtoul(value, &end, 0);
+                return end == value ? 256u : static_cast<uint32_t>(std::min<unsigned long>(parsed, 4096ul));
+            }();
+            return limit;
+        }
+
+        bool shouldTraceMemoryCard()
+        {
+            if (!memoryCardTraceEnabled())
+            {
+                return false;
+            }
+
+            const uint32_t index = g_mcTraceCount.fetch_add(1u, std::memory_order_relaxed);
+            return index < memoryCardTraceLimit();
+        }
+
+        void traceMemoryCardStubCall(const char *name, R5900Context *ctx, int32_t ret)
+        {
+            if (!ctx || !shouldTraceMemoryCard())
+            {
+                return;
+            }
+
+            std::cerr << "[mc:stub] " << (name ? name : "")
+                      << " pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " a=0x" << getRegU32(ctx, 4)
+                      << "/0x" << getRegU32(ctx, 5)
+                      << "/0x" << getRegU32(ctx, 6)
+                      << "/0x" << getRegU32(ctx, 7)
+                      << " ret=" << std::dec << ret
+                      << std::endl;
+        }
 
         bool isValidMcPortSlot(int32_t port, int32_t slot)
         {
@@ -510,6 +577,18 @@ namespace ps2_stubs
             setMcCommandResultLocked(kMcCmdChdir, result);
         }
 
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:chdir] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " port=" << std::dec << port
+                      << " slot=" << slot
+                      << " path=\"" << requestedDir << "\""
+                      << " current=\"" << currentDir << "\""
+                      << " result=" << result
+                      << std::endl;
+        }
+
         writeMcCString(rdram, currentDirAddr, currentDir);
         setReturnS32(ctx, 0);
     }
@@ -530,6 +609,14 @@ namespace ps2_stubs
                 g_mcFiles.erase(it);
             }
             setMcCommandResultLocked(kMcCmdClose, result);
+        }
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:close] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " fd=" << std::dec << fd
+                      << " result=" << result
+                      << std::endl;
         }
         setReturnS32(ctx, 0);
     }
@@ -579,6 +666,16 @@ namespace ps2_stubs
 
             setMcCommandResultLocked(kMcCmdDelete, result);
         }
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:delete] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " port=" << std::dec << port
+                      << " slot=" << slot
+                      << " path=\"" << path << "\""
+                      << " result=" << result
+                      << std::endl;
+        }
         setReturnS32(ctx, 0);
     }
 
@@ -613,6 +710,14 @@ namespace ps2_stubs
             }
             setMcCommandResultLocked(kMcCmdFlush, result);
         }
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:flush] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " fd=" << std::dec << fd
+                      << " result=" << result
+                      << std::endl;
+        }
         setReturnS32(ctx, 0);
     }
 
@@ -642,6 +747,15 @@ namespace ps2_stubs
             }
 
             setMcCommandResultLocked(kMcCmdFormat, result);
+        }
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:format] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " port=" << std::dec << port
+                      << " slot=" << slot
+                      << " result=" << result
+                      << std::endl;
         }
         setReturnS32(ctx, 0);
     }
@@ -794,6 +908,19 @@ namespace ps2_stubs
 
             setMcCommandResultLocked(kMcCmdGetDir, result);
         }
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:get-dir] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " port=" << std::dec << port
+                      << " slot=" << slot
+                      << " path=\"" << rawPath << "\""
+                      << " max=" << maxEntries
+                      << " result=" << result
+                      << " table=0x" << std::hex << tableAddr
+                      << " entries=" << std::dec << entries.size()
+                      << std::endl;
+        }
         setReturnS32(ctx, 0);
     }
 
@@ -851,11 +978,33 @@ namespace ps2_stubs
             }
         }
 
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:get-info] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " port=" << std::dec << port
+                      << " slot=" << slot
+                      << " result=" << result
+                      << " type=" << cardType
+                      << " free=" << freeBlocks
+                      << " format=" << format
+                      << " typePtr=0x" << std::hex << typePtr
+                      << " freePtr=0x" << freePtr
+                      << " formatPtr=0x" << formatPtr
+                      << std::dec << std::endl;
+        }
+
         setReturnS32(ctx, 0);
     }
 
     void sceMcGetSlotMax(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:get-slot-max] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " ret=1" << std::dec << std::endl;
+        }
         setReturnS32(ctx, 1);
     }
 
@@ -875,6 +1024,14 @@ namespace ps2_stubs
         }
         ensureMcRootExists(0);
         ensureMcRootExists(1);
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:init] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " root0=\"" << getMcRootPath(0).string()
+                      << "\" root1=\"" << getMcRootPath(1).string()
+                      << "\"" << std::dec << std::endl;
+        }
         setReturnS32(ctx, 0);
     }
 
@@ -918,6 +1075,16 @@ namespace ps2_stubs
             }
 
             setMcCommandResultLocked(kMcCmdMkdir, result);
+        }
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:mkdir] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " port=" << std::dec << port
+                      << " slot=" << slot
+                      << " path=\"" << path << "\""
+                      << " result=" << result
+                      << std::endl;
         }
         setReturnS32(ctx, 0);
     }
@@ -982,6 +1149,17 @@ namespace ps2_stubs
             }
             setMcCommandResultLocked(kMcCmdOpen, result);
         }
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:open] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " port=" << std::dec << port
+                      << " slot=" << slot
+                      << " path=\"" << path << "\""
+                      << " flags=0x" << std::hex << flags
+                      << " result=" << std::dec << result
+                      << std::endl;
+        }
         setReturnS32(ctx, 0);
     }
 
@@ -1019,6 +1197,16 @@ namespace ps2_stubs
             }
 
             setMcCommandResultLocked(kMcCmdRead, result);
+        }
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:read] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " fd=" << std::dec << fd
+                      << " dst=0x" << std::hex << dstAddr
+                      << " size=" << std::dec << size
+                      << " result=" << result
+                      << std::endl;
         }
         setReturnS32(ctx, 0);
     }
@@ -1058,6 +1246,17 @@ namespace ps2_stubs
 
             setMcCommandResultLocked(kMcCmdRename, result);
         }
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:rename] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " port=" << std::dec << port
+                      << " slot=" << slot
+                      << " old=\"" << oldPath << "\""
+                      << " new=\"" << newPath << "\""
+                      << " result=" << result
+                      << std::endl;
+        }
         setReturnS32(ctx, 0);
     }
 
@@ -1096,6 +1295,16 @@ namespace ps2_stubs
 
             setMcCommandResultLocked(kMcCmdSeek, result);
         }
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:seek] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " fd=" << std::dec << fd
+                      << " offset=" << offset
+                      << " origin=" << origin
+                      << " result=" << result
+                      << std::endl;
+        }
         setReturnS32(ctx, 0);
     }
 
@@ -1129,11 +1338,22 @@ namespace ps2_stubs
 
             setMcCommandResultLocked(kMcCmdSetFileInfo, result);
         }
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:set-file-info] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " port=" << std::dec << port
+                      << " slot=" << slot
+                      << " path=\"" << path << "\""
+                      << " result=" << result
+                      << std::endl;
+        }
         setReturnS32(ctx, 0);
     }
 
     void sceMcSync(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        const int32_t mode = static_cast<int32_t>(getRegU32(ctx, 4));
         const uint32_t cmdPtr = getRegU32(ctx, 5);
         const uint32_t resultPtr = getRegU32(ctx, 6);
         int32_t cmd = 0;
@@ -1157,6 +1377,18 @@ namespace ps2_stubs
             {
                 std::memcpy(out, &result, sizeof(result));
             }
+        }
+
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:sync] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " mode=" << std::dec << mode
+                      << " cmd=0x" << std::hex << cmd
+                      << " result=" << std::dec << result
+                      << " cmdPtr=0x" << std::hex << cmdPtr
+                      << " resultPtr=0x" << resultPtr
+                      << " ret=1" << std::dec << std::endl;
         }
 
         // 1 = command finished in this runtime's immediate model.
@@ -1189,6 +1421,15 @@ namespace ps2_stubs
             }
 
             setMcCommandResultLocked(kMcCmdUnformat, result);
+        }
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:unformat] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " port=" << std::dec << port
+                      << " slot=" << slot
+                      << " result=" << result
+                      << std::endl;
         }
         setReturnS32(ctx, 0);
     }
@@ -1232,136 +1473,172 @@ namespace ps2_stubs
 
             setMcCommandResultLocked(kMcCmdWrite, result);
         }
+        if (shouldTraceMemoryCard())
+        {
+            std::cerr << "[mc:write] pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << getRegU32(ctx, 31)
+                      << " fd=" << std::dec << fd
+                      << " src=0x" << std::hex << srcAddr
+                      << " size=" << std::dec << size
+                      << " result=" << result
+                      << std::endl;
+        }
         setReturnS32(ctx, 0);
     }
 
     void mcCallMessageTypeSe(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcCallMessageTypeSe", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcCheckReadStartConfigFile(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcCheckReadStartConfigFile", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcCheckReadStartSaveFile(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcCheckReadStartSaveFile", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcCheckWriteStartConfigFile(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcCheckWriteStartConfigFile", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcCheckWriteStartSaveFile(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcCheckWriteStartSaveFile", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcCreateConfigInit(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcCreateConfigInit", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcCreateFileSelectWindow(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcCreateFileSelectWindow", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcCreateIconInit(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcCreateIconInit", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcCreateSaveFileInit(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcCreateSaveFileInit", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcDispFileName(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcDispFileName", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcDispFileNumber(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcDispFileNumber", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcDisplayFileSelectWindow(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcDisplayFileSelectWindow", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcDisplaySelectFileInfo(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcDisplaySelectFileInfo", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcDisplaySelectFileInfoMesCount(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcDisplaySelectFileInfoMesCount", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcDispWindowCurSol(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcDispWindowCurSol", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcDispWindowFoundtion(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcDispWindowFoundtion", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mceGetInfoApdx(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mceGetInfoApdx", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mceIntrReadFixAlign(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mceIntrReadFixAlign", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mceStorePwd(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mceStorePwd", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcGetConfigCapacitySize(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcGetConfigCapacitySize", ctx, kCvMcConfigCapacityBytes);
         setReturnS32(ctx, kCvMcConfigCapacityBytes);
     }
 
     void mcGetFileSelectWindowCursol(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcGetFileSelectWindowCursol", ctx, g_cvMcFileCursor);
         setReturnS32(ctx, g_cvMcFileCursor);
     }
 
     void mcGetFreeCapacitySize(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcGetFreeCapacitySize", ctx, kCvMcFreeCapacityBytes);
         setReturnS32(ctx, kCvMcFreeCapacityBytes);
     }
 
     void mcGetIconCapacitySize(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcGetIconCapacitySize", ctx, kCvMcIconCapacityBytes);
         setReturnS32(ctx, kCvMcIconCapacityBytes);
     }
 
     void mcGetIconFileCapacitySize(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcGetIconFileCapacitySize", ctx, kCvMcIconCapacityBytes);
         setReturnS32(ctx, kCvMcIconCapacityBytes);
     }
 
     void mcGetPortSelectDirInfo(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcGetPortSelectDirInfo", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcGetSaveFileCapacitySize(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcGetSaveFileCapacitySize", ctx, kCvMcSaveCapacityBytes);
         setReturnS32(ctx, kCvMcSaveCapacityBytes);
     }
 
@@ -1377,47 +1654,56 @@ namespace ps2_stubs
         const int32_t delta = static_cast<int32_t>(getRegU32(ctx, 5));
         g_cvMcFileCursor += delta;
         g_cvMcFileCursor = std::clamp(g_cvMcFileCursor, -1, 15);
+        traceMemoryCardStubCall("mcMoveFileSelectWindowCursor", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcNewCreateConfigFile(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcNewCreateConfigFile", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcNewCreateIcon(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcNewCreateIcon", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcNewCreateSaveFile(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcNewCreateSaveFile", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcReadIconData(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcReadIconData", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcReadStartConfigFile(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcReadStartConfigFile", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcReadStartSaveFile(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcReadStartSaveFile", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcSelectFileInfoInit(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         g_cvMcFileCursor = 0;
+        traceMemoryCardStubCall("mcSelectFileInfoInit", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcSelectSaveFileCheck(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcSelectSaveFileCheck", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
@@ -1425,37 +1711,44 @@ namespace ps2_stubs
     {
         g_cvMcFileCursor = static_cast<int32_t>(getRegU32(ctx, 5));
         g_cvMcFileCursor = std::clamp(g_cvMcFileCursor, -1, 15);
+        traceMemoryCardStubCall("mcSetFileSelectWindowCursol", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcSetFileSelectWindowCursolInit(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         g_cvMcFileCursor = 0;
+        traceMemoryCardStubCall("mcSetFileSelectWindowCursolInit", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcSetStringSaveFile(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcSetStringSaveFile", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcSetTyepWriteMode(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcSetTyepWriteMode", ctx, 0);
         setReturnS32(ctx, 0);
     }
 
     void mcWriteIconData(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcWriteIconData", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcWriteStartConfigFile(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcWriteStartConfigFile", ctx, 1);
         setReturnS32(ctx, 1);
     }
 
     void mcWriteStartSaveFile(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
+        traceMemoryCardStubCall("mcWriteStartSaveFile", ctx, 1);
         setReturnS32(ctx, 1);
     }
 }

@@ -1,8 +1,30 @@
 #include "Common.h"
 #include "FileIO.h"
 
+#include <cstdlib>
+
 namespace ps2_syscalls
 {
+    static bool traceKofxiFileIoEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_FILE_IO");
+        return value && *value && std::strcmp(value, "0") != 0 &&
+               std::strcmp(value, "false") != 0 && std::strcmp(value, "FALSE") != 0;
+    }
+
+    static bool shouldTraceKofxiFilePath(const char *path)
+    {
+        if (!traceKofxiFileIoEnabled() || !path)
+        {
+            return false;
+        }
+
+        const std::string lower = toLowerAscii(path);
+        return lower.find("zdx") != std::string::npos ||
+               lower.find("0flistht") != std::string::npos ||
+               lower.find("kofxibgm") != std::string::npos;
+    }
+
     static int allocatePs2Fd(FILE *file)
     {
         if (!file)
@@ -305,15 +327,25 @@ namespace ps2_syscalls
 
     std::string resolvePs2PathForReadOpen(const char *ps2Path)
     {
+        const bool tracePath = shouldTraceKofxiFilePath(ps2Path);
         const std::string translated = translatePs2Path(ps2Path);
         if (translated.empty())
         {
+            if (tracePath)
+            {
+                std::cerr << "[KOFXI:file-io] resolve-empty path=\"" << ps2Path << "\"" << std::endl;
+            }
             return {};
         }
 
         std::error_code ec;
         if (std::filesystem::is_regular_file(translated, ec) && !ec)
         {
+            if (tracePath)
+            {
+                std::cerr << "[KOFXI:file-io] resolve-direct path=\"" << ps2Path
+                          << "\" host=\"" << translated << "\"" << std::endl;
+            }
             return translated;
         }
 
@@ -321,9 +353,21 @@ namespace ps2_syscalls
         if (shouldTryLooseCdReadOpen(ps2Path) &&
             resolveExistingCdFileLoose(ps2Path ? ps2Path : "", loosePath))
         {
-            return loosePath.lexically_normal().string();
+            const std::string resolved = loosePath.lexically_normal().string();
+            if (tracePath)
+            {
+                std::cerr << "[KOFXI:file-io] resolve-loose path=\"" << ps2Path
+                          << "\" translated=\"" << translated
+                          << "\" host=\"" << resolved << "\"" << std::endl;
+            }
+            return resolved;
         }
 
+        if (tracePath)
+        {
+            std::cerr << "[KOFXI:file-io] resolve-fallback path=\"" << ps2Path
+                      << "\" host=\"" << translated << "\"" << std::endl;
+        }
         return translated;
     }
 
@@ -352,10 +396,20 @@ namespace ps2_syscalls
 
         const char *mode = translateFioMode(flags);
         RUNTIME_LOG("fioOpen: '" << hostPath << "' flags=0x" << std::hex << flags << std::dec << " mode='" << mode << "'");
+        const bool tracePath = shouldTraceKofxiFilePath(ps2Path);
 
         FILE *fp = ::fopen(hostPath.c_str(), mode);
         if (!fp)
         {
+            if (tracePath)
+            {
+                std::cerr << "[KOFXI:file-io] fioOpen-fail path=\"" << ps2Path
+                          << "\" host=\"" << hostPath
+                          << "\" flags=0x" << std::hex << flags << std::dec
+                          << " mode=\"" << mode
+                          << "\" errno=" << errno << " message=\"" << strerror(errno) << "\""
+                          << std::endl;
+            }
             std::cerr << "fioOpen error: fopen failed for '" << hostPath << "': " << strerror(errno) << std::endl;
             setReturnS32(ctx, -1); // e.g., -ENOENT, -EACCES
             return;
@@ -371,6 +425,14 @@ namespace ps2_syscalls
         }
 
         // returns the PS2 file descriptor
+        if (tracePath)
+        {
+            std::cerr << "[KOFXI:file-io] fioOpen-ok path=\"" << ps2Path
+                      << "\" host=\"" << hostPath
+                      << "\" flags=0x" << std::hex << flags << std::dec
+                      << " mode=\"" << mode
+                      << "\" fd=" << ps2Fd << std::endl;
+        }
         setReturnS32(ctx, ps2Fd);
     }
 

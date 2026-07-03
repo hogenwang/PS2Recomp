@@ -1,8 +1,30 @@
 #include "Common.h"
 #include "CD.h"
 
+#include <cstdlib>
+
 namespace ps2_stubs
 {
+    static bool traceKofxiFileIoEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_FILE_IO");
+        return value && *value && std::strcmp(value, "0") != 0 &&
+               std::strcmp(value, "false") != 0 && std::strcmp(value, "FALSE") != 0;
+    }
+
+    static bool shouldTraceKofxiCdPath(const std::string &path)
+    {
+        if (!traceKofxiFileIoEnabled())
+        {
+            return false;
+        }
+
+        const std::string lower = toLowerAscii(path);
+        return lower.find("zdx") != std::string::npos ||
+               lower.find("0flistht") != std::string::npos ||
+               lower.find("kofxibgm") != std::string::npos;
+    }
+
     void sceCdRead(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         const uint32_t a0 = getRegU32(ctx, 4); // usually lbn
@@ -346,6 +368,7 @@ namespace ps2_stubs
         uint32_t pathAddr = getRegU32(ctx, 5);
         const std::string path = readPs2CStringBounded(rdram, pathAddr, 260);
         const std::string normalizedPath = normalizeCdPathNoPrefix(path);
+        const bool traceKofxiPath = shouldTraceKofxiCdPath(path);
         static uint32_t traceCount = 0;
         const uint32_t callerRa = getRegU32(ctx, 31);
         const bool shouldTrace = (traceCount < 128u) || ((traceCount % 512u) == 0u);
@@ -422,6 +445,17 @@ namespace ps2_stubs
                           << " (root: " << getCdRootPath().string()
                           << ", repeat=" << samePathFailCount << ")" << std::endl;
             }
+            if (traceKofxiPath)
+            {
+                std::cerr << "[KOFXI:file-io] sceCdSearchFile-fail pc=0x" << std::hex << ctx->pc
+                          << " ra=0x" << callerRa
+                          << " file=0x" << fileAddr
+                          << " pathAddr=0x" << pathAddr
+                          << std::dec << " path=\"" << sanitizeForLog(path)
+                          << "\" normalized=\"" << sanitizeForLog(normalizedPath)
+                          << "\" root=\"" << getCdRootPath().string() << "\""
+                          << std::endl;
+            }
             setReturnS32(ctx, 0);
             return;
         }
@@ -441,6 +475,17 @@ namespace ps2_stubs
                                                        << " size=0x" << resolvedEntry.sizeBytes
                                                        << " sectors=0x" << resolvedEntry.sectors
                                                        << std::dec << std::endl);
+        }
+        if (traceKofxiPath)
+        {
+            std::cerr << "[KOFXI:file-io] sceCdSearchFile-ok pc=0x" << std::hex << ctx->pc
+                      << " ra=0x" << callerRa
+                      << " file=0x" << fileAddr
+                      << " lsn=0x" << resolvedEntry.baseLbn
+                      << " size=0x" << resolvedEntry.sizeBytes
+                      << std::dec << " path=\"" << sanitizeForLog(path)
+                      << "\" host=\"" << resolvedEntry.hostPath.string() << "\""
+                      << std::endl;
         }
         setReturnS32(ctx, 1);
     }

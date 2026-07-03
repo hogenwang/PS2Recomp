@@ -2332,6 +2332,27 @@ namespace ps2_stubs
             {
                 wroteResponse = true;
             }
+            else if (runtime && (packetSid == 0x80000400u || packetSid == 0x80000480u))
+            {
+                runtime->iop().init(rdram);
+                uint32_t iopResultPtr = 0u;
+                bool iopSignalNowaitCompletion = false;
+                if (runtime->iop().handleRPC(runtime,
+                                             packetSid,
+                                             rpcNumber,
+                                             sendPayloadAddr,
+                                             effectiveSendPayloadSize,
+                                             recvBuf,
+                                             recvSize,
+                                             iopResultPtr,
+                                             iopSignalNowaitCompletion))
+                {
+                    (void)iopResultPtr;
+                    (void)iopSignalNowaitCompletion;
+                    wroteResponse = true;
+                    responseName = "mcserv";
+                }
+            }
             else if (handleSifPacketKofxiDiscRpc(
                           rdram,
                           effectiveDiscSid,
