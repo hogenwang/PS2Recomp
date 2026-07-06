@@ -2017,4 +2017,5 @@ label_2ec404:
     // 0x2ec42c: 0x0  nop
     ctx->pc = 0x2ec42cu;
     // NOP
+    if (ctx->pc == 0x2ec42cu) { ctx->pc = 0x2ec430u; }
 }

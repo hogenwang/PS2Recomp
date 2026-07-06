@@ -550,4 +550,5 @@ label_298db4:
     // 0x298db4: 0x0  nop
     ctx->pc = 0x298db4u;
     // NOP
+    if (ctx->pc == 0x298db4u) { ctx->pc = 0x298db8u; }
 }

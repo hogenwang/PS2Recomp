@@ -367,4 +367,5 @@ label_19bf34:
     // 0x19bf4c: 0x0  nop
     ctx->pc = 0x19bf4cu;
     // NOP
+    if (ctx->pc == 0x19bf4cu) { ctx->pc = 0x19bf50u; }
 }

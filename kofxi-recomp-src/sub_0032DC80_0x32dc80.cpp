@@ -622,4 +622,5 @@ label_32dec4:
     // 0x32dedc: 0x0  nop
     ctx->pc = 0x32dedcu;
     // NOP
+    if (ctx->pc == 0x32dedcu) { ctx->pc = 0x32dee0u; }
 }

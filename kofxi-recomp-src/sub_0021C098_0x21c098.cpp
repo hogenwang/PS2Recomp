@@ -182,4 +182,5 @@ label_21c108:
     // 0x21c124: 0x0  nop
     ctx->pc = 0x21c124u;
     // NOP
+    if (ctx->pc == 0x21c124u) { ctx->pc = 0x21c128u; }
 }

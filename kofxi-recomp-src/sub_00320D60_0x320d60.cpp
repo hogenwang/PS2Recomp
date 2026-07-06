@@ -492,4 +492,5 @@ label_320ec4:
     // 0x320eec: 0x0  nop
     ctx->pc = 0x320eecu;
     // NOP
+    if (ctx->pc == 0x320eecu) { ctx->pc = 0x320ef0u; }
 }

@@ -106,4 +106,5 @@ label_265ad4:
     // 0x265afc: 0x0  nop
     ctx->pc = 0x265afcu;
     // NOP
+    if (ctx->pc == 0x265afcu) { ctx->pc = 0x265b00u; }
 }

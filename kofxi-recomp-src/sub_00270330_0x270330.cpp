@@ -5116,4 +5116,5 @@ label_270adc:
     // 0x270adc: 0x0  nop
     ctx->pc = 0x270adcu;
     // NOP
+    if (ctx->pc == 0x270adcu) { ctx->pc = 0x270ae0u; }
 }

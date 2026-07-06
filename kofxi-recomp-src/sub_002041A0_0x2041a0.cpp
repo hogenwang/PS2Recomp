@@ -94,4 +94,5 @@ label_2041c0:
     // 0x2041cc: 0x0  nop
     ctx->pc = 0x2041ccu;
     // NOP
+    if (ctx->pc == 0x2041ccu) { ctx->pc = 0x2041d0u; }
 }

@@ -2708,4 +2708,5 @@ label_340fa0:
     // 0x340fac: 0x0  nop
     ctx->pc = 0x340facu;
     // NOP
+    if (ctx->pc == 0x340facu) { ctx->pc = 0x340fb0u; }
 }

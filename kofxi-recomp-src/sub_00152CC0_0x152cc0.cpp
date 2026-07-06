@@ -385,4 +385,5 @@ label_152de8:
     // 0x152dfc: 0x0  nop
     ctx->pc = 0x152dfcu;
     // NOP
+    if (ctx->pc == 0x152dfcu) { ctx->pc = 0x152e00u; }
 }

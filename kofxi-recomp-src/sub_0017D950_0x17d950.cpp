@@ -618,4 +618,5 @@ label_17dabc:
     // 0x17dabc: 0x0  nop
     ctx->pc = 0x17dabcu;
     // NOP
+    if (ctx->pc == 0x17dabcu) { ctx->pc = 0x17dac0u; }
 }

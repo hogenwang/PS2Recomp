@@ -116,4 +116,5 @@ void sub_0010FA78_0x10fa78(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x10fabc: 0x0  nop
     ctx->pc = 0x10fabcu;
     // NOP
+    if (ctx->pc == 0x10fabcu) { ctx->pc = 0x10fac0u; }
 }

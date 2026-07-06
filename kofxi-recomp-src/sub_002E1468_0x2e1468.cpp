@@ -600,4 +600,5 @@ label_fallthrough_0x2e160c:
     // 0x2e1614: 0x0  nop
     ctx->pc = 0x2e1614u;
     // NOP
+    if (ctx->pc == 0x2e1614u) { ctx->pc = 0x2e1618u; }
 }

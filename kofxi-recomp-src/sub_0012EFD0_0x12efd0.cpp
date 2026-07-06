@@ -1952,4 +1952,5 @@ label_12f618:
     // 0x12f66c: 0x0  nop
     ctx->pc = 0x12f66cu;
     // NOP
+    if (ctx->pc == 0x12f66cu) { ctx->pc = 0x12f670u; }
 }

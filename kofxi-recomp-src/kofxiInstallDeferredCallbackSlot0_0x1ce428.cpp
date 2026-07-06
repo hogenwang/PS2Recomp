@@ -52,4 +52,5 @@ void kofxiInstallDeferredCallbackSlot0_0x1ce428(uint8_t* rdram, R5900Context* ct
     // 0x1ce43c: 0x0  nop
     ctx->pc = 0x1ce43cu;
     // NOP
+    if (ctx->pc == 0x1ce43cu) { ctx->pc = 0x1ce440u; }
 }

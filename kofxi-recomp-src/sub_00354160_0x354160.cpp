@@ -186,4 +186,5 @@ label_3541b8:
     // 0x3541cc: 0x0  nop
     ctx->pc = 0x3541ccu;
     // NOP
+    if (ctx->pc == 0x3541ccu) { ctx->pc = 0x3541d0u; }
 }

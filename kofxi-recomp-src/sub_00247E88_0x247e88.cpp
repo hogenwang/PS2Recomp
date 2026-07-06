@@ -223,4 +223,5 @@ label_247f04:
     // 0x247f2c: 0x0  nop
     ctx->pc = 0x247f2cu;
     // NOP
+    if (ctx->pc == 0x247f2cu) { ctx->pc = 0x247f30u; }
 }

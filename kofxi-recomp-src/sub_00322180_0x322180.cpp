@@ -69,4 +69,5 @@ label_3221a4:
     // 0x3221ac: 0x0  nop
     ctx->pc = 0x3221acu;
     // NOP
+    if (ctx->pc == 0x3221acu) { ctx->pc = 0x3221b0u; }
 }

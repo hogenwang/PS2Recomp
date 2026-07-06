@@ -57,4 +57,5 @@ label_155dac:
     // 0x155dbc: 0x0  nop
     ctx->pc = 0x155dbcu;
     // NOP
+    if (ctx->pc == 0x155dbcu) { ctx->pc = 0x155dc0u; }
 }

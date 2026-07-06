@@ -182,4 +182,5 @@ label_215080:
     // 0x21509c: 0x0  nop
     ctx->pc = 0x21509cu;
     // NOP
+    if (ctx->pc == 0x21509cu) { ctx->pc = 0x2150a0u; }
 }

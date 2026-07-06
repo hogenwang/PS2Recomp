@@ -3665,4 +3665,5 @@ label_17ae98:
     // 0x17ae98: 0x3c03009c  lui         $v1, 0x9C
     ctx->pc = 0x17ae98u;
     SET_GPR_S32(ctx, 3, (int32_t)((uint32_t)156 << 16));
+    if (ctx->pc == 0x17ae98u) { ctx->pc = 0x17ae9cu; }
 }

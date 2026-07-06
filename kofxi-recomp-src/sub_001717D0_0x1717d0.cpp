@@ -105,4 +105,5 @@ label_1717ec:
     // 0x17180c: 0x0  nop
     ctx->pc = 0x17180cu;
     // NOP
+    if (ctx->pc == 0x17180cu) { ctx->pc = 0x171810u; }
 }

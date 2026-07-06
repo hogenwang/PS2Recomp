@@ -300,4 +300,5 @@ label_2cfa10:
     // 0x2cfa34: 0x0  nop
     ctx->pc = 0x2cfa34u;
     // NOP
+    if (ctx->pc == 0x2cfa34u) { ctx->pc = 0x2cfa38u; }
 }

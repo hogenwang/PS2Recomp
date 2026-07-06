@@ -146,4 +146,5 @@ label_3430f0:
     // 0x3430fc: 0x0  nop
     ctx->pc = 0x3430fcu;
     // NOP
+    if (ctx->pc == 0x3430fcu) { ctx->pc = 0x343100u; }
 }

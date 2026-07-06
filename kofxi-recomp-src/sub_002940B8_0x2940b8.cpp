@@ -90,4 +90,5 @@ label_2940e0:
     // 0x2940ec: 0x0  nop
     ctx->pc = 0x2940ecu;
     // NOP
+    if (ctx->pc == 0x2940ecu) { ctx->pc = 0x2940f0u; }
 }

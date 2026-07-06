@@ -329,4 +329,5 @@ label_212edc:
     // 0x212efc: 0x0  nop
     ctx->pc = 0x212efcu;
     // NOP
+    if (ctx->pc == 0x212efcu) { ctx->pc = 0x212f00u; }
 }

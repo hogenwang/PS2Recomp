@@ -696,4 +696,5 @@ label_1cdb44:
     // 0x1cdb44: 0x0  nop
     ctx->pc = 0x1cdb44u;
     // NOP
+    if (ctx->pc == 0x1cdb44u) { ctx->pc = 0x1cdb48u; }
 }

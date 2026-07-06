@@ -403,4 +403,5 @@ label_168094:
     // 0x1680ac: 0x0  nop
     ctx->pc = 0x1680acu;
     // NOP
+    if (ctx->pc == 0x1680acu) { ctx->pc = 0x1680b0u; }
 }

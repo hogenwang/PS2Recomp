@@ -253,4 +253,5 @@ label_2682b4:
     // 0x2682cc: 0x0  nop
     ctx->pc = 0x2682ccu;
     // NOP
+    if (ctx->pc == 0x2682ccu) { ctx->pc = 0x2682d0u; }
 }

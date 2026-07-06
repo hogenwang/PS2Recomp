@@ -698,4 +698,5 @@ label_29ab04:
     // 0x29ab0c: 0x0  nop
     ctx->pc = 0x29ab0cu;
     // NOP
+    if (ctx->pc == 0x29ab0cu) { ctx->pc = 0x29ab10u; }
 }

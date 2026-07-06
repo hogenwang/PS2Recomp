@@ -94,4 +94,5 @@ label_1024d4:
     // 0x1024dc: 0x0  nop
     ctx->pc = 0x1024dcu;
     // NOP
+    if (ctx->pc == 0x1024dcu) { ctx->pc = 0x1024e0u; }
 }

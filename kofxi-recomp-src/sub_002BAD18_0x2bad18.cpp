@@ -238,4 +238,5 @@ label_2bada8:
     // 0x2badb4: 0x0  nop
     ctx->pc = 0x2badb4u;
     // NOP
+    if (ctx->pc == 0x2badb4u) { ctx->pc = 0x2badb8u; }
 }

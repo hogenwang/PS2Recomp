@@ -89,4 +89,5 @@ label_227bac:
     // 0x227bbc: 0x0  nop
     ctx->pc = 0x227bbcu;
     // NOP
+    if (ctx->pc == 0x227bbcu) { ctx->pc = 0x227bc0u; }
 }

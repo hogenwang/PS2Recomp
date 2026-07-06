@@ -447,4 +447,5 @@ label_3008d0:
     // 0x3008dc: 0x0  nop
     ctx->pc = 0x3008dcu;
     // NOP
+    if (ctx->pc == 0x3008dcu) { ctx->pc = 0x3008e0u; }
 }

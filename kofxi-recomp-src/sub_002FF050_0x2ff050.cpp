@@ -7310,4 +7310,5 @@ label_3005e0:
     // 0x3005e0: 0xdfbf0010  ld          $ra, 0x10($sp)
     ctx->pc = 0x3005e0u;
     SET_GPR_U64(ctx, 31, READ64(ADD32(GPR_U32(ctx, 29), 16)));
+    if (ctx->pc == 0x3005e0u) { ctx->pc = 0x3005e4u; }
 }

@@ -166,4 +166,5 @@ label_264a8c:
     // 0x264a9c: 0x0  nop
     ctx->pc = 0x264a9cu;
     // NOP
+    if (ctx->pc == 0x264a9cu) { ctx->pc = 0x264aa0u; }
 }

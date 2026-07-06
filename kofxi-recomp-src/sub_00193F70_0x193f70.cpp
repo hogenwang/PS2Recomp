@@ -91,4 +91,5 @@ label_193fa0:
     // 0x193fac: 0x0  nop
     ctx->pc = 0x193facu;
     // NOP
+    if (ctx->pc == 0x193facu) { ctx->pc = 0x193fb0u; }
 }

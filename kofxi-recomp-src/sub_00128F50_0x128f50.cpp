@@ -141,4 +141,5 @@ label_128f98:
     // 0x128fac: 0x0  nop
     ctx->pc = 0x128facu;
     // NOP
+    if (ctx->pc == 0x128facu) { ctx->pc = 0x128fb0u; }
 }

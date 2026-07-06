@@ -433,4 +433,5 @@ label_12813c:
     // 0x12816c: 0x0  nop
     ctx->pc = 0x12816cu;
     // NOP
+    if (ctx->pc == 0x12816cu) { ctx->pc = 0x128170u; }
 }

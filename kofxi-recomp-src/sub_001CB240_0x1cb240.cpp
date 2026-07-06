@@ -69,4 +69,5 @@ void sub_001CB240_0x1cb240(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1cb264: 0x0  nop
     ctx->pc = 0x1cb264u;
     // NOP
+    if (ctx->pc == 0x1cb264u) { ctx->pc = 0x1cb268u; }
 }

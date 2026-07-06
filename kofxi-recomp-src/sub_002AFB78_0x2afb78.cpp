@@ -72,4 +72,5 @@ label_2afb88:
     // 0x2afb94: 0x0  nop
     ctx->pc = 0x2afb94u;
     // NOP
+    if (ctx->pc == 0x2afb94u) { ctx->pc = 0x2afb98u; }
 }

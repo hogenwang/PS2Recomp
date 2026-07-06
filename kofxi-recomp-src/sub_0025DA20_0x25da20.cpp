@@ -707,4 +707,5 @@ label_25dc0c:
     // 0x25dc34: 0x0  nop
     ctx->pc = 0x25dc34u;
     // NOP
+    if (ctx->pc == 0x25dc34u) { ctx->pc = 0x25dc38u; }
 }

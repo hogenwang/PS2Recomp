@@ -763,4 +763,5 @@ label_323178:
     // 0x32319c: 0x0  nop
     ctx->pc = 0x32319cu;
     // NOP
+    if (ctx->pc == 0x32319cu) { ctx->pc = 0x3231a0u; }
 }

@@ -46,4 +46,5 @@ void sub_002FA650_0x2fa650(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x2fa65c: 0x0  nop
     ctx->pc = 0x2fa65cu;
     // NOP
+    if (ctx->pc == 0x2fa65cu) { ctx->pc = 0x2fa660u; }
 }

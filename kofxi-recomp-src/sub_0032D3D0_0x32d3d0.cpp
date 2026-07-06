@@ -2712,4 +2712,5 @@ label_32dc64:
     // 0x32dc7c: 0x0  nop
     ctx->pc = 0x32dc7cu;
     // NOP
+    if (ctx->pc == 0x32dc7cu) { ctx->pc = 0x32dc80u; }
 }

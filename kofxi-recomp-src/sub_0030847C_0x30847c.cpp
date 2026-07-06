@@ -23,4 +23,5 @@ void sub_0030847C_0x30847c(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x30847c: 0x0  nop
     ctx->pc = 0x30847cu;
     // NOP
+    if (ctx->pc == 0x30847cu) { ctx->pc = 0x308480u; }
 }

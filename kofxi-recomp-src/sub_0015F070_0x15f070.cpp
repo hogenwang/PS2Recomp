@@ -92,4 +92,5 @@ label_15f090:
     // 0x15f09c: 0x0  nop
     ctx->pc = 0x15f09cu;
     // NOP
+    if (ctx->pc == 0x15f09cu) { ctx->pc = 0x15f0a0u; }
 }

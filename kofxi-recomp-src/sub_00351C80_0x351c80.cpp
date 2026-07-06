@@ -948,4 +948,5 @@ label_351f7c:
     // 0x351f8c: 0x0  nop
     ctx->pc = 0x351f8cu;
     // NOP
+    if (ctx->pc == 0x351f8cu) { ctx->pc = 0x351f90u; }
 }

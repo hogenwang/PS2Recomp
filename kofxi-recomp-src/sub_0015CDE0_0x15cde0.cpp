@@ -989,4 +989,5 @@ label_15d0f8:
     // 0x15d10c: 0x0  nop
     ctx->pc = 0x15d10cu;
     // NOP
+    if (ctx->pc == 0x15d10cu) { ctx->pc = 0x15d110u; }
 }

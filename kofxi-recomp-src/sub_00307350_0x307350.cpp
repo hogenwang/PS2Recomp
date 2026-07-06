@@ -106,4 +106,5 @@ label_30737c:
     // 0x30738c: 0x0  nop
     ctx->pc = 0x30738cu;
     // NOP
+    if (ctx->pc == 0x30738cu) { ctx->pc = 0x307390u; }
 }

@@ -1469,4 +1469,5 @@ label_23f9d0:
     // 0x23f9d0: 0x8e03012c  lw          $v1, 0x12C($s0)
     ctx->pc = 0x23f9d0u;
     SET_GPR_S32(ctx, 3, (int32_t)READ32(ADD32(GPR_U32(ctx, 16), 300)));
+    if (ctx->pc == 0x23f9d0u) { ctx->pc = 0x23f9d4u; }
 }

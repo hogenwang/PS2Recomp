@@ -67,4 +67,5 @@ label_1b26f0:
     // 0x1b26fc: 0x0  nop
     ctx->pc = 0x1b26fcu;
     // NOP
+    if (ctx->pc == 0x1b26fcu) { ctx->pc = 0x1b2700u; }
 }

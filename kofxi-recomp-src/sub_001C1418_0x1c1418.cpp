@@ -29,4 +29,5 @@ void sub_001C1418_0x1c1418(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1c1420: 0x8c43c844  lw          $v1, -0x37BC($v0)
     ctx->pc = 0x1c1420u;
     SET_GPR_S32(ctx, 3, (int32_t)READ32(ADD32(GPR_U32(ctx, 2), 4294953028)));
+    if (ctx->pc == 0x1c1420u) { ctx->pc = 0x1c1424u; }
 }

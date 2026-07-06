@@ -291,4 +291,5 @@ label_261c90:
     // 0x261c9c: 0x0  nop
     ctx->pc = 0x261c9cu;
     // NOP
+    if (ctx->pc == 0x261c9cu) { ctx->pc = 0x261ca0u; }
 }

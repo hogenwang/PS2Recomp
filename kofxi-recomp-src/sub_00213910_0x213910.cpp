@@ -370,4 +370,5 @@ label_213a10:
     // 0x213a34: 0x0  nop
     ctx->pc = 0x213a34u;
     // NOP
+    if (ctx->pc == 0x213a34u) { ctx->pc = 0x213a38u; }
 }

@@ -55,4 +55,5 @@ void kofxiFrameSleepCurrent_0x1b40c8(uint8_t* rdram, R5900Context* ctx, PS2Runti
     // 0x1b40ec: 0x0  nop
     ctx->pc = 0x1b40ecu;
     // NOP
+    if (ctx->pc == 0x1b40ecu) { ctx->pc = 0x1b40f0u; }
 }

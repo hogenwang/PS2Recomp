@@ -2256,4 +2256,5 @@ label_1debbc:
     // 0x1debbc: 0x0  nop
     ctx->pc = 0x1debbcu;
     // NOP
+    if (ctx->pc == 0x1debbcu) { ctx->pc = 0x1debc0u; }
 }

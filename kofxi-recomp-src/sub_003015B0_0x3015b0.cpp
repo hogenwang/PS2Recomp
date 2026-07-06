@@ -140,4 +140,5 @@ label_3015ec:
     // 0x3015fc: 0x0  nop
     ctx->pc = 0x3015fcu;
     // NOP
+    if (ctx->pc == 0x3015fcu) { ctx->pc = 0x301600u; }
 }

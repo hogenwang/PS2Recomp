@@ -182,4 +182,5 @@ label_211ba0:
     // 0x211bbc: 0x0  nop
     ctx->pc = 0x211bbcu;
     // NOP
+    if (ctx->pc == 0x211bbcu) { ctx->pc = 0x211bc0u; }
 }

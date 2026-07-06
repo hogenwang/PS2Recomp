@@ -117,4 +117,5 @@ label_2970e8:
     // 0x2970f4: 0x0  nop
     ctx->pc = 0x2970f4u;
     // NOP
+    if (ctx->pc == 0x2970f4u) { ctx->pc = 0x2970f8u; }
 }

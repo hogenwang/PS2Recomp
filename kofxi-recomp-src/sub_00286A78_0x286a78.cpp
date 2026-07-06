@@ -123,4 +123,5 @@ label_286aac:
     // 0x286abc: 0x0  nop
     ctx->pc = 0x286abcu;
     // NOP
+    if (ctx->pc == 0x286abcu) { ctx->pc = 0x286ac0u; }
 }

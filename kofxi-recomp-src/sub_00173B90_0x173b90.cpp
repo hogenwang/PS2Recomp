@@ -142,4 +142,5 @@ void sub_00173B90_0x173b90(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x173c1c: 0x0  nop
     ctx->pc = 0x173c1cu;
     // NOP
+    if (ctx->pc == 0x173c1cu) { ctx->pc = 0x173c20u; }
 }

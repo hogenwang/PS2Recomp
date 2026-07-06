@@ -2271,4 +2271,5 @@ label_1822fc:
     // 0x18232c: 0x0  nop
     ctx->pc = 0x18232cu;
     // NOP
+    if (ctx->pc == 0x18232cu) { ctx->pc = 0x182330u; }
 }

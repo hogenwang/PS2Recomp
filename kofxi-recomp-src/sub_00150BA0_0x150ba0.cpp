@@ -310,4 +310,5 @@ label_150cb0:
     // 0x150cbc: 0x0  nop
     ctx->pc = 0x150cbcu;
     // NOP
+    if (ctx->pc == 0x150cbcu) { ctx->pc = 0x150cc0u; }
 }

@@ -52,4 +52,5 @@ void sub_0025CE98_0x25ce98(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x25ceac: 0x0  nop
     ctx->pc = 0x25ceacu;
     // NOP
+    if (ctx->pc == 0x25ceacu) { ctx->pc = 0x25ceb0u; }
 }

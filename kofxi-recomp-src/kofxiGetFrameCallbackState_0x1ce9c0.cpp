@@ -46,4 +46,5 @@ void kofxiGetFrameCallbackState_0x1ce9c0(uint8_t* rdram, R5900Context* ctx, PS2R
     // 0x1ce9cc: 0x0  nop
     ctx->pc = 0x1ce9ccu;
     // NOP
+    if (ctx->pc == 0x1ce9ccu) { ctx->pc = 0x1ce9d0u; }
 }

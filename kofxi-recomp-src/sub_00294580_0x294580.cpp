@@ -221,4 +221,5 @@ label_2945cc:
     // 0x2945cc: 0x0  nop
     ctx->pc = 0x2945ccu;
     // NOP
+    if (ctx->pc == 0x2945ccu) { ctx->pc = 0x2945d0u; }
 }

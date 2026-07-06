@@ -263,4 +263,5 @@ label_21ef24:
     // 0x21ef2c: 0x0  nop
     ctx->pc = 0x21ef2cu;
     // NOP
+    if (ctx->pc == 0x21ef2cu) { ctx->pc = 0x21ef30u; }
 }

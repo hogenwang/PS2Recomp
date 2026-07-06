@@ -1143,4 +1143,5 @@ label_2f4bac:
     // 0x2f4bac: 0x0  nop
     ctx->pc = 0x2f4bacu;
     // NOP
+    if (ctx->pc == 0x2f4bacu) { ctx->pc = 0x2f4bb0u; }
 }

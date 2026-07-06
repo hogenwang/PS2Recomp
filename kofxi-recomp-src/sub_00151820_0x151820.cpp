@@ -803,4 +803,5 @@ label_151ad8:
     // 0x151aec: 0x0  nop
     ctx->pc = 0x151aecu;
     // NOP
+    if (ctx->pc == 0x151aecu) { ctx->pc = 0x151af0u; }
 }

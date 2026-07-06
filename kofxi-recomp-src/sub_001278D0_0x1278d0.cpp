@@ -600,4 +600,5 @@ label_127ab4:
     // 0x127ad4: 0x0  nop
     ctx->pc = 0x127ad4u;
     // NOP
+    if (ctx->pc == 0x127ad4u) { ctx->pc = 0x127ad8u; }
 }

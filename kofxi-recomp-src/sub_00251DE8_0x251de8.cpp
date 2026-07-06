@@ -629,4 +629,5 @@ label_251f74:
     // 0x251fa4: 0x0  nop
     ctx->pc = 0x251fa4u;
     // NOP
+    if (ctx->pc == 0x251fa4u) { ctx->pc = 0x251fa8u; }
 }

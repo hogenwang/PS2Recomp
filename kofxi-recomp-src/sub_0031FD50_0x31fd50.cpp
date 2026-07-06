@@ -232,4 +232,5 @@ label_31fde0:
     // 0x31fdfc: 0x0  nop
     ctx->pc = 0x31fdfcu;
     // NOP
+    if (ctx->pc == 0x31fdfcu) { ctx->pc = 0x31fe00u; }
 }

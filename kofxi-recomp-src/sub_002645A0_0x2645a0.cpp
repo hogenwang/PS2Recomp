@@ -980,4 +980,5 @@ label_fallthrough_0x26485c:
     // 0x264864: 0x0  nop
     ctx->pc = 0x264864u;
     // NOP
+    if (ctx->pc == 0x264864u) { ctx->pc = 0x264868u; }
 }

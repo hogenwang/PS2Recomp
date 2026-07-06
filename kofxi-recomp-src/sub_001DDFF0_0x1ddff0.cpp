@@ -404,4 +404,5 @@ label_1de114:
     // 0x1de13c: 0x0  nop
     ctx->pc = 0x1de13cu;
     // NOP
+    if (ctx->pc == 0x1de13cu) { ctx->pc = 0x1de140u; }
 }

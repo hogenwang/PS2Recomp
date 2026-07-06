@@ -590,4 +590,5 @@ label_16b6e8:
     // 0x16b6fc: 0x0  nop
     ctx->pc = 0x16b6fcu;
     // NOP
+    if (ctx->pc == 0x16b6fcu) { ctx->pc = 0x16b700u; }
 }

@@ -344,4 +344,5 @@ label_168f2c:
     // 0x168f3c: 0x0  nop
     ctx->pc = 0x168f3cu;
     // NOP
+    if (ctx->pc == 0x168f3cu) { ctx->pc = 0x168f40u; }
 }

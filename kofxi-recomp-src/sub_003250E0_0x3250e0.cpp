@@ -5221,4 +5221,5 @@ label_325f68:
     // 0x325f68: 0x3c020093  lui         $v0, 0x93
     ctx->pc = 0x325f68u;
     SET_GPR_S32(ctx, 2, (int32_t)((uint32_t)147 << 16));
+    if (ctx->pc == 0x325f68u) { ctx->pc = 0x325f6cu; }
 }

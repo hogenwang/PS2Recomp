@@ -381,4 +381,5 @@ label_239ccc:
     // 0x239cf4: 0x0  nop
     ctx->pc = 0x239cf4u;
     // NOP
+    if (ctx->pc == 0x239cf4u) { ctx->pc = 0x239cf8u; }
 }

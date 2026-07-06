@@ -3116,4 +3116,5 @@ label_1819fc:
     // 0x181a1c: 0x0  nop
     ctx->pc = 0x181a1cu;
     // NOP
+    if (ctx->pc == 0x181a1cu) { ctx->pc = 0x181a20u; }
 }

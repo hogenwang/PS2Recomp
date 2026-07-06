@@ -204,4 +204,5 @@ label_32fcbc:
     // 0x32fccc: 0x0  nop
     ctx->pc = 0x32fcccu;
     // NOP
+    if (ctx->pc == 0x32fcccu) { ctx->pc = 0x32fcd0u; }
 }

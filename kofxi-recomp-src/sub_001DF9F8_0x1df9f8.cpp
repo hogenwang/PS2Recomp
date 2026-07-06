@@ -125,4 +125,5 @@ label_1dfa2c:
     // 0x1dfa34: 0x0  nop
     ctx->pc = 0x1dfa34u;
     // NOP
+    if (ctx->pc == 0x1dfa34u) { ctx->pc = 0x1dfa38u; }
 }

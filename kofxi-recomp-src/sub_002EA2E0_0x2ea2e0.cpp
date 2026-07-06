@@ -145,4 +145,5 @@ label_fallthrough_0x2ea334:
     // 0x2ea33c: 0x0  nop
     ctx->pc = 0x2ea33cu;
     // NOP
+    if (ctx->pc == 0x2ea33cu) { ctx->pc = 0x2ea340u; }
 }

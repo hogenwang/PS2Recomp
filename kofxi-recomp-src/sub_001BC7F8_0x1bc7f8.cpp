@@ -1940,4 +1940,5 @@ label_1bcb44:
     // 0x1bcb44: 0x0  nop
     ctx->pc = 0x1bcb44u;
     // NOP
+    if (ctx->pc == 0x1bcb44u) { ctx->pc = 0x1bcb48u; }
 }

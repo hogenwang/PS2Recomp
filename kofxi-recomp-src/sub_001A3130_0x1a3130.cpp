@@ -94,4 +94,5 @@ void sub_001A3130_0x1a3130(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1a317c: 0x0  nop
     ctx->pc = 0x1a317cu;
     // NOP
+    if (ctx->pc == 0x1a317cu) { ctx->pc = 0x1a3180u; }
 }

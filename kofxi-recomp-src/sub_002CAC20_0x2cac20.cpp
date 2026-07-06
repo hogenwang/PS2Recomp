@@ -213,4 +213,5 @@ label_2cacac:
     // 0x2cacc4: 0x0  nop
     ctx->pc = 0x2cacc4u;
     // NOP
+    if (ctx->pc == 0x2cacc4u) { ctx->pc = 0x2cacc8u; }
 }

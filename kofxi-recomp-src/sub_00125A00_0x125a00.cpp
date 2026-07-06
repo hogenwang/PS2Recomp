@@ -671,4 +671,5 @@ label_125afc:
     // 0x125afc: 0x0  nop
     ctx->pc = 0x125afcu;
     // NOP
+    if (ctx->pc == 0x125afcu) { ctx->pc = 0x125b00u; }
 }

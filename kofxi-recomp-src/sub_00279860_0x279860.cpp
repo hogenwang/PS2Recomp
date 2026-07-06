@@ -1003,4 +1003,5 @@ label_279bb8:
     // 0x279bdc: 0x0  nop
     ctx->pc = 0x279bdcu;
     // NOP
+    if (ctx->pc == 0x279bdcu) { ctx->pc = 0x279be0u; }
 }

@@ -573,4 +573,5 @@ label_300bfc:
     // 0x300c00: 0x24020002  addiu       $v0, $zero, 0x2
     ctx->pc = 0x300c00u;
     SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 2));
+    if (ctx->pc == 0x300c00u) { ctx->pc = 0x300c04u; }
 }

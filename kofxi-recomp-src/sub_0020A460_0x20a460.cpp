@@ -166,4 +166,5 @@ void sub_0020A460_0x20a460(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x20a50c: 0x0  nop
     ctx->pc = 0x20a50cu;
     // NOP
+    if (ctx->pc == 0x20a50cu) { ctx->pc = 0x20a510u; }
 }

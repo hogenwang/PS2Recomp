@@ -72,4 +72,5 @@ label_302c40:
     // 0x302c4c: 0x0  nop
     ctx->pc = 0x302c4cu;
     // NOP
+    if (ctx->pc == 0x302c4cu) { ctx->pc = 0x302c50u; }
 }

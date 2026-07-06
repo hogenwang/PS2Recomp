@@ -437,4 +437,5 @@ label_12fb40:
     // 0x12fb4c: 0x0  nop
     ctx->pc = 0x12fb4cu;
     // NOP
+    if (ctx->pc == 0x12fb4cu) { ctx->pc = 0x12fb50u; }
 }

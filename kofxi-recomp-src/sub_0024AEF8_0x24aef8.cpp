@@ -1176,4 +1176,5 @@ label_24b10c:
     // 0x24b10c: 0x0  nop
     ctx->pc = 0x24b10cu;
     // NOP
+    if (ctx->pc == 0x24b10cu) { ctx->pc = 0x24b110u; }
 }

@@ -864,4 +864,5 @@ label_1985cc:
     // 0x1985cc: 0x0  nop
     ctx->pc = 0x1985ccu;
     // NOP
+    if (ctx->pc == 0x1985ccu) { ctx->pc = 0x1985d0u; }
 }

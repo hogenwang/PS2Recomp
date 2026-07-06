@@ -303,4 +303,5 @@ label_2d5518:
     // 0x2d552c: 0x0  nop
     ctx->pc = 0x2d552cu;
     // NOP
+    if (ctx->pc == 0x2d552cu) { ctx->pc = 0x2d5530u; }
 }

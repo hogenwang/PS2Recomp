@@ -94,4 +94,5 @@ void sub_0032A7C0_0x32a7c0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x32a80c: 0x0  nop
     ctx->pc = 0x32a80cu;
     // NOP
+    if (ctx->pc == 0x32a80cu) { ctx->pc = 0x32a810u; }
 }

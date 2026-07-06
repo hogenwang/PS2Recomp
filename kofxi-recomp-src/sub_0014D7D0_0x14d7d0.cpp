@@ -2437,4 +2437,5 @@ label_14df84:
     // 0x14dfac: 0x0  nop
     ctx->pc = 0x14dfacu;
     // NOP
+    if (ctx->pc == 0x14dfacu) { ctx->pc = 0x14dfb0u; }
 }

@@ -58,4 +58,5 @@ void sub_0015EF60_0x15ef60(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x15ef7c: 0x0  nop
     ctx->pc = 0x15ef7cu;
     // NOP
+    if (ctx->pc == 0x15ef7cu) { ctx->pc = 0x15ef80u; }
 }

@@ -68,4 +68,5 @@ void sub_00302BF0_0x302bf0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x302c2c: 0x948a0002  lhu         $t2, 0x2($a0)
     ctx->pc = 0x302c2cu;
     SET_GPR_U32(ctx, 10, (uint16_t)READ16(ADD32(GPR_U32(ctx, 4), 2)));
+    if (ctx->pc == 0x302c2cu) { ctx->pc = 0x302c30u; }
 }

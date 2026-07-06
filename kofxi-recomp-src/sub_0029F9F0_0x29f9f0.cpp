@@ -742,4 +742,5 @@ label_29fc04:
     // 0x29fc08: 0x202d  daddu       $a0, $zero, $zero
     ctx->pc = 0x29fc08u;
     SET_GPR_U64(ctx, 4, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
+    if (ctx->pc == 0x29fc08u) { ctx->pc = 0x29fc0cu; }
 }

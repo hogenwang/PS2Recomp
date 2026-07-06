@@ -1024,4 +1024,5 @@ label_21428c:
     // 0x2142ac: 0x0  nop
     ctx->pc = 0x2142acu;
     // NOP
+    if (ctx->pc == 0x2142acu) { ctx->pc = 0x2142b0u; }
 }

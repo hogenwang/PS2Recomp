@@ -913,4 +913,5 @@ label_2e0e38:
     // 0x2e0e7c: 0x0  nop
     ctx->pc = 0x2e0e7cu;
     // NOP
+    if (ctx->pc == 0x2e0e7cu) { ctx->pc = 0x2e0e80u; }
 }

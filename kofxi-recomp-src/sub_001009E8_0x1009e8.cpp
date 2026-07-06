@@ -491,4 +491,5 @@ label_100b9c:
     // 0x100bcc: 0x0  nop
     ctx->pc = 0x100bccu;
     // NOP
+    if (ctx->pc == 0x100bccu) { ctx->pc = 0x100bd0u; }
 }

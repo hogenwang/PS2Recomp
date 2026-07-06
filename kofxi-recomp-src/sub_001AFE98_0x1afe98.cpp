@@ -203,4 +203,5 @@ label_1aff1c:
     // 0x1aff2c: 0x0  nop
     ctx->pc = 0x1aff2cu;
     // NOP
+    if (ctx->pc == 0x1aff2cu) { ctx->pc = 0x1aff30u; }
 }

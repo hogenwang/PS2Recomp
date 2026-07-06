@@ -2325,4 +2325,5 @@ label_125ec4:
     // 0x125ec4: 0x0  nop
     ctx->pc = 0x125ec4u;
     // NOP
+    if (ctx->pc == 0x125ec4u) { ctx->pc = 0x125ec8u; }
 }

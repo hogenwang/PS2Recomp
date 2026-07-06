@@ -589,4 +589,5 @@ label_25ea9c:
     // 0x25eacc: 0x0  nop
     ctx->pc = 0x25eaccu;
     // NOP
+    if (ctx->pc == 0x25eaccu) { ctx->pc = 0x25ead0u; }
 }

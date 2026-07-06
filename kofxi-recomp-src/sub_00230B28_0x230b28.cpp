@@ -531,4 +531,5 @@ label_230cb4:
     // 0x230cbc: 0x0  nop
     ctx->pc = 0x230cbcu;
     // NOP
+    if (ctx->pc == 0x230cbcu) { ctx->pc = 0x230cc0u; }
 }

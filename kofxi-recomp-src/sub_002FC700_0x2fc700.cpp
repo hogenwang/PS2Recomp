@@ -246,4 +246,5 @@ label_2fc790:
     // 0x2fc79c: 0x0  nop
     ctx->pc = 0x2fc79cu;
     // NOP
+    if (ctx->pc == 0x2fc79cu) { ctx->pc = 0x2fc7a0u; }
 }

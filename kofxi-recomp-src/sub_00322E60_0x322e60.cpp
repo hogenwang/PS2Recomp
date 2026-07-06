@@ -108,4 +108,5 @@ label_322e78:
     // 0x322eac: 0x0  nop
     ctx->pc = 0x322eacu;
     // NOP
+    if (ctx->pc == 0x322eacu) { ctx->pc = 0x322eb0u; }
 }

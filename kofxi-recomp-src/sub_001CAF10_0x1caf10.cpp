@@ -566,4 +566,5 @@ label_1caffc:
     // 0x1caffc: 0x0  nop
     ctx->pc = 0x1caffcu;
     // NOP
+    if (ctx->pc == 0x1caffcu) { ctx->pc = 0x1cb000u; }
 }

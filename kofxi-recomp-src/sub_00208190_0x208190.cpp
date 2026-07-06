@@ -107,4 +107,5 @@ label_2081bc:
     // 0x2081cc: 0x0  nop
     ctx->pc = 0x2081ccu;
     // NOP
+    if (ctx->pc == 0x2081ccu) { ctx->pc = 0x2081d0u; }
 }

@@ -117,4 +117,5 @@ label_2027c8:
     // 0x2027d4: 0x0  nop
     ctx->pc = 0x2027d4u;
     // NOP
+    if (ctx->pc == 0x2027d4u) { ctx->pc = 0x2027d8u; }
 }

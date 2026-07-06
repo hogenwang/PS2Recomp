@@ -646,4 +646,5 @@ label_2eeea0:
     // 0x2eeeac: 0x0  nop
     ctx->pc = 0x2eeeacu;
     // NOP
+    if (ctx->pc == 0x2eeeacu) { ctx->pc = 0x2eeeb0u; }
 }

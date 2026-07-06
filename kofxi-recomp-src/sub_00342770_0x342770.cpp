@@ -149,4 +149,5 @@ label_3427f4:
     // 0x3427fc: 0x0  nop
     ctx->pc = 0x3427fcu;
     // NOP
+    if (ctx->pc == 0x3427fcu) { ctx->pc = 0x342800u; }
 }

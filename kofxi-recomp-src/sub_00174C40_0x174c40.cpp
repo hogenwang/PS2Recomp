@@ -94,4 +94,5 @@ label_174c58:
     // 0x174c6c: 0x0  nop
     ctx->pc = 0x174c6cu;
     // NOP
+    if (ctx->pc == 0x174c6cu) { ctx->pc = 0x174c70u; }
 }

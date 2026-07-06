@@ -150,4 +150,5 @@ label_203c94:
     // 0x203cac: 0x0  nop
     ctx->pc = 0x203cacu;
     // NOP
+    if (ctx->pc == 0x203cacu) { ctx->pc = 0x203cb0u; }
 }

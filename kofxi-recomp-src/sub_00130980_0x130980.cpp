@@ -5517,4 +5517,5 @@ label_131c4c:
     // 0x131c6c: 0x0  nop
     ctx->pc = 0x131c6cu;
     // NOP
+    if (ctx->pc == 0x131c6cu) { ctx->pc = 0x131c70u; }
 }

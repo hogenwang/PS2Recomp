@@ -5489,4 +5489,5 @@ label_128edc:
     // 0x128edc: 0x0  nop
     ctx->pc = 0x128edcu;
     // NOP
+    if (ctx->pc == 0x128edcu) { ctx->pc = 0x128ee0u; }
 }

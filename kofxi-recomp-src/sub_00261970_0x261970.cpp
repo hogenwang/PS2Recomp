@@ -198,4 +198,5 @@ label_2619c4:
     // 0x2619cc: 0x0  nop
     ctx->pc = 0x2619ccu;
     // NOP
+    if (ctx->pc == 0x2619ccu) { ctx->pc = 0x2619d0u; }
 }

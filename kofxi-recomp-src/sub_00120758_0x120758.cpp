@@ -1988,4 +1988,5 @@ label_120de8:
     // 0x120e04: 0x0  nop
     ctx->pc = 0x120e04u;
     // NOP
+    if (ctx->pc == 0x120e04u) { ctx->pc = 0x120e08u; }
 }

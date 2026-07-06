@@ -237,4 +237,5 @@ label_2c41ec:
     // 0x2c41fc: 0x0  nop
     ctx->pc = 0x2c41fcu;
     // NOP
+    if (ctx->pc == 0x2c41fcu) { ctx->pc = 0x2c4200u; }
 }

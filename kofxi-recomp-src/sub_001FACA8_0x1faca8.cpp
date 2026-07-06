@@ -45,4 +45,5 @@ void sub_001FACA8_0x1faca8(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1facbc: 0x0  nop
     ctx->pc = 0x1facbcu;
     // NOP
+    if (ctx->pc == 0x1facbcu) { ctx->pc = 0x1facc0u; }
 }

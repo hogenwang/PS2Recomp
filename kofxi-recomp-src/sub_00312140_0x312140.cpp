@@ -165,4 +165,5 @@ label_31219c:
     // 0x3121ac: 0x0  nop
     ctx->pc = 0x3121acu;
     // NOP
+    if (ctx->pc == 0x3121acu) { ctx->pc = 0x3121b0u; }
 }

@@ -69,4 +69,5 @@ label_2cf23c:
     // 0x2cf244: 0x0  nop
     ctx->pc = 0x2cf244u;
     // NOP
+    if (ctx->pc == 0x2cf244u) { ctx->pc = 0x2cf248u; }
 }

@@ -94,4 +94,5 @@ void sub_00120208_0x120208(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x120254: 0x0  nop
     ctx->pc = 0x120254u;
     // NOP
+    if (ctx->pc == 0x120254u) { ctx->pc = 0x120258u; }
 }

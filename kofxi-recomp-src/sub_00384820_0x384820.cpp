@@ -498726,4 +498726,5 @@ label_3d547c:
     // 0x3d547c: 0x200098  .word       0x00200098                   # mult        $zero, $at, $zero # 00000080 <InstrIdType: R5900_SPECIAL>
     ctx->pc = 0x3d547cu;
     { int64_t result = (int64_t)GPR_S32(ctx, 1) * (int64_t)GPR_S32(ctx, 0); ctx->lo = (uint64_t)(int64_t)(int32_t)result; ctx->hi = (uint64_t)(int64_t)(int32_t)(result >> 32); }
+    if (ctx->pc == 0x3d547cu) { ctx->pc = 0x3d5480u; }
 }

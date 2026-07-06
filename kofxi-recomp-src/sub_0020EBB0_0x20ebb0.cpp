@@ -413,4 +413,5 @@ label_20ecf4:
     // 0x20ecfc: 0x0  nop
     ctx->pc = 0x20ecfcu;
     // NOP
+    if (ctx->pc == 0x20ecfcu) { ctx->pc = 0x20ed00u; }
 }

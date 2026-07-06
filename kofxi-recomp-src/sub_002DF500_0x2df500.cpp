@@ -101,4 +101,5 @@ label_2df510:
     // 0x2df53c: 0x0  nop
     ctx->pc = 0x2df53cu;
     // NOP
+    if (ctx->pc == 0x2df53cu) { ctx->pc = 0x2df540u; }
 }

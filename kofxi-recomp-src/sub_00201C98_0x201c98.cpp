@@ -241,4 +241,5 @@ label_201d48:
     // 0x201d6c: 0x0  nop
     ctx->pc = 0x201d6cu;
     // NOP
+    if (ctx->pc == 0x201d6cu) { ctx->pc = 0x201d70u; }
 }

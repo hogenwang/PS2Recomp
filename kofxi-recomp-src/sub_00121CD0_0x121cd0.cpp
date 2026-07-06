@@ -1988,4 +1988,5 @@ label_122360:
     // 0x12237c: 0x0  nop
     ctx->pc = 0x12237cu;
     // NOP
+    if (ctx->pc == 0x12237cu) { ctx->pc = 0x122380u; }
 }

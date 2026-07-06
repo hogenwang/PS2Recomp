@@ -167,4 +167,5 @@ label_1baca4:
     // 0x1bacb4: 0x0  nop
     ctx->pc = 0x1bacb4u;
     // NOP
+    if (ctx->pc == 0x1bacb4u) { ctx->pc = 0x1bacb8u; }
 }

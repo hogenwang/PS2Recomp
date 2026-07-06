@@ -1114,4 +1114,5 @@ label_300f20:
     // 0x300f2c: 0x0  nop
     ctx->pc = 0x300f2cu;
     // NOP
+    if (ctx->pc == 0x300f2cu) { ctx->pc = 0x300f30u; }
 }

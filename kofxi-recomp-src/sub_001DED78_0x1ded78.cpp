@@ -87,4 +87,5 @@ label_1deda4:
     // 0x1dedac: 0x0  nop
     ctx->pc = 0x1dedacu;
     // NOP
+    if (ctx->pc == 0x1dedacu) { ctx->pc = 0x1dedb0u; }
 }

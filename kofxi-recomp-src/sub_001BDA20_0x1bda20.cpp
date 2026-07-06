@@ -55,4 +55,5 @@ void sub_001BDA20_0x1bda20(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1bda44: 0x0  nop
     ctx->pc = 0x1bda44u;
     // NOP
+    if (ctx->pc == 0x1bda44u) { ctx->pc = 0x1bda48u; }
 }

@@ -1109,4 +1109,5 @@ label_32fad8:
     // 0x32faec: 0x0  nop
     ctx->pc = 0x32faecu;
     // NOP
+    if (ctx->pc == 0x32faecu) { ctx->pc = 0x32faf0u; }
 }

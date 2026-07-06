@@ -246,4 +246,5 @@ label_12eedc:
     // 0x12eeec: 0x0  nop
     ctx->pc = 0x12eeecu;
     // NOP
+    if (ctx->pc == 0x12eeecu) { ctx->pc = 0x12eef0u; }
 }

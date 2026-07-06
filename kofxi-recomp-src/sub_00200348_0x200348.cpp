@@ -192,4 +192,5 @@ label_2003bc:
     // 0x2003d4: 0x0  nop
     ctx->pc = 0x2003d4u;
     // NOP
+    if (ctx->pc == 0x2003d4u) { ctx->pc = 0x2003d8u; }
 }

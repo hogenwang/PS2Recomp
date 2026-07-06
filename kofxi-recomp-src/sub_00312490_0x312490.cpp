@@ -422,4 +422,5 @@ label_3125bc:
     // 0x3125cc: 0x0  nop
     ctx->pc = 0x3125ccu;
     // NOP
+    if (ctx->pc == 0x3125ccu) { ctx->pc = 0x3125d0u; }
 }

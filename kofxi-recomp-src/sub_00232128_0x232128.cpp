@@ -183,4 +183,5 @@ label_2321ac:
     // 0x2321bc: 0x0  nop
     ctx->pc = 0x2321bcu;
     // NOP
+    if (ctx->pc == 0x2321bcu) { ctx->pc = 0x2321c0u; }
 }

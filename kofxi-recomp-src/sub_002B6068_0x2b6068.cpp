@@ -1023,4 +1023,5 @@ label_2b620c:
     // 0x2b620c: 0x0  nop
     ctx->pc = 0x2b620cu;
     // NOP
+    if (ctx->pc == 0x2b620cu) { ctx->pc = 0x2b6210u; }
 }

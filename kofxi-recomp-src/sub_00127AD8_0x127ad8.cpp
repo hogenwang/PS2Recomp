@@ -367,4 +367,5 @@ label_127bbc:
     // 0x127bdc: 0x0  nop
     ctx->pc = 0x127bdcu;
     // NOP
+    if (ctx->pc == 0x127bdcu) { ctx->pc = 0x127be0u; }
 }

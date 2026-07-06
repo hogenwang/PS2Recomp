@@ -991,4 +991,5 @@ label_1253b8:
     // 0x1253cc: 0x0  nop
     ctx->pc = 0x1253ccu;
     // NOP
+    if (ctx->pc == 0x1253ccu) { ctx->pc = 0x1253d0u; }
 }

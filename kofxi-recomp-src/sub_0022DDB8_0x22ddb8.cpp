@@ -957,4 +957,5 @@ label_22df54:
     // 0x22df54: 0x0  nop
     ctx->pc = 0x22df54u;
     // NOP
+    if (ctx->pc == 0x22df54u) { ctx->pc = 0x22df58u; }
 }

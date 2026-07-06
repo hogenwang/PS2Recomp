@@ -43,4 +43,5 @@ void kofxiThreadSleepCurrent_0x1b3180(uint8_t* rdram, R5900Context* ctx, PS2Runt
     // 0x1b3194: 0x0  nop
     ctx->pc = 0x1b3194u;
     // NOP
+    if (ctx->pc == 0x1b3194u) { ctx->pc = 0x1b3198u; }
 }

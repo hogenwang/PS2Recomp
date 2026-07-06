@@ -45,4 +45,5 @@ void kofxiVblankSchedulerTrampoline_0x1b3f90(uint8_t* rdram, R5900Context* ctx, 
     // 0x1b3fa4: 0x0  nop
     ctx->pc = 0x1b3fa4u;
     // NOP
+    if (ctx->pc == 0x1b3fa4u) { ctx->pc = 0x1b3fa8u; }
 }

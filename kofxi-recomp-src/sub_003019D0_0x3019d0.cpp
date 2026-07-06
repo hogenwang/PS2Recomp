@@ -252,4 +252,5 @@ label_301a9c:
     // 0x301abc: 0x0  nop
     ctx->pc = 0x301abcu;
     // NOP
+    if (ctx->pc == 0x301abcu) { ctx->pc = 0x301ac0u; }
 }

@@ -1203,4 +1203,5 @@ label_193d04:
     // 0x193d0c: 0x0  nop
     ctx->pc = 0x193d0cu;
     // NOP
+    if (ctx->pc == 0x193d0cu) { ctx->pc = 0x193d10u; }
 }

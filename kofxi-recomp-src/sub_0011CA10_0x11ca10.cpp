@@ -265,4 +265,5 @@ label_11cab8:
     // 0x11cacc: 0x0  nop
     ctx->pc = 0x11caccu;
     // NOP
+    if (ctx->pc == 0x11caccu) { ctx->pc = 0x11cad0u; }
 }

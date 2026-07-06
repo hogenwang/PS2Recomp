@@ -114,4 +114,5 @@ label_1503c8:
     // 0x1503dc: 0x0  nop
     ctx->pc = 0x1503dcu;
     // NOP
+    if (ctx->pc == 0x1503dcu) { ctx->pc = 0x1503e0u; }
 }

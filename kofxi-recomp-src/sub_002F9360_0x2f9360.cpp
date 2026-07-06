@@ -1703,4 +1703,5 @@ label_2f98c8:
     // 0x2f98e4: 0x0  nop
     ctx->pc = 0x2f98e4u;
     // NOP
+    if (ctx->pc == 0x2f98e4u) { ctx->pc = 0x2f98e8u; }
 }

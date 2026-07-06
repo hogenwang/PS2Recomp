@@ -52,4 +52,5 @@ void sub_00264CD0_0x264cd0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x264ce4: 0x0  nop
     ctx->pc = 0x264ce4u;
     // NOP
+    if (ctx->pc == 0x264ce4u) { ctx->pc = 0x264ce8u; }
 }

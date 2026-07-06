@@ -45,4 +45,5 @@ void sub_001E1E50_0x1e1e50(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1e1e64: 0x0  nop
     ctx->pc = 0x1e1e64u;
     // NOP
+    if (ctx->pc == 0x1e1e64u) { ctx->pc = 0x1e1e68u; }
 }

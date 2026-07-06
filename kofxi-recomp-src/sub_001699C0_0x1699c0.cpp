@@ -985,4 +985,5 @@ label_169cb4:
     // 0x169ccc: 0x0  nop
     ctx->pc = 0x169cccu;
     // NOP
+    if (ctx->pc == 0x169cccu) { ctx->pc = 0x169cd0u; }
 }

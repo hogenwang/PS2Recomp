@@ -46,4 +46,5 @@ void kofxiSetSchedulerState_0x1b2718(uint8_t* rdram, R5900Context* ctx, PS2Runti
     // 0x1b2724: 0x0  nop
     ctx->pc = 0x1b2724u;
     // NOP
+    if (ctx->pc == 0x1b2724u) { ctx->pc = 0x1b2728u; }
 }

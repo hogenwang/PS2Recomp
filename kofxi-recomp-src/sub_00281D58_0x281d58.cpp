@@ -900,4 +900,5 @@ label_281fc4:
     // 0x281fdc: 0x0  nop
     ctx->pc = 0x281fdcu;
     // NOP
+    if (ctx->pc == 0x281fdcu) { ctx->pc = 0x281fe0u; }
 }

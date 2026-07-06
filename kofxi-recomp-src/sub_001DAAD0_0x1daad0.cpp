@@ -1089,4 +1089,5 @@ label_1dad4c:
     // 0x1dad4c: 0x0  nop
     ctx->pc = 0x1dad4cu;
     // NOP
+    if (ctx->pc == 0x1dad4cu) { ctx->pc = 0x1dad50u; }
 }

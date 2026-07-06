@@ -290,4 +290,5 @@ label_2186d0:
     // 0x2186ec: 0x0  nop
     ctx->pc = 0x2186ecu;
     // NOP
+    if (ctx->pc == 0x2186ecu) { ctx->pc = 0x2186f0u; }
 }

@@ -1284,4 +1284,5 @@ label_25faf4:
     // 0x25faf4: 0x0  nop
     ctx->pc = 0x25faf4u;
     // NOP
+    if (ctx->pc == 0x25faf4u) { ctx->pc = 0x25faf8u; }
 }

@@ -630,4 +630,5 @@ label_32ff60:
     // 0x32ff6c: 0x0  nop
     ctx->pc = 0x32ff6cu;
     // NOP
+    if (ctx->pc == 0x32ff6cu) { ctx->pc = 0x32ff70u; }
 }

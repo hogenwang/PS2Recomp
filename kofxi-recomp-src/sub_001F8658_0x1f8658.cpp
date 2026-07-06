@@ -144,4 +144,5 @@ label_1f86b0:
     // 0x1f86bc: 0x0  nop
     ctx->pc = 0x1f86bcu;
     // NOP
+    if (ctx->pc == 0x1f86bcu) { ctx->pc = 0x1f86c0u; }
 }

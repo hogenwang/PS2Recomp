@@ -456,4 +456,5 @@ label_151ca4:
     // 0x151cac: 0x0  nop
     ctx->pc = 0x151cacu;
     // NOP
+    if (ctx->pc == 0x151cacu) { ctx->pc = 0x151cb0u; }
 }

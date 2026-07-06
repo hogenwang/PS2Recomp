@@ -22015,4 +22015,5 @@ label_31a998:
     // 0x31a9cc: 0x0  nop
     ctx->pc = 0x31a9ccu;
     // NOP
+    if (ctx->pc == 0x31a9ccu) { ctx->pc = 0x31a9d0u; }
 }

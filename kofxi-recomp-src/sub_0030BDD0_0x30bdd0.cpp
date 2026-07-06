@@ -436,4 +436,5 @@ label_30bee4:
     // 0x30befc: 0x0  nop
     ctx->pc = 0x30befcu;
     // NOP
+    if (ctx->pc == 0x30befcu) { ctx->pc = 0x30bf00u; }
 }

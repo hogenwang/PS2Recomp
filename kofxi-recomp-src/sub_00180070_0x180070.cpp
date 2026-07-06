@@ -105,4 +105,5 @@ label_1800c0:
     // 0x1800cc: 0x0  nop
     ctx->pc = 0x1800ccu;
     // NOP
+    if (ctx->pc == 0x1800ccu) { ctx->pc = 0x1800d0u; }
 }

@@ -1285,4 +1285,5 @@ label_1bedfc:
     // 0x1bedfc: 0x0  nop
     ctx->pc = 0x1bedfcu;
     // NOP
+    if (ctx->pc == 0x1bedfcu) { ctx->pc = 0x1bee00u; }
 }

@@ -2943,4 +2943,5 @@ label_1f93cc:
     // 0x1f93cc: 0x0  nop
     ctx->pc = 0x1f93ccu;
     // NOP
+    if (ctx->pc == 0x1f93ccu) { ctx->pc = 0x1f93d0u; }
 }

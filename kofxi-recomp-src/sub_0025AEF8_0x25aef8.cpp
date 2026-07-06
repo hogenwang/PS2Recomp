@@ -94,4 +94,5 @@ void sub_0025AEF8_0x25aef8(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x25af44: 0x0  nop
     ctx->pc = 0x25af44u;
     // NOP
+    if (ctx->pc == 0x25af44u) { ctx->pc = 0x25af48u; }
 }

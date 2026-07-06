@@ -209,4 +209,5 @@ label_2cebec:
     // 0x2cebec: 0x0  nop
     ctx->pc = 0x2cebecu;
     // NOP
+    if (ctx->pc == 0x2cebecu) { ctx->pc = 0x2cebf0u; }
 }

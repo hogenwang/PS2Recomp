@@ -58,4 +58,5 @@ void kofxiSifRpcReleaseRequestSlot_0x110618(uint8_t* rdram, R5900Context* ctx, P
     // 0x110634: 0x0  nop
     ctx->pc = 0x110634u;
     // NOP
+    if (ctx->pc == 0x110634u) { ctx->pc = 0x110638u; }
 }

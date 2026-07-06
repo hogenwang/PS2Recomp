@@ -46,4 +46,5 @@ void sub_00296C20_0x296c20(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x296c2c: 0x0  nop
     ctx->pc = 0x296c2cu;
     // NOP
+    if (ctx->pc == 0x296c2cu) { ctx->pc = 0x296c30u; }
 }

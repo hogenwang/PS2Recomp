@@ -46,4 +46,5 @@ void sub_001AB180_0x1ab180(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1ab18c: 0x0  nop
     ctx->pc = 0x1ab18cu;
     // NOP
+    if (ctx->pc == 0x1ab18cu) { ctx->pc = 0x1ab190u; }
 }

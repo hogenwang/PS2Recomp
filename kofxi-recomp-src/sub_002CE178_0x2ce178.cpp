@@ -129,4 +129,5 @@ label_2ce1b0:
     // 0x2ce1c4: 0x0  nop
     ctx->pc = 0x2ce1c4u;
     // NOP
+    if (ctx->pc == 0x2ce1c4u) { ctx->pc = 0x2ce1c8u; }
 }

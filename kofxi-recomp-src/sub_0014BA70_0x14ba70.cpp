@@ -46,4 +46,5 @@ void sub_0014BA70_0x14ba70(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x14ba7c: 0x0  nop
     ctx->pc = 0x14ba7cu;
     // NOP
+    if (ctx->pc == 0x14ba7cu) { ctx->pc = 0x14ba80u; }
 }

@@ -470,4 +470,5 @@ label_350fd8:
     // 0x350fec: 0x0  nop
     ctx->pc = 0x350fecu;
     // NOP
+    if (ctx->pc == 0x350fecu) { ctx->pc = 0x350ff0u; }
 }

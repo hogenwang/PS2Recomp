@@ -1935,4 +1935,5 @@ label_10bfdc:
     // 0x10bfec: 0x0  nop
     ctx->pc = 0x10bfecu;
     // NOP
+    if (ctx->pc == 0x10bfecu) { ctx->pc = 0x10bff0u; }
 }

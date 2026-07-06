@@ -94,4 +94,5 @@ void sub_0015ED20_0x15ed20(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x15ed6c: 0x0  nop
     ctx->pc = 0x15ed6cu;
     // NOP
+    if (ctx->pc == 0x15ed6cu) { ctx->pc = 0x15ed70u; }
 }

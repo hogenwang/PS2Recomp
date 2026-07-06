@@ -175,4 +175,5 @@ label_32cfe8:
     // 0x32d00c: 0x0  nop
     ctx->pc = 0x32d00cu;
     // NOP
+    if (ctx->pc == 0x32d00cu) { ctx->pc = 0x32d010u; }
 }

@@ -1025,4 +1025,5 @@ label_2402fc:
     // 0x24030c: 0x0  nop
     ctx->pc = 0x24030cu;
     // NOP
+    if (ctx->pc == 0x24030cu) { ctx->pc = 0x240310u; }
 }

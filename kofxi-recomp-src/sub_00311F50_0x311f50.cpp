@@ -466,4 +466,5 @@ label_3120e0:
     // 0x3120fc: 0x0  nop
     ctx->pc = 0x3120fcu;
     // NOP
+    if (ctx->pc == 0x3120fcu) { ctx->pc = 0x312100u; }
 }

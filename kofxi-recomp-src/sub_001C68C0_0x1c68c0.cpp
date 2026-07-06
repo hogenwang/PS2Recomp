@@ -97,4 +97,5 @@ label_1c68e8:
     // 0x1c68fc: 0x0  nop
     ctx->pc = 0x1c68fcu;
     // NOP
+    if (ctx->pc == 0x1c68fcu) { ctx->pc = 0x1c6900u; }
 }

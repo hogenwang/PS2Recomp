@@ -248,4 +248,5 @@ label_176c90:
     // 0x176cac: 0x0  nop
     ctx->pc = 0x176cacu;
     // NOP
+    if (ctx->pc == 0x176cacu) { ctx->pc = 0x176cb0u; }
 }

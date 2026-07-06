@@ -5536,4 +5536,5 @@ label_19950c:
     // 0x19950c: 0x0  nop
     ctx->pc = 0x19950cu;
     // NOP
+    if (ctx->pc == 0x19950cu) { ctx->pc = 0x199510u; }
 }

@@ -222,4 +222,5 @@ label_3235cc:
     // 0x3235ec: 0x0  nop
     ctx->pc = 0x3235ecu;
     // NOP
+    if (ctx->pc == 0x3235ecu) { ctx->pc = 0x3235f0u; }
 }

@@ -190,4 +190,5 @@ void sub_0013ADF0_0x13adf0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x13aebc: 0x0  nop
     ctx->pc = 0x13aebcu;
     // NOP
+    if (ctx->pc == 0x13aebcu) { ctx->pc = 0x13aec0u; }
 }

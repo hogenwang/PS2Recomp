@@ -886,4 +886,5 @@ label_178cb0:
     // 0x178cec: 0x0  nop
     ctx->pc = 0x178cecu;
     // NOP
+    if (ctx->pc == 0x178cecu) { ctx->pc = 0x178cf0u; }
 }

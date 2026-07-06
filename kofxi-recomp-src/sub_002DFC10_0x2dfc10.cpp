@@ -72,4 +72,5 @@ void sub_002DFC10_0x2dfc10(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x2dfc44: 0x0  nop
     ctx->pc = 0x2dfc44u;
     // NOP
+    if (ctx->pc == 0x2dfc44u) { ctx->pc = 0x2dfc48u; }
 }

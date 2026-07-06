@@ -273,4 +273,5 @@ label_140814:
     // 0x14081c: 0x24062000  addiu       $a2, $zero, 0x2000
     ctx->pc = 0x14081cu;
     SET_GPR_S32(ctx, 6, (int32_t)ADD32(GPR_U32(ctx, 0), 8192));
+    if (ctx->pc == 0x14081cu) { ctx->pc = 0x140820u; }
 }

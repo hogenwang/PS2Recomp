@@ -1273,4 +1273,5 @@ label_23538c:
     // 0x23538c: 0x0  nop
     ctx->pc = 0x23538cu;
     // NOP
+    if (ctx->pc == 0x23538cu) { ctx->pc = 0x235390u; }
 }

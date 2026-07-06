@@ -868,4 +868,5 @@ label_206ddc:
     // 0x206dec: 0x0  nop
     ctx->pc = 0x206decu;
     // NOP
+    if (ctx->pc == 0x206decu) { ctx->pc = 0x206df0u; }
 }

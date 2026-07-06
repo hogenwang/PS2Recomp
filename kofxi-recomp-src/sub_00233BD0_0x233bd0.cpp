@@ -423,4 +423,5 @@ label_233cec:
     // 0x233cf4: 0x0  nop
     ctx->pc = 0x233cf4u;
     // NOP
+    if (ctx->pc == 0x233cf4u) { ctx->pc = 0x233cf8u; }
 }

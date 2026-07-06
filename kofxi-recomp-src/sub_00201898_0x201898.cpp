@@ -46,4 +46,5 @@ void sub_00201898_0x201898(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x2018a4: 0x0  nop
     ctx->pc = 0x2018a4u;
     // NOP
+    if (ctx->pc == 0x2018a4u) { ctx->pc = 0x2018a8u; }
 }

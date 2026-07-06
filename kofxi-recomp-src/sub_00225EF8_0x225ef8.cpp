@@ -134,4 +134,5 @@ label_225f34:
     // 0x225f54: 0x0  nop
     ctx->pc = 0x225f54u;
     // NOP
+    if (ctx->pc == 0x225f54u) { ctx->pc = 0x225f58u; }
 }

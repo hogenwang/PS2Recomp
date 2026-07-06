@@ -7753,4 +7753,5 @@ label_19eacc:
     // 0x19eadc: 0x0  nop
     ctx->pc = 0x19eadcu;
     // NOP
+    if (ctx->pc == 0x19eadcu) { ctx->pc = 0x19eae0u; }
 }

@@ -184,4 +184,5 @@ label_18d6a4:
     // 0x18d6bc: 0x0  nop
     ctx->pc = 0x18d6bcu;
     // NOP
+    if (ctx->pc == 0x18d6bcu) { ctx->pc = 0x18d6c0u; }
 }

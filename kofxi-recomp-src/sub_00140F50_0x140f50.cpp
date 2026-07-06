@@ -1980,4 +1980,5 @@ label_1414f4:
     // 0x14150c: 0x0  nop
     ctx->pc = 0x14150cu;
     // NOP
+    if (ctx->pc == 0x14150cu) { ctx->pc = 0x141510u; }
 }

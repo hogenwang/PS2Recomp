@@ -519,4 +519,5 @@ label_1fa3cc:
     // 0x1fa3ec: 0x0  nop
     ctx->pc = 0x1fa3ecu;
     // NOP
+    if (ctx->pc == 0x1fa3ecu) { ctx->pc = 0x1fa3f0u; }
 }

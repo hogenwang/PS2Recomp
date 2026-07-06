@@ -168,4 +168,5 @@ label_32ffb8:
     // 0x33000c: 0x0  nop
     ctx->pc = 0x33000cu;
     // NOP
+    if (ctx->pc == 0x33000cu) { ctx->pc = 0x330010u; }
 }

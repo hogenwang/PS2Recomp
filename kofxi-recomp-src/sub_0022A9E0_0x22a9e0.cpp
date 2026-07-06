@@ -2021,4 +2021,5 @@ label_22b03c:
     // 0x22b05c: 0x0  nop
     ctx->pc = 0x22b05cu;
     // NOP
+    if (ctx->pc == 0x22b05cu) { ctx->pc = 0x22b060u; }
 }

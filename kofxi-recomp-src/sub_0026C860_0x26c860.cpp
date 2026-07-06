@@ -888,4 +888,5 @@ label_26ca80:
     // 0x26ca8c: 0x0  nop
     ctx->pc = 0x26ca8cu;
     // NOP
+    if (ctx->pc == 0x26ca8cu) { ctx->pc = 0x26ca90u; }
 }

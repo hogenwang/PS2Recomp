@@ -290,4 +290,5 @@ label_215dac:
     // 0x215dcc: 0x0  nop
     ctx->pc = 0x215dccu;
     // NOP
+    if (ctx->pc == 0x215dccu) { ctx->pc = 0x215dd0u; }
 }

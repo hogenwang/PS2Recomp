@@ -364,4 +364,5 @@ label_255fb4:
     // 0x255fbc: 0x0  nop
     ctx->pc = 0x255fbcu;
     // NOP
+    if (ctx->pc == 0x255fbcu) { ctx->pc = 0x255fc0u; }
 }

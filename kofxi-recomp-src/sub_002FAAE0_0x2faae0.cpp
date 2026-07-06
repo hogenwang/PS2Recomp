@@ -150,4 +150,5 @@ label_2fab2c:
     // 0x2fab3c: 0x0  nop
     ctx->pc = 0x2fab3cu;
     // NOP
+    if (ctx->pc == 0x2fab3cu) { ctx->pc = 0x2fab40u; }
 }

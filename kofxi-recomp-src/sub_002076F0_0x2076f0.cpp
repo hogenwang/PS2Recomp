@@ -1931,4 +1931,5 @@ label_207cdc:
     // 0x207cec: 0x0  nop
     ctx->pc = 0x207cecu;
     // NOP
+    if (ctx->pc == 0x207cecu) { ctx->pc = 0x207cf0u; }
 }

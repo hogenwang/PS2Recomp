@@ -841,4 +841,5 @@ label_33cf90:
     // 0x33cfbc: 0x0  nop
     ctx->pc = 0x33cfbcu;
     // NOP
+    if (ctx->pc == 0x33cfbcu) { ctx->pc = 0x33cfc0u; }
 }

@@ -217,4 +217,5 @@ label_201e08:
     // 0x201e1c: 0x0  nop
     ctx->pc = 0x201e1cu;
     // NOP
+    if (ctx->pc == 0x201e1cu) { ctx->pc = 0x201e20u; }
 }

@@ -52,4 +52,5 @@ void sub_001FDB98_0x1fdb98(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1fdbac: 0x0  nop
     ctx->pc = 0x1fdbacu;
     // NOP
+    if (ctx->pc == 0x1fdbacu) { ctx->pc = 0x1fdbb0u; }
 }

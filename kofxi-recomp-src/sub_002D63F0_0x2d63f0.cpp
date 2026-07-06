@@ -347,4 +347,5 @@ label_2d64d8:
     // 0x2d64fc: 0x0  nop
     ctx->pc = 0x2d64fcu;
     // NOP
+    if (ctx->pc == 0x2d64fcu) { ctx->pc = 0x2d6500u; }
 }

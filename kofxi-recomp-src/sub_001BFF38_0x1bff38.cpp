@@ -2012,4 +2012,5 @@ label_1c02fc:
     // 0x1c02fc: 0x0  nop
     ctx->pc = 0x1c02fcu;
     // NOP
+    if (ctx->pc == 0x1c02fcu) { ctx->pc = 0x1c0300u; }
 }

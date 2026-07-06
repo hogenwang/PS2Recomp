@@ -610,4 +610,5 @@ label_2caf44:
     // 0x2caf64: 0x0  nop
     ctx->pc = 0x2caf64u;
     // NOP
+    if (ctx->pc == 0x2caf64u) { ctx->pc = 0x2caf68u; }
 }

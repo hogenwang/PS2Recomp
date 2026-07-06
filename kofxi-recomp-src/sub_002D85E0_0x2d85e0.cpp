@@ -3710,4 +3710,5 @@ label_2d8fbc:
     // 0x2d8fbc: 0xd30  tge         $zero, $zero, 52
     ctx->pc = 0x2d8fbcu;
     if (GPR_S64(ctx, 0) >= GPR_S64(ctx, 0)) { runtime->handleTrap(rdram, ctx); }
+    if (ctx->pc == 0x2d8fbcu) { ctx->pc = 0x2d8fc0u; }
 }

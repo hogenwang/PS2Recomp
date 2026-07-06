@@ -164,4 +164,5 @@ label_232aec:
     // 0x232afc: 0x0  nop
     ctx->pc = 0x232afcu;
     // NOP
+    if (ctx->pc == 0x232afcu) { ctx->pc = 0x232b00u; }
 }

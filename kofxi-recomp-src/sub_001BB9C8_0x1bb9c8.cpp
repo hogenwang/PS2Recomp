@@ -38,4 +38,5 @@ void sub_001BB9C8_0x1bb9c8(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1bb9dc: 0x62300b  movn        $a2, $v1, $v0
     ctx->pc = 0x1bb9dcu;
     if (GPR_U64(ctx, 2) != 0) SET_GPR_VEC(ctx, 6, GPR_VEC(ctx, 3));
+    if (ctx->pc == 0x1bb9dcu) { ctx->pc = 0x1bb9e0u; }
 }

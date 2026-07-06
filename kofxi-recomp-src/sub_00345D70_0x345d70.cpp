@@ -73,4 +73,5 @@ void sub_00345D70_0x345d70(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x345dac: 0x0  nop
     ctx->pc = 0x345dacu;
     // NOP
+    if (ctx->pc == 0x345dacu) { ctx->pc = 0x345db0u; }
 }

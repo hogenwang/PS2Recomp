@@ -448,4 +448,5 @@ label_10675c:
     // 0x10679c: 0x0  nop
     ctx->pc = 0x10679cu;
     // NOP
+    if (ctx->pc == 0x10679cu) { ctx->pc = 0x1067a0u; }
 }

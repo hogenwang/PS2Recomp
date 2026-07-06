@@ -337,4 +337,5 @@ label_140420:
     // 0x140430: 0x3c020010  lui         $v0, 0x10
     ctx->pc = 0x140430u;
     SET_GPR_S32(ctx, 2, (int32_t)((uint32_t)16 << 16));
+    if (ctx->pc == 0x140430u) { ctx->pc = 0x140434u; }
 }

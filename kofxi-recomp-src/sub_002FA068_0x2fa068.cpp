@@ -3380,4 +3380,5 @@ label_2fa64c:
     // 0x2fa64c: 0x0  nop
     ctx->pc = 0x2fa64cu;
     // NOP
+    if (ctx->pc == 0x2fa64cu) { ctx->pc = 0x2fa650u; }
 }

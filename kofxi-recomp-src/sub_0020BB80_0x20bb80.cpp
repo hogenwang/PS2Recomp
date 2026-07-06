@@ -108,4 +108,5 @@ label_20bbc0:
     // 0x20bbcc: 0x0  nop
     ctx->pc = 0x20bbccu;
     // NOP
+    if (ctx->pc == 0x20bbccu) { ctx->pc = 0x20bbd0u; }
 }

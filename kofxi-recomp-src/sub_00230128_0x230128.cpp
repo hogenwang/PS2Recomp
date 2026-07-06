@@ -580,4 +580,5 @@ label_2302ac:
     // 0x2302d4: 0x0  nop
     ctx->pc = 0x2302d4u;
     // NOP
+    if (ctx->pc == 0x2302d4u) { ctx->pc = 0x2302d8u; }
 }

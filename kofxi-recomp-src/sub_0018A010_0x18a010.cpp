@@ -89,4 +89,5 @@ label_18a02c:
     // 0x18a03c: 0x0  nop
     ctx->pc = 0x18a03cu;
     // NOP
+    if (ctx->pc == 0x18a03cu) { ctx->pc = 0x18a040u; }
 }

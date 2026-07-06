@@ -493,4 +493,5 @@ label_250190:
     // 0x2501dc: 0x0  nop
     ctx->pc = 0x2501dcu;
     // NOP
+    if (ctx->pc == 0x2501dcu) { ctx->pc = 0x2501e0u; }
 }

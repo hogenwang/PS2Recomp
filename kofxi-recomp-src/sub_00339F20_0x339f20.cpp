@@ -208,4 +208,5 @@ label_339f98:
     // 0x339fac: 0x0  nop
     ctx->pc = 0x339facu;
     // NOP
+    if (ctx->pc == 0x339facu) { ctx->pc = 0x339fb0u; }
 }

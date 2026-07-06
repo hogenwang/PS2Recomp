@@ -259,4 +259,5 @@ label_34bb44:
     // 0x34bb4c: 0x0  nop
     ctx->pc = 0x34bb4cu;
     // NOP
+    if (ctx->pc == 0x34bb4cu) { ctx->pc = 0x34bb50u; }
 }

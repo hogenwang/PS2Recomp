@@ -2294,4 +2294,5 @@ label_116e9c:
     // 0x116e9c: 0x0  nop
     ctx->pc = 0x116e9cu;
     // NOP
+    if (ctx->pc == 0x116e9cu) { ctx->pc = 0x116ea0u; }
 }

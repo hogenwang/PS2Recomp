@@ -1480,4 +1480,5 @@ label_1944dc:
     // 0x1944dc: 0x0  nop
     ctx->pc = 0x1944dcu;
     // NOP
+    if (ctx->pc == 0x1944dcu) { ctx->pc = 0x1944e0u; }
 }

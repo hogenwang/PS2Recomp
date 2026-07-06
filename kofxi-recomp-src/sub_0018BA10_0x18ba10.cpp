@@ -215,4 +215,5 @@ label_18bab0:
     // 0x18babc: 0x0  nop
     ctx->pc = 0x18babcu;
     // NOP
+    if (ctx->pc == 0x18babcu) { ctx->pc = 0x18bac0u; }
 }

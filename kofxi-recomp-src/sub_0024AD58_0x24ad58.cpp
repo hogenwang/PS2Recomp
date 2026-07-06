@@ -581,4 +581,5 @@ label_24aeec:
     // 0x24aef4: 0x0  nop
     ctx->pc = 0x24aef4u;
     // NOP
+    if (ctx->pc == 0x24aef4u) { ctx->pc = 0x24aef8u; }
 }

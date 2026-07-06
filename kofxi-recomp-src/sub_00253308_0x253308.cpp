@@ -13018,4 +13018,5 @@ label_255ae8:
     // 0x255b14: 0x0  nop
     ctx->pc = 0x255b14u;
     // NOP
+    if (ctx->pc == 0x255b14u) { ctx->pc = 0x255b18u; }
 }

@@ -937,4 +937,5 @@ label_15ca3c:
     // 0x15ca3c: 0x0  nop
     ctx->pc = 0x15ca3cu;
     // NOP
+    if (ctx->pc == 0x15ca3cu) { ctx->pc = 0x15ca40u; }
 }

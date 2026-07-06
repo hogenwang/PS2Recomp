@@ -591,4 +591,5 @@ label_32e5b4:
     // 0x32e5dc: 0x0  nop
     ctx->pc = 0x32e5dcu;
     // NOP
+    if (ctx->pc == 0x32e5dcu) { ctx->pc = 0x32e5e0u; }
 }

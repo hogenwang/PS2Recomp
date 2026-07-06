@@ -199,4 +199,5 @@ label_33d05c:
     // 0x33d06c: 0x0  nop
     ctx->pc = 0x33d06cu;
     // NOP
+    if (ctx->pc == 0x33d06cu) { ctx->pc = 0x33d070u; }
 }

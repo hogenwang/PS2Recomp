@@ -100,6 +100,8 @@ namespace ps2recomp
            << std::dec;
         ss << "\n";
 
+        const Instruction *lastPlainInstruction = nullptr;
+        bool lastEmittedWasPlainInstruction = false;
         for (size_t i = 0; i < instructions.size(); ++i)
         {
             const Instruction &inst = instructions[i];
@@ -146,6 +148,7 @@ namespace ps2recomp
                     }
 
                     ss << cg.handleBranchDelaySlots(inst, *delaySlot, function, analysisResult);
+                    lastEmittedWasPlainInstruction = false;
 
                     if (hasDecodedDelaySlot)
                     {
@@ -154,6 +157,8 @@ namespace ps2recomp
                 }
                 else
                 {
+                    lastPlainInstruction = &inst;
+                    lastEmittedWasPlainInstruction = true;
                     ss << "    ctx->pc = 0x" << std::hex << inst.address << "u;\n"
                        << std::dec;
 
@@ -176,6 +181,13 @@ namespace ps2recomp
 
                 throw;
             }
+        }
+
+        if (lastEmittedWasPlainInstruction && lastPlainInstruction != nullptr)
+        {
+            ss << "    if (ctx->pc == 0x" << std::hex << lastPlainInstruction->address
+               << "u) { ctx->pc = 0x" << (lastPlainInstruction->address + 4u) << "u; }\n"
+               << std::dec;
         }
 
         ss << "}\n";

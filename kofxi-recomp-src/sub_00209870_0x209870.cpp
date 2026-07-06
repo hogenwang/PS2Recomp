@@ -437,4 +437,5 @@ label_2099bc:
     // 0x2099cc: 0x0  nop
     ctx->pc = 0x2099ccu;
     // NOP
+    if (ctx->pc == 0x2099ccu) { ctx->pc = 0x2099d0u; }
 }

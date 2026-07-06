@@ -16113,4 +16113,5 @@ label_15029c:
     // 0x15029c: 0x0  nop
     ctx->pc = 0x15029cu;
     // NOP
+    if (ctx->pc == 0x15029cu) { ctx->pc = 0x1502a0u; }
 }

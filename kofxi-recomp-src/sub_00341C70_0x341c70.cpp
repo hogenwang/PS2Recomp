@@ -121,4 +121,5 @@ label_341cb4:
     // 0x341cbc: 0x0  nop
     ctx->pc = 0x341cbcu;
     // NOP
+    if (ctx->pc == 0x341cbcu) { ctx->pc = 0x341cc0u; }
 }

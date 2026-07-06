@@ -43,4 +43,5 @@ void kofxiServiceSchedulerTick_0x1b3fa8(uint8_t* rdram, R5900Context* ctx, PS2Ru
     // 0x1b3fbc: 0x0  nop
     ctx->pc = 0x1b3fbcu;
     // NOP
+    if (ctx->pc == 0x1b3fbcu) { ctx->pc = 0x1b3fc0u; }
 }

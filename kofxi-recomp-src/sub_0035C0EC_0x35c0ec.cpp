@@ -89829,4 +89829,5 @@ label_36bdbc:
     // 0x36bdbc: 0x0  nop
     ctx->pc = 0x36bdbcu;
     // NOP
+    if (ctx->pc == 0x36bdbcu) { ctx->pc = 0x36bdc0u; }
 }

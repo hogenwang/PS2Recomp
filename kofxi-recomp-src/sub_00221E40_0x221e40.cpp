@@ -475,4 +475,5 @@ label_221fa4:
     // 0x221fac: 0x0  nop
     ctx->pc = 0x221facu;
     // NOP
+    if (ctx->pc == 0x221facu) { ctx->pc = 0x221fb0u; }
 }

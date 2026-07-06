@@ -313,4 +313,5 @@ label_1762e4:
     // 0x1762ec: 0x0  nop
     ctx->pc = 0x1762ecu;
     // NOP
+    if (ctx->pc == 0x1762ecu) { ctx->pc = 0x1762f0u; }
 }

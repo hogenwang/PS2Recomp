@@ -248,4 +248,5 @@ label_33dfac:
     // 0x33dfbc: 0x0  nop
     ctx->pc = 0x33dfbcu;
     // NOP
+    if (ctx->pc == 0x33dfbcu) { ctx->pc = 0x33dfc0u; }
 }

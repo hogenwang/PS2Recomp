@@ -754,4 +754,5 @@ label_2de4dc:
     // 0x2de50c: 0x0  nop
     ctx->pc = 0x2de50cu;
     // NOP
+    if (ctx->pc == 0x2de50cu) { ctx->pc = 0x2de510u; }
 }

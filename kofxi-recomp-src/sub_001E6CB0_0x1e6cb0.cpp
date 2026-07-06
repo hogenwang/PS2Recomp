@@ -312,4 +312,5 @@ label_1e6d74:
     // 0x1e6d8c: 0x0  nop
     ctx->pc = 0x1e6d8cu;
     // NOP
+    if (ctx->pc == 0x1e6d8cu) { ctx->pc = 0x1e6d90u; }
 }

@@ -8442,4 +8442,5 @@ label_23b45c:
     // 0x23b45c: 0x0  nop
     ctx->pc = 0x23b45cu;
     // NOP
+    if (ctx->pc == 0x23b45cu) { ctx->pc = 0x23b460u; }
 }

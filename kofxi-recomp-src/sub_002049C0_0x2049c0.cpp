@@ -403,4 +403,5 @@ label_204ad8:
     // 0x204afc: 0x0  nop
     ctx->pc = 0x204afcu;
     // NOP
+    if (ctx->pc == 0x204afcu) { ctx->pc = 0x204b00u; }
 }

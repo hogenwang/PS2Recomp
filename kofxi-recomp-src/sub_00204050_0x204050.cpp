@@ -260,4 +260,5 @@ label_204108:
     // 0x20411c: 0x0  nop
     ctx->pc = 0x20411cu;
     // NOP
+    if (ctx->pc == 0x20411cu) { ctx->pc = 0x204120u; }
 }

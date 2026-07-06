@@ -46,4 +46,5 @@ void sub_002BF120_0x2bf120(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x2bf12c: 0x0  nop
     ctx->pc = 0x2bf12cu;
     // NOP
+    if (ctx->pc == 0x2bf12cu) { ctx->pc = 0x2bf130u; }
 }

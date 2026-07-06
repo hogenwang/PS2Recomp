@@ -353,4 +353,5 @@ label_2986cc:
     // 0x2986e4: 0x0  nop
     ctx->pc = 0x2986e4u;
     // NOP
+    if (ctx->pc == 0x2986e4u) { ctx->pc = 0x2986e8u; }
 }

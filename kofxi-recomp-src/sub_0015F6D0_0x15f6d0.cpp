@@ -4486,4 +4486,5 @@ label_16019c:
     // 0x16019c: 0x0  nop
     ctx->pc = 0x16019cu;
     // NOP
+    if (ctx->pc == 0x16019cu) { ctx->pc = 0x1601a0u; }
 }

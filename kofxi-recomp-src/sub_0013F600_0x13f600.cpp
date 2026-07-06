@@ -177,4 +177,5 @@ label_13f668:
     // 0x13f67c: 0x0  nop
     ctx->pc = 0x13f67cu;
     // NOP
+    if (ctx->pc == 0x13f67cu) { ctx->pc = 0x13f680u; }
 }

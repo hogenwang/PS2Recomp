@@ -481,4 +481,5 @@ label_1900ac:
     // 0x1900bc: 0x0  nop
     ctx->pc = 0x1900bcu;
     // NOP
+    if (ctx->pc == 0x1900bcu) { ctx->pc = 0x1900c0u; }
 }

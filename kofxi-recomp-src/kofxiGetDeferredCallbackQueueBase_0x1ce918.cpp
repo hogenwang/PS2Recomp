@@ -46,4 +46,5 @@ void kofxiGetDeferredCallbackQueueBase_0x1ce918(uint8_t* rdram, R5900Context* ct
     // 0x1ce924: 0x0  nop
     ctx->pc = 0x1ce924u;
     // NOP
+    if (ctx->pc == 0x1ce924u) { ctx->pc = 0x1ce928u; }
 }

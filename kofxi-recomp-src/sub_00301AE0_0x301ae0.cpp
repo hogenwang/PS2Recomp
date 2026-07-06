@@ -1497,4 +1497,5 @@ label_301fbc:
     // 0x301fcc: 0x0  nop
     ctx->pc = 0x301fccu;
     // NOP
+    if (ctx->pc == 0x301fccu) { ctx->pc = 0x301fd0u; }
 }

@@ -144,4 +144,5 @@ label_1a4970:
     // 0x1a49cc: 0x0  nop
     ctx->pc = 0x1a49ccu;
     // NOP
+    if (ctx->pc == 0x1a49ccu) { ctx->pc = 0x1a49d0u; }
 }

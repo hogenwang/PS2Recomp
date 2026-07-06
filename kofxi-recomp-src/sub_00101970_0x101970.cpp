@@ -1944,4 +1944,5 @@ label_101fd8:
     // 0x101ffc: 0x0  nop
     ctx->pc = 0x101ffcu;
     // NOP
+    if (ctx->pc == 0x101ffcu) { ctx->pc = 0x102000u; }
 }

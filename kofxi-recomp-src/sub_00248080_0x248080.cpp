@@ -756,4 +756,5 @@ label_2482e0:
     // 0x2482fc: 0x0  nop
     ctx->pc = 0x2482fcu;
     // NOP
+    if (ctx->pc == 0x2482fcu) { ctx->pc = 0x248300u; }
 }

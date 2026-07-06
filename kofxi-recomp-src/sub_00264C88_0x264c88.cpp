@@ -102,4 +102,5 @@ void sub_00264C88_0x264c88(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x264ccc: 0x0  nop
     ctx->pc = 0x264cccu;
     // NOP
+    if (ctx->pc == 0x264cccu) { ctx->pc = 0x264cd0u; }
 }

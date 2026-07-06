@@ -903,4 +903,5 @@ label_1cca14:
     // 0x1cca14: 0x0  nop
     ctx->pc = 0x1cca14u;
     // NOP
+    if (ctx->pc == 0x1cca14u) { ctx->pc = 0x1cca18u; }
 }

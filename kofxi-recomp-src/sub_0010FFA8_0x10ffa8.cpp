@@ -119,4 +119,5 @@ label_10ffdc:
     // 0x10fff4: 0x0  nop
     ctx->pc = 0x10fff4u;
     // NOP
+    if (ctx->pc == 0x10fff4u) { ctx->pc = 0x10fff8u; }
 }

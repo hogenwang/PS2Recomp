@@ -1231,4 +1231,5 @@ label_2c0ccc:
     // 0x2c0cfc: 0x0  nop
     ctx->pc = 0x2c0cfcu;
     // NOP
+    if (ctx->pc == 0x2c0cfcu) { ctx->pc = 0x2c0d00u; }
 }

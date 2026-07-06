@@ -419,4 +419,5 @@ label_200ac8:
     // 0x200adc: 0x0  nop
     ctx->pc = 0x200adcu;
     // NOP
+    if (ctx->pc == 0x200adcu) { ctx->pc = 0x200ae0u; }
 }

@@ -763,4 +763,5 @@ label_12bb14:
     // 0x12bb24: 0x0  nop
     ctx->pc = 0x12bb24u;
     // NOP
+    if (ctx->pc == 0x12bb24u) { ctx->pc = 0x12bb28u; }
 }

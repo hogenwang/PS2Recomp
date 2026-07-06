@@ -221,4 +221,5 @@ label_10dbb0:
     // 0x10dbbc: 0x0  nop
     ctx->pc = 0x10dbbcu;
     // NOP
+    if (ctx->pc == 0x10dbbcu) { ctx->pc = 0x10dbc0u; }
 }

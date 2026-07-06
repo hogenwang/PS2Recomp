@@ -156,4 +156,5 @@ label_1ecdb8:
     // 0x1ecdcc: 0x0  nop
     ctx->pc = 0x1ecdccu;
     // NOP
+    if (ctx->pc == 0x1ecdccu) { ctx->pc = 0x1ecdd0u; }
 }

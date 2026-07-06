@@ -61,4 +61,5 @@ void sub_0014CAF0_0x14caf0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x14cb1c: 0x0  nop
     ctx->pc = 0x14cb1cu;
     // NOP
+    if (ctx->pc == 0x14cb1cu) { ctx->pc = 0x14cb20u; }
 }

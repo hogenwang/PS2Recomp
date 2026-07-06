@@ -1526,4 +1526,5 @@ label_184bac:
     // 0x184bac: 0x0  nop
     ctx->pc = 0x184bacu;
     // NOP
+    if (ctx->pc == 0x184bacu) { ctx->pc = 0x184bb0u; }
 }

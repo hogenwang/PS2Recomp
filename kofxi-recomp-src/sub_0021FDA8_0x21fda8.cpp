@@ -52,4 +52,5 @@ void sub_0021FDA8_0x21fda8(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x21fdbc: 0x0  nop
     ctx->pc = 0x21fdbcu;
     // NOP
+    if (ctx->pc == 0x21fdbcu) { ctx->pc = 0x21fdc0u; }
 }

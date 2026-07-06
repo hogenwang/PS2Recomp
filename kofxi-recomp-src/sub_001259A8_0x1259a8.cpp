@@ -136,4 +136,5 @@ label_1259ec:
     // 0x1259fc: 0x0  nop
     ctx->pc = 0x1259fcu;
     // NOP
+    if (ctx->pc == 0x1259fcu) { ctx->pc = 0x125a00u; }
 }

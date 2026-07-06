@@ -66,4 +66,5 @@ label_2fc570:
     // 0x2fc57c: 0x0  nop
     ctx->pc = 0x2fc57cu;
     // NOP
+    if (ctx->pc == 0x2fc57cu) { ctx->pc = 0x2fc580u; }
 }

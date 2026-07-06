@@ -123,4 +123,5 @@ label_264198:
     // 0x2641a4: 0x0  nop
     ctx->pc = 0x2641a4u;
     // NOP
+    if (ctx->pc == 0x2641a4u) { ctx->pc = 0x2641a8u; }
 }

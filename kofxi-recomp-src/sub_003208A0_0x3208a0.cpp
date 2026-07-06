@@ -94,4 +94,5 @@ label_3208bc:
     // 0x3208cc: 0x0  nop
     ctx->pc = 0x3208ccu;
     // NOP
+    if (ctx->pc == 0x3208ccu) { ctx->pc = 0x3208d0u; }
 }

@@ -306,4 +306,5 @@ label_177da8:
     // 0x177ddc: 0x0  nop
     ctx->pc = 0x177ddcu;
     // NOP
+    if (ctx->pc == 0x177ddcu) { ctx->pc = 0x177de0u; }
 }

@@ -43,4 +43,5 @@ void sub_001BAC08_0x1bac08(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1bac1c: 0x0  nop
     ctx->pc = 0x1bac1cu;
     // NOP
+    if (ctx->pc == 0x1bac1cu) { ctx->pc = 0x1bac20u; }
 }

@@ -255,4 +255,5 @@ label_1981d8:
     // 0x1981fc: 0x0  nop
     ctx->pc = 0x1981fcu;
     // NOP
+    if (ctx->pc == 0x1981fcu) { ctx->pc = 0x198200u; }
 }

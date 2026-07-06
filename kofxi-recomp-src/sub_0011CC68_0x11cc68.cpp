@@ -305,4 +305,5 @@ label_11cd48:
     // 0x11cd5c: 0x0  nop
     ctx->pc = 0x11cd5cu;
     // NOP
+    if (ctx->pc == 0x11cd5cu) { ctx->pc = 0x11cd60u; }
 }

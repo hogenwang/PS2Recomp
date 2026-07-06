@@ -377,4 +377,5 @@ label_256d0c:
     // 0x256d2c: 0x0  nop
     ctx->pc = 0x256d2cu;
     // NOP
+    if (ctx->pc == 0x256d2cu) { ctx->pc = 0x256d30u; }
 }

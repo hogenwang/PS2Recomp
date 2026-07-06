@@ -337311,4 +337311,5 @@ label_4056fc:
     // 0x4056fc: 0x0  nop
     ctx->pc = 0x4056fcu;
     // NOP
+    if (ctx->pc == 0x4056fcu) { ctx->pc = 0x405700u; }
 }

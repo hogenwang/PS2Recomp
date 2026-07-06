@@ -783,4 +783,5 @@ label_22450c:
     // 0x22450c: 0x0  nop
     ctx->pc = 0x22450cu;
     // NOP
+    if (ctx->pc == 0x22450cu) { ctx->pc = 0x224510u; }
 }

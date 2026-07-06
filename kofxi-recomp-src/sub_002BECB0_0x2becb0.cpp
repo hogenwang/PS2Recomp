@@ -413,4 +413,5 @@ label_2bedcc:
     // 0x2bedd4: 0x0  nop
     ctx->pc = 0x2bedd4u;
     // NOP
+    if (ctx->pc == 0x2bedd4u) { ctx->pc = 0x2bedd8u; }
 }

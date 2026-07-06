@@ -634,4 +634,5 @@ label_1caddc:
     // 0x1caddc: 0x0  nop
     ctx->pc = 0x1caddcu;
     // NOP
+    if (ctx->pc == 0x1caddcu) { ctx->pc = 0x1cade0u; }
 }

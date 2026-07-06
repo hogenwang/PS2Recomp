@@ -16213,4 +16213,5 @@ label_13add8:
     // 0x13adec: 0x0  nop
     ctx->pc = 0x13adecu;
     // NOP
+    if (ctx->pc == 0x13adecu) { ctx->pc = 0x13adf0u; }
 }

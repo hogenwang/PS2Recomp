@@ -1933,4 +1933,5 @@ label_2ff03c:
     // 0x2ff04c: 0x0  nop
     ctx->pc = 0x2ff04cu;
     // NOP
+    if (ctx->pc == 0x2ff04cu) { ctx->pc = 0x2ff050u; }
 }

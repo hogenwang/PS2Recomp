@@ -1952,4 +1952,5 @@ label_1109ec:
     // 0x1109ec: 0x0  nop
     ctx->pc = 0x1109ecu;
     // NOP
+    if (ctx->pc == 0x1109ecu) { ctx->pc = 0x1109f0u; }
 }

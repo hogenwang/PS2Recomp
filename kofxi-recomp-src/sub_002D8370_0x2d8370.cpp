@@ -80,4 +80,5 @@ label_2d8388:
     // 0x2d8394: 0x0  nop
     ctx->pc = 0x2d8394u;
     // NOP
+    if (ctx->pc == 0x2d8394u) { ctx->pc = 0x2d8398u; }
 }

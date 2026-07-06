@@ -37,4 +37,5 @@ void sub_0022DBC0_0x22dbc0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x22dbcc: 0x0  nop
     ctx->pc = 0x22dbccu;
     // NOP
+    if (ctx->pc == 0x22dbccu) { ctx->pc = 0x22dbd0u; }
 }

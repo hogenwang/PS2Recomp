@@ -26074,4 +26074,5 @@ label_35c0e8:
     // 0x35c0e8: 0x35c0e0  .word       0x0035C0E0                   # add         $t8, $at, $s5 # 000000C0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x35c0e8u;
     {     int32_t rs_val = GPR_S32(ctx, 1);     int32_t rt_val = GPR_S32(ctx, 21);     int64_t result = (int64_t)rs_val + (int64_t)rt_val;     if (result > INT32_MAX || result < INT32_MIN) {         runtime->SignalException(ctx, EXCEPTION_INTEGER_OVERFLOW);     } else {         SET_GPR_S32(ctx, 24, (int32_t)result);     } }
+    if (ctx->pc == 0x35c0e8u) { ctx->pc = 0x35c0ecu; }
 }

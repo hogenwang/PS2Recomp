@@ -151,4 +151,5 @@ label_200dc8:
     // 0x200de4: 0x0  nop
     ctx->pc = 0x200de4u;
     // NOP
+    if (ctx->pc == 0x200de4u) { ctx->pc = 0x200de8u; }
 }

@@ -146,4 +146,5 @@ label_3512e8:
     // 0x3512fc: 0x0  nop
     ctx->pc = 0x3512fcu;
     // NOP
+    if (ctx->pc == 0x3512fcu) { ctx->pc = 0x351300u; }
 }

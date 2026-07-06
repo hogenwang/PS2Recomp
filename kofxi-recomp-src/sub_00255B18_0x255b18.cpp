@@ -984,4 +984,5 @@ label_255dac:
     // 0x255dd4: 0x0  nop
     ctx->pc = 0x255dd4u;
     // NOP
+    if (ctx->pc == 0x255dd4u) { ctx->pc = 0x255dd8u; }
 }

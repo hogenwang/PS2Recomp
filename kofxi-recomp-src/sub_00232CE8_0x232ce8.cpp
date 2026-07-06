@@ -541,4 +541,5 @@ label_232ddc:
     // 0x232ddc: 0x0  nop
     ctx->pc = 0x232ddcu;
     // NOP
+    if (ctx->pc == 0x232ddcu) { ctx->pc = 0x232de0u; }
 }

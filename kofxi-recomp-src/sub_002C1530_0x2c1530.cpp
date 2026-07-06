@@ -3065,4 +3065,5 @@ label_2c19f4:
     // 0x2c19f4: 0x0  nop
     ctx->pc = 0x2c19f4u;
     // NOP
+    if (ctx->pc == 0x2c19f4u) { ctx->pc = 0x2c19f8u; }
 }

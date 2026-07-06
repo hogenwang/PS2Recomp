@@ -140,4 +140,5 @@ label_26bba0:
     // 0x26bbac: 0x0  nop
     ctx->pc = 0x26bbacu;
     // NOP
+    if (ctx->pc == 0x26bbacu) { ctx->pc = 0x26bbb0u; }
 }

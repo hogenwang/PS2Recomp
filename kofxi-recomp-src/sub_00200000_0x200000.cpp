@@ -1026,4 +1026,5 @@ label_20032c:
     // 0x200344: 0x0  nop
     ctx->pc = 0x200344u;
     // NOP
+    if (ctx->pc == 0x200344u) { ctx->pc = 0x200348u; }
 }

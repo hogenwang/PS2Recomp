@@ -372,4 +372,5 @@ label_1272cc:
     // 0x1272d4: 0x0  nop
     ctx->pc = 0x1272d4u;
     // NOP
+    if (ctx->pc == 0x1272d4u) { ctx->pc = 0x1272d8u; }
 }

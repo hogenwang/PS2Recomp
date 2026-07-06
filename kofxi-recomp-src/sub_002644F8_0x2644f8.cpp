@@ -263,4 +263,5 @@ label_fallthrough_0x264594:
     // 0x26459c: 0x0  nop
     ctx->pc = 0x26459cu;
     // NOP
+    if (ctx->pc == 0x26459cu) { ctx->pc = 0x2645a0u; }
 }

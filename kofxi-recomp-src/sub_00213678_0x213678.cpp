@@ -153,4 +153,5 @@ label_2136c8:
     // 0x2136e4: 0x0  nop
     ctx->pc = 0x2136e4u;
     // NOP
+    if (ctx->pc == 0x2136e4u) { ctx->pc = 0x2136e8u; }
 }

@@ -123,4 +123,5 @@ label_287bd4:
     // 0x287be4: 0x0  nop
     ctx->pc = 0x287be4u;
     // NOP
+    if (ctx->pc == 0x287be4u) { ctx->pc = 0x287be8u; }
 }

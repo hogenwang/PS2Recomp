@@ -500,4 +500,5 @@ label_34bf80:
     // 0x34bf9c: 0x0  nop
     ctx->pc = 0x34bf9cu;
     // NOP
+    if (ctx->pc == 0x34bf9cu) { ctx->pc = 0x34bfa0u; }
 }

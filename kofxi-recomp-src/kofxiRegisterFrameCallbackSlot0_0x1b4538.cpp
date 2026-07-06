@@ -57,4 +57,5 @@ void kofxiRegisterFrameCallbackSlot0_0x1b4538(uint8_t* rdram, R5900Context* ctx,
     // 0x1b455c: 0x0  nop
     ctx->pc = 0x1b455cu;
     // NOP
+    if (ctx->pc == 0x1b455cu) { ctx->pc = 0x1b4560u; }
 }

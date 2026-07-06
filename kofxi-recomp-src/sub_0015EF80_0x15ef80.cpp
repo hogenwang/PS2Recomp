@@ -162,4 +162,5 @@ label_15efcc:
     // 0x15efec: 0x0  nop
     ctx->pc = 0x15efecu;
     // NOP
+    if (ctx->pc == 0x15efecu) { ctx->pc = 0x15eff0u; }
 }

@@ -252,4 +252,5 @@ label_335bbc:
     // 0x335bec: 0x0  nop
     ctx->pc = 0x335becu;
     // NOP
+    if (ctx->pc == 0x335becu) { ctx->pc = 0x335bf0u; }
 }

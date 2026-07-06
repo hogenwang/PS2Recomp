@@ -877,4 +877,5 @@ label_28cab8:
     // 0x28cacc: 0x0  nop
     ctx->pc = 0x28caccu;
     // NOP
+    if (ctx->pc == 0x28caccu) { ctx->pc = 0x28cad0u; }
 }

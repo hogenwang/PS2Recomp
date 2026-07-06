@@ -82,4 +82,5 @@ label_100950:
     // 0x10095c: 0x2610007e  addiu       $s0, $s0, 0x7E
     ctx->pc = 0x10095cu;
     SET_GPR_S32(ctx, 16, (int32_t)ADD32(GPR_U32(ctx, 16), 126));
+    if (ctx->pc == 0x10095cu) { ctx->pc = 0x100960u; }
 }

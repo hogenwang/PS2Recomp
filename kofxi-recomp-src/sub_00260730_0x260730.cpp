@@ -297,4 +297,5 @@ label_2607d8:
     // 0x260804: 0x0  nop
     ctx->pc = 0x260804u;
     // NOP
+    if (ctx->pc == 0x260804u) { ctx->pc = 0x260808u; }
 }

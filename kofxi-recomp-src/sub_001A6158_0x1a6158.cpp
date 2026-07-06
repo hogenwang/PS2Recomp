@@ -741,4 +741,5 @@ label_1a63a0:
     // 0x1a63ac: 0x0  nop
     ctx->pc = 0x1a63acu;
     // NOP
+    if (ctx->pc == 0x1a63acu) { ctx->pc = 0x1a63b0u; }
 }

@@ -383,4 +383,5 @@ label_20625c:
     // 0x2062bc: 0x0  nop
     ctx->pc = 0x2062bcu;
     // NOP
+    if (ctx->pc == 0x2062bcu) { ctx->pc = 0x2062c0u; }
 }

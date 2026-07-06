@@ -204,4 +204,5 @@ label_3505a8:
     // 0x3505bc: 0x0  nop
     ctx->pc = 0x3505bcu;
     // NOP
+    if (ctx->pc == 0x3505bcu) { ctx->pc = 0x3505c0u; }
 }

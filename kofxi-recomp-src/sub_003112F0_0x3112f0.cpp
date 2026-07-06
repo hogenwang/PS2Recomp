@@ -568,4 +568,5 @@ label_3114bc:
     // 0x3114cc: 0x0  nop
     ctx->pc = 0x3114ccu;
     // NOP
+    if (ctx->pc == 0x3114ccu) { ctx->pc = 0x3114d0u; }
 }

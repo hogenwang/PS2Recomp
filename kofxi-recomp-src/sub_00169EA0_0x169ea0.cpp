@@ -84,4 +84,5 @@ label_169ebc:
     // 0x169ecc: 0x0  nop
     ctx->pc = 0x169eccu;
     // NOP
+    if (ctx->pc == 0x169eccu) { ctx->pc = 0x169ed0u; }
 }

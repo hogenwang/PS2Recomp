@@ -718,4 +718,5 @@ label_2fceec:
     // 0x2fcef4: 0x0  nop
     ctx->pc = 0x2fcef4u;
     // NOP
+    if (ctx->pc == 0x2fcef4u) { ctx->pc = 0x2fcef8u; }
 }

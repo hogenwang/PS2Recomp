@@ -335,4 +335,5 @@ label_2021cc:
     // 0x2021ec: 0x0  nop
     ctx->pc = 0x2021ecu;
     // NOP
+    if (ctx->pc == 0x2021ecu) { ctx->pc = 0x2021f0u; }
 }

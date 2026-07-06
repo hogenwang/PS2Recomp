@@ -255,4 +255,5 @@ label_100cc8:
     // 0x100cd4: 0x0  nop
     ctx->pc = 0x100cd4u;
     // NOP
+    if (ctx->pc == 0x100cd4u) { ctx->pc = 0x100cd8u; }
 }

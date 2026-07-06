@@ -277,4 +277,5 @@ label_104b98:
     // 0x104b9c: 0x431021  addu        $v0, $v0, $v1
     ctx->pc = 0x104b9cu;
     SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 2), GPR_U32(ctx, 3)));
+    if (ctx->pc == 0x104b9cu) { ctx->pc = 0x104ba0u; }
 }

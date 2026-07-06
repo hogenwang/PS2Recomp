@@ -185,4 +185,5 @@ label_180c34:
     // 0x180c3c: 0x0  nop
     ctx->pc = 0x180c3cu;
     // NOP
+    if (ctx->pc == 0x180c3cu) { ctx->pc = 0x180c40u; }
 }

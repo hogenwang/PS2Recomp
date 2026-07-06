@@ -1979,4 +1979,5 @@ label_2312fc:
     // 0x231314: 0x0  nop
     ctx->pc = 0x231314u;
     // NOP
+    if (ctx->pc == 0x231314u) { ctx->pc = 0x231318u; }
 }

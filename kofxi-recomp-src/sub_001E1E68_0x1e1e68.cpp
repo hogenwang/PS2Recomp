@@ -500,4 +500,5 @@ label_1e1fb0:
     // 0x1e1fbc: 0x0  nop
     ctx->pc = 0x1e1fbcu;
     // NOP
+    if (ctx->pc == 0x1e1fbcu) { ctx->pc = 0x1e1fc0u; }
 }

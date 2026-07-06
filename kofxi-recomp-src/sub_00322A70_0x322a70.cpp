@@ -157,4 +157,5 @@ label_322ab0:
     // 0x322adc: 0x0  nop
     ctx->pc = 0x322adcu;
     // NOP
+    if (ctx->pc == 0x322adcu) { ctx->pc = 0x322ae0u; }
 }

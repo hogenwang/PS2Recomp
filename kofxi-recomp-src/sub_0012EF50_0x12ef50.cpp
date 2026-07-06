@@ -93,4 +93,5 @@ label_12ef94:
     // 0x12ef9c: 0x0  nop
     ctx->pc = 0x12ef9cu;
     // NOP
+    if (ctx->pc == 0x12ef9cu) { ctx->pc = 0x12efa0u; }
 }

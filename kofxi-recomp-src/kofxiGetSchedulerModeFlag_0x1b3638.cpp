@@ -46,4 +46,5 @@ void kofxiGetSchedulerModeFlag_0x1b3638(uint8_t* rdram, R5900Context* ctx, PS2Ru
     // 0x1b3644: 0x0  nop
     ctx->pc = 0x1b3644u;
     // NOP
+    if (ctx->pc == 0x1b3644u) { ctx->pc = 0x1b3648u; }
 }

@@ -139,4 +139,5 @@ label_1ed404:
     // 0x1ed404: 0x0  nop
     ctx->pc = 0x1ed404u;
     // NOP
+    if (ctx->pc == 0x1ed404u) { ctx->pc = 0x1ed408u; }
 }

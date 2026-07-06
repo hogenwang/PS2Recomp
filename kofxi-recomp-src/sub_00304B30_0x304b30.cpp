@@ -1160,4 +1160,5 @@ label_304ffc:
     // 0x30500c: 0x0  nop
     ctx->pc = 0x30500cu;
     // NOP
+    if (ctx->pc == 0x30500cu) { ctx->pc = 0x305010u; }
 }

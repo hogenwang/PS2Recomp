@@ -105,4 +105,5 @@ label_2057d8:
     // 0x2057fc: 0x0  nop
     ctx->pc = 0x2057fcu;
     // NOP
+    if (ctx->pc == 0x2057fcu) { ctx->pc = 0x205800u; }
 }

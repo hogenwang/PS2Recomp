@@ -2012,4 +2012,5 @@ label_121c90:
     // 0x121cac: 0x0  nop
     ctx->pc = 0x121cacu;
     // NOP
+    if (ctx->pc == 0x121cacu) { ctx->pc = 0x121cb0u; }
 }

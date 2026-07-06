@@ -773,4 +773,5 @@ label_24bed8:
     // 0x24befc: 0x0  nop
     ctx->pc = 0x24befcu;
     // NOP
+    if (ctx->pc == 0x24befcu) { ctx->pc = 0x24bf00u; }
 }

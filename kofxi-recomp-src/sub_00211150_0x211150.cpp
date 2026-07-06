@@ -154,4 +154,5 @@ void sub_00211150_0x211150(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x2111ec: 0x0  nop
     ctx->pc = 0x2111ecu;
     // NOP
+    if (ctx->pc == 0x2111ecu) { ctx->pc = 0x2111f0u; }
 }

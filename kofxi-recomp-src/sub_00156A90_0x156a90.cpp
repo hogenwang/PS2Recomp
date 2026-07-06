@@ -20002,4 +20002,5 @@ label_15af5c:
     // 0x15afa8: 0x8cb40010  lw          $s4, 0x10($a1)
     ctx->pc = 0x15afa8u;
     SET_GPR_S32(ctx, 20, (int32_t)READ32(ADD32(GPR_U32(ctx, 5), 16)));
+    if (ctx->pc == 0x15afa8u) { ctx->pc = 0x15afacu; }
 }

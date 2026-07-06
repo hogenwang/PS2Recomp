@@ -735,4 +735,5 @@ label_2afccc:
     // 0x2afccc: 0x0  nop
     ctx->pc = 0x2afcccu;
     // NOP
+    if (ctx->pc == 0x2afcccu) { ctx->pc = 0x2afcd0u; }
 }

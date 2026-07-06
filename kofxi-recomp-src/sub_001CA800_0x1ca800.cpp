@@ -43,4 +43,5 @@ void sub_001CA800_0x1ca800(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1ca814: 0x0  nop
     ctx->pc = 0x1ca814u;
     // NOP
+    if (ctx->pc == 0x1ca814u) { ctx->pc = 0x1ca818u; }
 }

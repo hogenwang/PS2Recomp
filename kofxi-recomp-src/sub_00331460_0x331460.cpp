@@ -5929,4 +5929,5 @@ label_332864:
     // 0x3328a0: 0x956b0004  lhu         $t3, 0x4($t3)
     ctx->pc = 0x3328a0u;
     SET_GPR_U32(ctx, 11, (uint16_t)READ16(ADD32(GPR_U32(ctx, 11), 4)));
+    if (ctx->pc == 0x3328a0u) { ctx->pc = 0x3328a4u; }
 }

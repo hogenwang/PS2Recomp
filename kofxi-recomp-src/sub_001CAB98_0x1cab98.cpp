@@ -226,4 +226,5 @@ label_1cac24:
     // 0x1cac3c: 0x0  nop
     ctx->pc = 0x1cac3cu;
     // NOP
+    if (ctx->pc == 0x1cac3cu) { ctx->pc = 0x1cac40u; }
 }

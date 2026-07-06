@@ -316,4 +316,5 @@ label_3081ac:
     // 0x3081bc: 0x0  nop
     ctx->pc = 0x3081bcu;
     // NOP
+    if (ctx->pc == 0x3081bcu) { ctx->pc = 0x3081c0u; }
 }
