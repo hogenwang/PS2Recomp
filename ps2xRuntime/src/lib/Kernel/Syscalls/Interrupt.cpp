@@ -461,7 +461,7 @@ namespace ps2_syscalls
 
     static uint64_t readGsCsrSnapshot(PS2Runtime *runtime)
     {
-        return runtime ? runtime->memory().gs().csr : 0ull;
+        return runtime ? runtime->memory().gs().csr.load() : 0ull;
     }
 
     static void updateGsCsrFieldForVSync(PS2Runtime *runtime, uint64_t tickValue)
@@ -472,8 +472,15 @@ namespace ps2_syscalls
         }
 
         constexpr uint64_t kGsCsrFieldMask = 0x2000ull;
-        uint64_t &csr = runtime->memory().gs().csr;
-        csr = (csr & ~kGsCsrFieldMask) | ((tickValue & 1ull) ? kGsCsrFieldMask : 0ull);
+        std::atomic<uint64_t> &csr = runtime->memory().gs().csr;
+        if (tickValue & 1ull)
+        {
+            csr.fetch_or(kGsCsrFieldMask);
+        }
+        else
+        {
+            csr.fetch_and(~kGsCsrFieldMask);
+        }
     }
 
     static uint64_t signalVSyncFlag(uint8_t *rdram, PS2Runtime *runtime)
