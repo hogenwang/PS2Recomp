@@ -1,0 +1,54 @@
+#include "ps2_runtime_macros.h"
+#include "ps2_runtime.h"
+#include "ps2_recompiled_functions.h"
+#include "ps2_recompiled_stubs.h"
+
+#include "ps2_syscalls.h"
+#include "ps2_stubs.h"
+
+#ifdef PS2_FUNCTION_LOG_TRACKER
+#include "ps2_log.h"
+#endif
+
+// Function: sub_0020A3A0
+// Address: 0x20a3a0 - 0x20a3c0
+void sub_0020A3A0_0x20a3a0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtime) {
+#ifdef PS2_FUNCTION_LOG_TRACKER
+    PS_LOG_ENTRY("sub_0020A3A0_0x20a3a0");
+#endif
+
+    ctx->pc = 0x20a3a0u;
+
+    // 0x20a3a0: 0x3c0301c1  lui         $v1, 0x1C1
+    ctx->pc = 0x20a3a0u;
+    SET_GPR_S32(ctx, 3, (int32_t)((uint32_t)449 << 16));
+    // 0x20a3a4: 0x8c64a060  lw          $a0, -0x5FA0($v1)
+    ctx->pc = 0x20a3a4u;
+    SET_GPR_S32(ctx, 4, (int32_t)READ32(ADD32(GPR_U32(ctx, 3), 4294942816)));
+    // 0x20a3a8: 0x3c0301c1  lui         $v1, 0x1C1
+    ctx->pc = 0x20a3a8u;
+    SET_GPR_S32(ctx, 3, (int32_t)((uint32_t)449 << 16));
+    // 0x20a3ac: 0x34840001  ori         $a0, $a0, 0x1
+    ctx->pc = 0x20a3acu;
+    SET_GPR_U64(ctx, 4, GPR_U64(ctx, 4) | (uint64_t)(uint16_t)1);
+    // 0x20a3b0: 0x3e00008  jr          $ra
+    ctx->pc = 0x20A3B0u;
+    {
+        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = 0x20A3B4u;
+        ctx->in_delay_slot = true; ctx->branch_pc = 0x20A3B0u;
+            // 0x20a3b4: 0xac64a060  sw          $a0, -0x5FA0($v1) (Delay Slot)
+        WRITE32(ADD32(GPR_U32(ctx, 3), 4294942816), GPR_U32(ctx, 4));
+        ctx->in_delay_slot = false;
+        ctx->pc = jumpTarget;
+        return;
+    }
+    ctx->pc = 0x20A3B8u;
+    // 0x20a3b8: 0x0  nop
+    ctx->pc = 0x20a3b8u;
+    // NOP
+    // 0x20a3bc: 0x0  nop
+    ctx->pc = 0x20a3bcu;
+    // NOP
+    ctx->pc = 0x20a3c0u;
+}

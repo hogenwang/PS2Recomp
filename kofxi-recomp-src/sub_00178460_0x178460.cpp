@@ -1,0 +1,42 @@
+#include "ps2_runtime_macros.h"
+#include "ps2_runtime.h"
+#include "ps2_recompiled_functions.h"
+#include "ps2_recompiled_stubs.h"
+
+#include "ps2_syscalls.h"
+#include "ps2_stubs.h"
+
+#ifdef PS2_FUNCTION_LOG_TRACKER
+#include "ps2_log.h"
+#endif
+
+// Function: sub_00178460
+// Address: 0x178460 - 0x178470
+void sub_00178460_0x178460(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtime) {
+#ifdef PS2_FUNCTION_LOG_TRACKER
+    PS_LOG_ENTRY("sub_00178460_0x178460");
+#endif
+
+    ctx->pc = 0x178460u;
+
+    // 0x178460: 0x3c02009c  lui         $v0, 0x9C
+    ctx->pc = 0x178460u;
+    SET_GPR_S32(ctx, 2, (int32_t)((uint32_t)156 << 16));
+    // 0x178464: 0x3e00008  jr          $ra
+    ctx->pc = 0x178464u;
+    {
+        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = 0x178468u;
+        ctx->in_delay_slot = true; ctx->branch_pc = 0x178464u;
+            // 0x178468: 0x8042ace8  lb          $v0, -0x5318($v0) (Delay Slot)
+        SET_GPR_S32(ctx, 2, (int8_t)READ8(ADD32(GPR_U32(ctx, 2), 4294946024)));
+        ctx->in_delay_slot = false;
+        ctx->pc = jumpTarget;
+        return;
+    }
+    ctx->pc = 0x17846Cu;
+    // 0x17846c: 0x0  nop
+    ctx->pc = 0x17846cu;
+    // NOP
+    ctx->pc = 0x178470u;
+}

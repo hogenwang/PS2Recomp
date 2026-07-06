@@ -1,0 +1,37 @@
+#include "ps2_runtime_macros.h"
+#include "ps2_runtime.h"
+#include "ps2_recompiled_functions.h"
+#include "ps2_recompiled_stubs.h"
+
+#include "ps2_syscalls.h"
+#include "ps2_stubs.h"
+
+#ifdef PS2_FUNCTION_LOG_TRACKER
+#include "ps2_log.h"
+#endif
+
+// Function: sub_0017DBA0
+// Address: 0x17dba0 - 0x17dbb0
+void sub_0017DBA0_0x17dba0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtime) {
+#ifdef PS2_FUNCTION_LOG_TRACKER
+    PS_LOG_ENTRY("sub_0017DBA0_0x17dba0");
+#endif
+
+    ctx->pc = 0x17dba0u;
+
+    // 0x17dba0: 0x3e00008  jr          $ra
+    ctx->pc = 0x17DBA0u;
+    {
+        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        return;
+    }
+    ctx->pc = 0x17DBA8u;
+    // 0x17dba8: 0x0  nop
+    ctx->pc = 0x17dba8u;
+    // NOP
+    // 0x17dbac: 0x0  nop
+    ctx->pc = 0x17dbacu;
+    // NOP
+    ctx->pc = 0x17dbb0u;
+}

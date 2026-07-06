@@ -1,0 +1,54 @@
+#include "ps2_runtime_macros.h"
+#include "ps2_runtime.h"
+#include "ps2_recompiled_functions.h"
+#include "ps2_recompiled_stubs.h"
+
+#include "ps2_syscalls.h"
+#include "ps2_stubs.h"
+
+#ifdef PS2_FUNCTION_LOG_TRACKER
+#include "ps2_log.h"
+#endif
+
+// Function: sub_001619B0
+// Address: 0x1619b0 - 0x1619d0
+void sub_001619B0_0x1619b0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtime) {
+#ifdef PS2_FUNCTION_LOG_TRACKER
+    PS_LOG_ENTRY("sub_001619B0_0x1619b0");
+#endif
+
+    ctx->pc = 0x1619b0u;
+
+    // 0x1619b0: 0xa4800000  sh          $zero, 0x0($a0)
+    ctx->pc = 0x1619b0u;
+    WRITE16(ADD32(GPR_U32(ctx, 4), 0), (uint16_t)GPR_U32(ctx, 0));
+    // 0x1619b4: 0xa4800002  sh          $zero, 0x2($a0)
+    ctx->pc = 0x1619b4u;
+    WRITE16(ADD32(GPR_U32(ctx, 4), 2), (uint16_t)GPR_U32(ctx, 0));
+    // 0x1619b8: 0xa4800004  sh          $zero, 0x4($a0)
+    ctx->pc = 0x1619b8u;
+    WRITE16(ADD32(GPR_U32(ctx, 4), 4), (uint16_t)GPR_U32(ctx, 0));
+    // 0x1619bc: 0xac800008  sw          $zero, 0x8($a0)
+    ctx->pc = 0x1619bcu;
+    WRITE32(ADD32(GPR_U32(ctx, 4), 8), GPR_U32(ctx, 0));
+    // 0x1619c0: 0x3e00008  jr          $ra
+    ctx->pc = 0x1619C0u;
+    {
+        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = 0x1619C4u;
+        ctx->in_delay_slot = true; ctx->branch_pc = 0x1619C0u;
+            // 0x1619c4: 0xac80000c  sw          $zero, 0xC($a0) (Delay Slot)
+        WRITE32(ADD32(GPR_U32(ctx, 4), 12), GPR_U32(ctx, 0));
+        ctx->in_delay_slot = false;
+        ctx->pc = jumpTarget;
+        return;
+    }
+    ctx->pc = 0x1619C8u;
+    // 0x1619c8: 0x0  nop
+    ctx->pc = 0x1619c8u;
+    // NOP
+    // 0x1619cc: 0x0  nop
+    ctx->pc = 0x1619ccu;
+    // NOP
+    ctx->pc = 0x1619d0u;
+}

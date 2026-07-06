@@ -1,0 +1,50 @@
+#include "ps2_runtime_macros.h"
+#include "ps2_runtime.h"
+#include "ps2_recompiled_functions.h"
+#include "ps2_recompiled_stubs.h"
+
+#include "ps2_syscalls.h"
+#include "ps2_stubs.h"
+
+#ifdef PS2_FUNCTION_LOG_TRACKER
+#include "ps2_log.h"
+#endif
+
+// Function: sub_00123178
+// Address: 0x123178 - 0x123190
+void sub_00123178_0x123178(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtime) {
+#ifdef PS2_FUNCTION_LOG_TRACKER
+    PS_LOG_ENTRY("sub_00123178_0x123178");
+#endif
+
+    ctx->pc = 0x123178u;
+
+    // 0x123178: 0x27bdfff0  addiu       $sp, $sp, -0x10
+    ctx->pc = 0x123178u;
+    SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 4294967280));
+    // 0x12317c: 0xffbf0000  sd          $ra, 0x0($sp)
+    ctx->pc = 0x12317cu;
+    WRITE64(ADD32(GPR_U32(ctx, 29), 0), GPR_U64(ctx, 31));
+    // 0x123180: 0xdfbf0000  ld          $ra, 0x0($sp)
+    ctx->pc = 0x123180u;
+    SET_GPR_U64(ctx, 31, READ64(ADD32(GPR_U32(ctx, 29), 0)));
+    // 0x123184: 0x8049c22  j           func_127088
+    ctx->pc = 0x123184u;
+    ctx->pc = 0x123188u;
+    ctx->in_delay_slot = true; ctx->branch_pc = 0x123184u;
+            // 0x123188: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
+        SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
+        ctx->in_delay_slot = false;
+    ctx->pc = 0x127088u;
+    if (runtime->hasFunction(0x127088u)) {
+        auto targetFn = runtime->lookupFunction(0x127088u);
+        targetFn(rdram, ctx, runtime); return;
+    } else {
+        sub_00127088_0x127088(rdram, ctx, runtime); return;
+    }
+    ctx->pc = 0x12318Cu;
+    // 0x12318c: 0x0  nop
+    ctx->pc = 0x12318cu;
+    // NOP
+    ctx->pc = 0x123190u;
+}
