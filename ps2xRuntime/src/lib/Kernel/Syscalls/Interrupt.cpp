@@ -474,7 +474,7 @@ namespace ps2_syscalls
         constexpr uint64_t kGsCsrFieldMask = 0x2000ull;
         uint64_t &csr = runtime->memory().gs().csr;
         csr = (csr & ~kGsCsrFieldMask) | ((tickValue & 1ull) ? kGsCsrFieldMask : 0ull);
-    }    }
+    }
 
     static uint64_t signalVSyncFlag(uint8_t *rdram, PS2Runtime *runtime)
     {

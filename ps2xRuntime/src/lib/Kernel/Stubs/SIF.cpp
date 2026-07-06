@@ -1433,6 +1433,87 @@ namespace ps2_stubs
         constexpr uint32_t kKofxiDiscRpcClientAddr = 0x0035AF90u;
         constexpr uint32_t kKofxiDiscRpcEndFunc = 0x0011B0D0u;
         constexpr uint32_t kKofxiDiscRpcEndParam = 0x0035AEC0u;
+        constexpr const char *kKofxiFileListPath = "\\DATA\\ZDX\\0FLISTHT.DIR;1";
+        constexpr const char *kKofxiBgmAfsPath = "\\DATA\\ZDX\\KOFXIBGM.AFS;1";
+
+        bool kofxiDiscRpcFileListCompatEnabled()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_DISC_RPC_FILELIST_COMPAT");
+            return !value || value[0] == '\0' || value[0] != '0';
+        }
+
+        bool kofxiDiscRpcAfsRelativeCompatEnabled()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_DISC_RPC_AFS_RELATIVE_COMPAT");
+            return value && value[0] == '1';
+        }
+
+        bool ensureKofxiDiscRpcCdEntries(CdFileEntry &afsEntryOut)
+        {
+            if (!kofxiDiscRpcFileListCompatEnabled())
+            {
+                return false;
+            }
+
+            CdFileEntry fileListEntry{};
+            if (!registerCdFile(kKofxiFileListPath, fileListEntry))
+            {
+                return false;
+            }
+
+            return registerCdFile(kKofxiBgmAfsPath, afsEntryOut);
+        }
+
+        bool tryFindKofxiBgmAfsEntry(CdFileEntry &entryOut)
+        {
+            for (const auto &[key, entry] : g_cdFilesByKey)
+            {
+                const std::string lowerKey = toLowerAscii(key);
+                const std::string lowerPath = toLowerAscii(entry.hostPath.generic_string());
+                if (lowerKey.find("kofxibgm.afs") != std::string::npos ||
+                    lowerPath.find("kofxibgm.afs") != std::string::npos)
+                {
+                    entryOut = entry;
+                    return true;
+                }
+            }
+
+            return ensureKofxiDiscRpcCdEntries(entryOut);
+        }
+
+        uint32_t resolveKofxiDiscRpcLbn(uint32_t lbn, uint32_t sectors, bool &mappedFromAfsRelative)
+        {
+            mappedFromAfsRelative = false;
+            if (sectors == 0u)
+            {
+                return lbn;
+            }
+
+            CdFileEntry afsEntry{};
+            if (kofxiDiscRpcFileListCompatEnabled())
+            {
+                (void)ensureKofxiDiscRpcCdEntries(afsEntry);
+            }
+
+            if (!kofxiDiscRpcAfsRelativeCompatEnabled())
+            {
+                return lbn;
+            }
+
+            if (!tryFindKofxiBgmAfsEntry(afsEntry))
+            {
+                return lbn;
+            }
+
+            const uint64_t relativeEnd = static_cast<uint64_t>(lbn) + static_cast<uint64_t>(sectors);
+            if (lbn >= afsEntry.baseLbn || relativeEnd > static_cast<uint64_t>(afsEntry.sectors))
+            {
+                return lbn;
+            }
+
+            mappedFromAfsRelative = true;
+            return afsEntry.baseLbn + lbn;
+        }
 
         bool isKofxiDiscReadPacketClient(
             const uint8_t *rdram,
@@ -1524,6 +1605,10 @@ namespace ps2_stubs
                 return false;
             }
 
+            const uint32_t originalLbn = lbn;
+            bool mappedFromAfsRelative = false;
+            lbn = resolveKofxiDiscRpcLbn(lbn, sectors, mappedFromAfsRelative);
+
             const uint32_t bytesPerSector = (mode2 == 1u) ? 0x918u : ((mode2 == 2u) ? 0x924u : kCdSectorBytes);
             const uint64_t requestedBytes64 = static_cast<uint64_t>(sectors) * static_cast<uint64_t>(bytesPerSector);
             bool ok = false;
@@ -1582,6 +1667,8 @@ namespace ps2_stubs
                               << " recv=0x" << recvBuf
                               << " recvSize=0x" << recvSize
                               << " lbn=0x" << lbn
+                              << " rawLbn=0x" << originalLbn
+                              << " afsRel=" << (mappedFromAfsRelative ? 1 : 0)
                               << " sectors=0x" << sectors
                               << " target=0x" << targetAddr
                               << " phys=0x" << targetPhys

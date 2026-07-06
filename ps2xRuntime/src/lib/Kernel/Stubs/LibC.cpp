@@ -301,6 +301,50 @@ namespace ps2_stubs
                       << " words:" << formatGuestWordDump(rdram, runtime, fileHandle, 0x80u)
                       << std::dec << std::endl;
         }
+
+        void traceGuestStringFileWrite(uint8_t *rdram,
+                                       R5900Context *ctx,
+                                       PS2Runtime *runtime,
+                                       const GuestStringFile &file,
+                                       uint32_t formatAddr,
+                                       uint32_t vaListAddr,
+                                       const std::string &formatOwned,
+                                       const std::string &rendered)
+        {
+            if (!libcTraceEnvEnabled("PS2X_TRACE_VFPRINTF_STRING_FILE"))
+            {
+                return;
+            }
+
+            static uint32_t s_traceCount = 0u;
+            if (s_traceCount >= 128u)
+            {
+                return;
+            }
+            ++s_traceCount;
+
+            const uint32_t pc = ctx ? ctx->pc : 0u;
+            const uint32_t ra = ctx ? getRegU32(ctx, 31) : 0u;
+            const uint32_t sp = ctx ? getRegU32(ctx, 29) : 0u;
+
+            std::cerr << "[vfprintf:string-file] #" << s_traceCount
+                      << " pc=0x" << std::hex << pc
+                      << " ra=0x" << ra
+                      << " sp=0x" << sp
+                      << " file=0x" << file.fileAddr
+                      << " cursor=0x" << file.cursorAddr
+                      << " base=0x" << file.baseAddr
+                      << " remaining=0x" << file.remaining
+                      << " flags=0x" << file.flags
+                      << " buffer=0x" << file.bufferSize
+                      << " format=0x" << formatAddr
+                      << " va=0x" << vaListAddr
+                      << " fmt=\"" << sanitizeForLog(formatOwned) << "\""
+                      << " renderedLen=0x" << rendered.size()
+                      << " rendered=\"" << sanitizeForLog(rendered.substr(0u, 128u)) << "\""
+                      << " fileWords:" << formatGuestWordDump(rdram, runtime, file.fileAddr, 0x20u)
+                      << std::dec << std::endl;
+        }
     }
 
     void malloc(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
@@ -1397,6 +1441,7 @@ namespace ps2_stubs
             const std::string rendered = formatPs2StringWithVaList(rdram, runtime, formatOwned.c_str(), va_list_addr);
             if (writeGuestStringFile(rdram, runtime, stringFile, rendered))
             {
+                traceGuestStringFileWrite(rdram, ctx, runtime, stringFile, format_addr, va_list_addr, formatOwned, rendered);
                 ret = static_cast<int>(std::min(rendered.size(), kSafeGuestStringFileBytes - 1u));
             }
             else

@@ -19,6 +19,11 @@
 
 using namespace GSInternal;
 
+namespace ps2_syscalls
+{
+    uint64_t GetCurrentVSyncTick();
+}
+
 namespace
 {
     float fabsQ(float q)
@@ -104,6 +109,60 @@ namespace
     std::atomic<uint32_t> s_debugFbp150PixelCount{0};
     std::atomic<uint32_t> s_traceRgbWriteCount{0};
     std::atomic<uint32_t> s_tracePrimBoundsCount{0};
+    std::atomic<uint32_t> s_traceTextureSampleCount{0};
+
+    bool traceGsTextureSampleEnabled()
+    {
+        static const bool enabled = []
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_TEXTURE_SAMPLE");
+            return value && value[0] != '\0' && std::strtoul(value, nullptr, 0) != 0ul;
+        }();
+        return enabled;
+    }
+
+    uint32_t traceGsTextureSampleLimit()
+    {
+        static const uint32_t limit = []
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_TEXTURE_SAMPLE_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 512u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 512u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 16384ul));
+        }();
+        return limit;
+    }
+
+    bool traceGsStartTickReached()
+    {
+        static const uint64_t startTick = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_RASTER_START_TICK");
+            if (!value || value[0] == '\0')
+            {
+                value = std::getenv("PS2X_TRACE_GS_START_TICK");
+            }
+            if (!value || value[0] == '\0')
+            {
+                return 0ull;
+            }
+
+            char *end = nullptr;
+            const unsigned long long parsed = std::strtoull(value, &end, 0);
+            return (end != value) ? static_cast<uint64_t>(parsed) : 0ull;
+        }();
+        return startTick == 0ull || ps2_syscalls::GetCurrentVSyncTick() >= startTick;
+    }
 
     bool traceGsDrawRgbEnabled()
     {
@@ -112,7 +171,7 @@ namespace
             const char *value = std::getenv("PS2X_TRACE_GS_DRAW_RGB");
             return value && value[0] != '\0' && value[0] != '0';
         }();
-        return enabled;
+        return enabled && traceGsStartTickReached();
     }
 
     uint32_t traceGsDrawRgbLimit()
@@ -144,7 +203,7 @@ namespace
             const char *value = std::getenv("PS2X_TRACE_GS_PRIM_BOUNDS");
             return value && value[0] != '\0' && value[0] != '0';
         }();
-        return enabled;
+        return enabled && traceGsStartTickReached();
     }
 
     uint32_t traceGsPrimBoundsLimit()
@@ -408,10 +467,15 @@ namespace
         case GS_PSM_T4HH:
         case GS_PSM_T4HL:
         {
-            clutIndex = (static_cast<uint32_t>(csa) << 4u) | (clutIndex & 0x0Fu);
-
             if (csm == 0u)
+            {
+                clutIndex = (static_cast<uint32_t>(csa) << 4u) | (clutIndex & 0x0Fu);
                 clutIndex = swizzleClutIndexCSM1(clutIndex);
+            }
+            else
+            {
+                clutIndex &= 0x0Fu;
+            }
         }
         break;
         case GS_PSM_T8:
@@ -738,9 +802,10 @@ uint32_t GSRasterizer::lookupCLUT(GS *gs,
                                   uint8_t sourcePsm)
 {
     const uint32_t clutIndex = resolveClutIndex(index, csm, csa, sourcePsm);
-    const uint32_t clutWidth = (gs->m_texclut.cbw != 0u) ? static_cast<uint32_t>(gs->m_texclut.cbw) : 1u;
-    const uint32_t clutX = static_cast<uint32_t>(gs->m_texclut.cou) + (clutIndex & 0x0Fu);
-    const uint32_t clutY = static_cast<uint32_t>(gs->m_texclut.cov) + (clutIndex >> 4);
+    const bool csm2 = csm != 0u;
+    const uint32_t clutWidth = (csm2 && gs->m_texclut.cbw != 0u) ? static_cast<uint32_t>(gs->m_texclut.cbw) : 1u;
+    const uint32_t clutX = (csm2 ? static_cast<uint32_t>(gs->m_texclut.cou) : 0u) + (clutIndex & 0x0Fu);
+    const uint32_t clutY = (csm2 ? static_cast<uint32_t>(gs->m_texclut.cov) : 0u) + (clutIndex >> 4);
 
 
     switch (cpsm)
@@ -866,16 +931,16 @@ void GSRasterizer::drawSprite(GS *gs)
     int ofx = ctx.xyoffset.ofx >> 4;
     int ofy = ctx.xyoffset.ofy >> 4;
 
-    int x0 = static_cast<int>(v0.x) - ofx;
-    int y0 = static_cast<int>(v0.y) - ofy;
-    int x1 = static_cast<int>(v1.x) - ofx;
-    int y1 = static_cast<int>(v1.y) - ofy;
+    const int vertexX0 = static_cast<int>(v0.x) - ofx;
+    const int vertexY0 = static_cast<int>(v0.y) - ofy;
+    const int vertexX1 = static_cast<int>(v1.x) - ofx;
+    const int vertexY1 = static_cast<int>(v1.y) - ofy;
     u32 z1 = static_cast<u32>(v1.z);
 
-    if (x0 > x1)
-        std::swap(x0, x1);
-    if (y0 > y1)
-        std::swap(y0, y1);
+    const int x0 = std::min(vertexX0, vertexX1);
+    const int y0 = std::min(vertexY0, vertexY1);
+    const int x1 = std::max(vertexX0, vertexX1);
+    const int y1 = std::max(vertexY0, vertexY1);
 
     const int unclippedX0 = x0;
     const int unclippedY0 = y0;
@@ -964,31 +1029,56 @@ void GSRasterizer::drawSprite(GS *gs)
             v1f = (v1.t / q1) * static_cast<float>(texH);
         }
 
-        float spriteW = static_cast<float>(spanX);
-        float spriteH = static_cast<float>(spanY);
-        if (spriteW < 1.0f)
-            spriteW = 1.0f;
-        if (spriteH < 1.0f)
-            spriteH = 1.0f;
+        const bool traceTextureSamplesForSprite =
+            traceGsTextureSampleEnabled() &&
+            traceGsStartTickReached() &&
+            (tex.psm == GS_PSM_CT16 ||
+             tex.psm == GS_PSM_CT16S ||
+             tex.psm == GS_PSM_T8 ||
+             tex.psm == GS_PSM_T8H ||
+             tex.psm == GS_PSM_T4 ||
+             tex.psm == GS_PSM_T4HL ||
+             tex.psm == GS_PSM_T4HH);
+
+        auto interpolateVertexAxis = [](float pixelCenter, float start, float end) -> float
+        {
+            const float delta = end - start;
+            if (std::fabs(delta) < 1.0f)
+            {
+                return 0.5f;
+            }
+            return (pixelCenter - start) / delta;
+        };
+
+        const float vertexX0f = static_cast<float>(vertexX0);
+        const float vertexY0f = static_cast<float>(vertexY0);
+        const float vertexX1f = static_cast<float>(vertexX1);
+        const float vertexY1f = static_cast<float>(vertexY1);
 
         for (int y = drawY0; y <= drawY1; ++y)
         {
-            float ty = (static_cast<float>(y - unclippedY0) + 0.5f) / spriteH;
+            const float ty = interpolateVertexAxis(static_cast<float>(y) + 0.5f, vertexY0f, vertexY1f);
             float texVf = v0f + (v1f - v0f) * ty;
 
             for (int x = drawX0; x <= drawX1; ++x)
             {
-                float tx = (static_cast<float>(x - unclippedX0) + 0.5f) / spriteW;
+                const float tx = interpolateVertexAxis(static_cast<float>(x) + 0.5f, vertexX0f, vertexX1f);
                 float texUf = u0f + (u1f - u0f) * tx;
                 uint32_t texel = 0xFFFF00FFu;
+                int traceSampleU = 0;
+                int traceSampleV = 0;
                 if (gs->m_prim.fst)
                 {
                     const uint16_t sampleU = static_cast<uint16_t>(clampInt(static_cast<int>(std::lround(texUf * 16.0f)), 0, 0xFFFF));
                     const uint16_t sampleV = static_cast<uint16_t>(clampInt(static_cast<int>(std::lround(texVf * 16.0f)), 0, 0xFFFF));
+                    traceSampleU = clampInt(static_cast<int>(static_cast<float>(sampleU) / 16.0f), 0, texW - 1);
+                    traceSampleV = clampInt(static_cast<int>(static_cast<float>(sampleV) / 16.0f), 0, texH - 1);
                     texel = sampleTexture(gs, 0.0f, 0.0f, 1.0f, sampleU, sampleV);
                 }
                 else
                 {
+                    traceSampleU = clampInt(static_cast<int>(texUf), 0, texW - 1);
+                    traceSampleV = clampInt(static_cast<int>(texVf), 0, texH - 1);
                     texel = sampleTexture(gs,
                                           texUf / static_cast<float>(texW),
                                           texVf / static_cast<float>(texH),
@@ -1001,6 +1091,52 @@ void GSRasterizer::drawSprite(GS *gs)
                 uint8_t ta = static_cast<uint8_t>((texel >> 24) & 0xFF);
 
                 const TextureCombineResult color = combineTexture(tex, r, g, b, a, tr, tg, tb, ta);
+                if (traceTextureSamplesForSprite &&
+                    ((x == drawX0 && y == drawY0) ||
+                     (x == ((drawX0 + drawX1) / 2) && y == ((drawY0 + drawY1) / 2))))
+                {
+                    const uint32_t traceIndex = s_traceTextureSampleCount.fetch_add(1u, std::memory_order_relaxed);
+                    if (traceIndex < traceGsTextureSampleLimit())
+                    {
+                        const uint32_t raw = gs->ReadVram(tex.psm,
+                                                          tex.tbp0,
+                                                          tex.tbw,
+                                                          static_cast<uint32_t>(traceSampleU),
+                                                          static_cast<uint32_t>(traceSampleV));
+                        std::cout << "[gs:texture-sample] idx=" << traceIndex
+                                  << " xy=(" << x << "," << y << ")"
+                                  << " fbp=0x" << std::hex << ctx.frame.fbp
+                                  << " tex=(tbp0=" << tex.tbp0
+                                  << " tbw=" << static_cast<uint32_t>(tex.tbw)
+                                  << " psm=0x" << static_cast<uint32_t>(tex.psm)
+                                  << " tcc=" << static_cast<uint32_t>(tex.tcc)
+                                  << " tfx=" << static_cast<uint32_t>(tex.tfx)
+                                  << " cbp=" << tex.cbp
+                                  << " cpsm=0x" << static_cast<uint32_t>(tex.cpsm)
+                                  << " csm=" << static_cast<uint32_t>(tex.csm)
+                                  << " csa=" << static_cast<uint32_t>(tex.csa)
+                                  << " texclut=" << static_cast<uint32_t>(gs->m_texclut.cbw)
+                                  << "/" << static_cast<uint32_t>(gs->m_texclut.cou)
+                                  << "/" << gs->m_texclut.cov
+                                  << ")"
+                                  << " uv=(" << std::dec << traceSampleU << "," << traceSampleV << ")"
+                                  << " raw=0x" << std::hex << raw
+                                  << " texel=0x" << texel
+                                  << " out=0x" << pack32(color.r, color.g, color.b, color.a)
+                                  << " alpha=0x" << ctx.alpha
+                                  << " texa=(ta0=" << std::dec << static_cast<uint32_t>(gs->m_texa.ta0)
+                                  << " ta1=" << static_cast<uint32_t>(gs->m_texa.ta1)
+                                  << " aem=" << static_cast<uint32_t>(gs->m_texa.aem ? 1u : 0u)
+                                  << ")"
+                                  << " rgba=(" << static_cast<uint32_t>(r)
+                                  << "," << static_cast<uint32_t>(g)
+                                  << "," << static_cast<uint32_t>(b)
+                                  << "," << static_cast<uint32_t>(a)
+                                  << ")"
+                                  << std::dec
+                                  << std::endl;
+                    }
+                }
                 writePixel(gs, x, y, z1, color.r, color.g, color.b, color.a);
             }
         }

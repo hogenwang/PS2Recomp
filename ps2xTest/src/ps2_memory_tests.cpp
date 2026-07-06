@@ -926,6 +926,47 @@ void register_ps2_memory_tests()
             t.IsTrue(contentOk, "scratchpad GIF DMA packet bytes should match scratchpad source");
         });
 
+        tc.Run("GIF DMA bit31 selector can source normal transfers from scratchpad", [](TestCase &t)
+        {
+            PS2Memory mem;
+            t.IsTrue(mem.initialize(), "PS2Memory initialize should succeed");
+
+            constexpr uint32_t kGifCh = 0x1000A000u;
+            constexpr uint32_t kSprSelectedSrc = 0x80000080u;
+
+            uint8_t *scratch = mem.getScratchpad();
+            std::memset(mem.getRDRAM() + 0x80u, 0xEE, 16u);
+            for (uint32_t i = 0; i < 16u; ++i)
+            {
+                scratch[0x80u + i] = static_cast<uint8_t>(0x40u + i);
+            }
+
+            std::vector<std::vector<uint8_t>> captured;
+            mem.setGifPacketCallback([&](const uint8_t *data, uint32_t sizeBytes)
+            {
+                captured.emplace_back(data, data + sizeBytes);
+            });
+
+            t.IsTrue(mem.writeIORegister(kGifCh + 0x10u, kSprSelectedSrc), "write MADR SPR selector should succeed");
+            t.IsTrue(mem.writeIORegister(kGifCh + 0x20u, 1u), "write QWC should succeed");
+            t.IsTrue(mem.writeIORegister(kGifCh + 0x00u, 0x100u), "write CHCR STR should succeed");
+
+            mem.processPendingTransfers();
+
+            t.Equals(captured.size(), static_cast<size_t>(1u), "SPR-selected GIF DMA should emit one packet");
+            t.Equals(captured[0].size(), static_cast<size_t>(16u), "SPR-selected packet should be one qword");
+            bool contentOk = true;
+            for (uint32_t i = 0; i < 16u; ++i)
+            {
+                if (captured[0][i] != static_cast<uint8_t>(0x40u + i))
+                {
+                    contentOk = false;
+                    break;
+                }
+            }
+            t.IsTrue(contentOk, "SPR-selected MADR should read scratchpad, not RDRAM zero-page");
+        });
+
         tc.Run("GIF DMA chain can source tags and payload from 0xF000 scratchpad alias", [](TestCase &t)
         {
             PS2Memory mem;
@@ -968,6 +1009,94 @@ void register_ps2_memory_tests()
                 }
             }
             t.IsTrue(contentOk, "scratchpad alias chain payload should match scratchpad bytes");
+        });
+
+        tc.Run("GIF DMA chain can source tags from bit31 scratchpad selector", [](TestCase &t)
+        {
+            PS2Memory mem;
+            t.IsTrue(mem.initialize(), "PS2Memory initialize should succeed");
+
+            constexpr uint32_t kGifCh = 0x1000A000u;
+            constexpr uint32_t kTagSprSelected = 0x80000100u;
+
+            uint8_t *scratch = mem.getScratchpad();
+            std::memset(scratch + 0x100u, 0, 32u);
+
+            const uint64_t endTag = makeDmaTag(1u, 7u, 0u, false);
+            std::memcpy(scratch + 0x100u, &endTag, sizeof(endTag));
+            for (uint32_t i = 0; i < 16u; ++i)
+            {
+                scratch[0x110u + i] = static_cast<uint8_t>(0x50u + i);
+            }
+
+            std::vector<std::vector<uint8_t>> captured;
+            mem.setGifPacketCallback([&](const uint8_t *data, uint32_t sizeBytes)
+            {
+                captured.emplace_back(data, data + sizeBytes);
+            });
+
+            t.IsTrue(mem.writeIORegister(kGifCh + 0x30u, kTagSprSelected), "write TADR SPR selector should succeed");
+            t.IsTrue(mem.writeIORegister(kGifCh + 0x00u, 0x104u), "write CHCR STR|CHAIN should succeed");
+
+            mem.processPendingTransfers();
+
+            t.Equals(captured.size(), static_cast<size_t>(1u), "SPR-selected chain should emit one packet");
+            t.Equals(captured[0].size(), static_cast<size_t>(16u), "SPR-selected chain should emit one qword");
+            bool contentOk = true;
+            for (uint32_t i = 0; i < 16u; ++i)
+            {
+                if (captured[0][i] != static_cast<uint8_t>(0x50u + i))
+                {
+                    contentOk = false;
+                    break;
+                }
+            }
+            t.IsTrue(contentOk, "SPR-selected TADR should read tag and payload from scratchpad");
+        });
+
+        tc.Run("GIF DMA chain uses DMAtag ADDR scratchpad selector bit", [](TestCase &t)
+        {
+            PS2Memory mem;
+            t.IsTrue(mem.initialize(), "PS2Memory initialize should succeed");
+
+            constexpr uint32_t kGifCh = 0x1000A000u;
+            constexpr uint32_t kTag = 0x00024000u;
+            constexpr uint32_t kScratchPayload = 0x80u;
+
+            uint8_t *rdram = mem.getRDRAM();
+            uint8_t *scratch = mem.getScratchpad();
+            std::memset(rdram + kScratchPayload, 0xEE, 16u);
+            for (uint32_t i = 0; i < 16u; ++i)
+            {
+                scratch[kScratchPayload + i] = static_cast<uint8_t>(0x60u + i);
+            }
+
+            const uint64_t refeTag = makeDmaTag(1u, 0u, kScratchPayload, false) | (1ull << 63);
+            writeDmaTag(rdram, kTag, refeTag);
+
+            std::vector<std::vector<uint8_t>> captured;
+            mem.setGifPacketCallback([&](const uint8_t *data, uint32_t sizeBytes)
+            {
+                captured.emplace_back(data, data + sizeBytes);
+            });
+
+            t.IsTrue(mem.writeIORegister(kGifCh + 0x30u, kTag), "write TADR should succeed");
+            t.IsTrue(mem.writeIORegister(kGifCh + 0x00u, 0x104u), "write CHCR STR|CHAIN should succeed");
+
+            mem.processPendingTransfers();
+
+            t.Equals(captured.size(), static_cast<size_t>(1u), "REFE scratchpad selector should emit one packet");
+            t.Equals(captured[0].size(), static_cast<size_t>(16u), "REFE scratchpad selector should emit one qword");
+            bool contentOk = true;
+            for (uint32_t i = 0; i < 16u; ++i)
+            {
+                if (captured[0][i] != static_cast<uint8_t>(0x60u + i))
+                {
+                    contentOk = false;
+                    break;
+                }
+            }
+            t.IsTrue(contentOk, "DMAtag ADDR bit63 should select scratchpad payload");
         });
 
         tc.Run("GIF DMA chain REF keeps CT32 image data after paletted upload", [](TestCase &t)

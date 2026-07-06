@@ -131,6 +131,34 @@ namespace
         return value && value[0] != '\0' && value[0] != '0';
     }
 
+    bool traceKofxiGeneratedLibcCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_GENERATED_LIBC_COMPAT");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    uint32_t kofxiGeneratedLibcTraceLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_KOFXI_GENERATED_LIBC_COMPAT_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 128u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 128u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 4096ul));
+        }();
+        return limit;
+    }
+
     bool traceKofxiHandleObjectWorkerEnabled()
     {
         const char *value = std::getenv("PS2X_TRACE_KOFXI_HANDLE_OBJECT_WORKER");
@@ -181,6 +209,24 @@ namespace
     {
         const char *value = std::getenv("PS2X_KOFXI_ADX_HOST_CDV_COMPAT");
         return !value || value[0] == '\0' || value[0] != '0';
+    }
+
+    bool kofxiAdxHostCdvSlotScratchProtectEnabled()
+    {
+        const char *value = std::getenv("PS2X_KOFXI_ADX_HOST_CDV_SLOT_SCRATCH_PROTECT");
+        return !value || value[0] == '\0' || value[0] != '0';
+    }
+
+    bool kofxiCdSearchFileCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_KOFXI_CD_SEARCH_FILE_COMPAT");
+        return !value || value[0] == '\0' || value[0] != '0';
+    }
+
+    bool traceKofxiCdSearchFileCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_CD_SEARCH_FILE_COMPAT");
+        return value && value[0] != '\0' && value[0] != '0';
     }
 
     bool kofxiUpperResourceAttachCompatEnabled()
@@ -341,6 +387,79 @@ namespace
         return value && value[0] != '\0' && value[0] != '0';
     }
 
+    bool traceKofxiDemoRenderChainEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_DEMO_RENDER_CHAIN");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    uint32_t kofxiDemoRenderChainTraceLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_KOFXI_DEMO_RENDER_CHAIN_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 2048u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 2048u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 8192ul));
+        }();
+        return limit;
+    }
+
+    bool kofxiDemoRenderChainTraceOrderOnly()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_DEMO_RENDER_CHAIN_ORDER_ONLY");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    bool kofxiOrderPleaseWaitCenterCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_KOFXI_ORDER_PLEASE_WAIT_CENTER_COMPAT");
+        return !value || value[0] == '\0' || value[0] != '0';
+    }
+
+    bool traceKofxiOrderPleaseWaitCenterCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_ORDER_PLEASE_WAIT_CENTER_COMPAT");
+        if (value && value[0] != '\0')
+        {
+            return value[0] != '0';
+        }
+
+        return traceKofxiDemoRenderChainEnabled();
+    }
+
+    uint32_t kofxiOrderPleaseWaitCenterCompatTraceLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_KOFXI_ORDER_PLEASE_WAIT_CENTER_COMPAT_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 32u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 32u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 1024ul));
+        }();
+        return limit;
+    }
+
     bool traceKofxiMainLoopStateEnabled()
     {
         const char *value = std::getenv("PS2X_TRACE_KOFXI_MAIN_LOOP_STATE");
@@ -407,10 +526,16 @@ namespace
         return value && value[0] != '\0' && value[0] != '0';
     }
 
+    bool traceKofxiResourceFlagTransitionsEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_RESOURCE_FLAG_TRANSITIONS");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
     bool kofxiFrontendDemoAdvanceCompatEnabled()
     {
         const char *value = std::getenv("PS2X_KOFXI_FRONTEND_DEMO_ADVANCE_COMPAT");
-        return !value || value[0] == '\0' || value[0] != '0';
+        return value && value[0] != '\0' && value[0] != '0';
     }
 
     bool traceKofxiFrontendDemoAdvanceCompatEnabled()
@@ -478,6 +603,28 @@ namespace
             if (end == value)
             {
                 return 2048u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 8192ul));
+        }();
+        return limit;
+    }
+
+    uint32_t kofxiResourceFlagTransitionsTraceLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_KOFXI_RESOURCE_FLAG_TRANSITIONS_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 1024u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 1024u;
             }
 
             return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 8192ul));
@@ -620,6 +767,306 @@ namespace
         return value && value[0] != '\0' && value[0] != '0';
     }
 
+    bool kofxiTitleStartCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_KOFXI_TITLE_START_COMPAT");
+        if (value && value[0] != '\0')
+        {
+            return value[0] != '0';
+        }
+        return kofxiFrontendAutoStartCompatEnabled();
+    }
+
+    bool kofxiPostTitleWaitCompleteCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_KOFXI_POST_TITLE_WAIT_COMPLETE_COMPAT");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    bool traceKofxiPostTitleWaitCompleteCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_POST_TITLE_WAIT_COMPLETE_COMPAT");
+        if (value && value[0] != '\0')
+        {
+            return value[0] != '0';
+        }
+        return kofxiPostTitleWaitCompleteCompatEnabled();
+    }
+
+    uint32_t kofxiPostTitleWaitCompleteCompatFrames()
+    {
+        static const uint32_t frames = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_POST_TITLE_WAIT_COMPLETE_FRAMES");
+            if (!value || value[0] == '\0')
+            {
+                return 30u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 30u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 600ul));
+        }();
+        return frames;
+    }
+
+    bool kofxiButtonHelpCompleteCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_KOFXI_BUTTON_HELP_COMPLETE_COMPAT");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    bool traceKofxiButtonHelpCompleteCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_BUTTON_HELP_COMPLETE_COMPAT");
+        if (value && value[0] != '\0')
+        {
+            return value[0] != '0';
+        }
+        return kofxiButtonHelpCompleteCompatEnabled();
+    }
+
+    uint32_t kofxiButtonHelpCompleteCompatFrames()
+    {
+        static const uint32_t frames = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_BUTTON_HELP_COMPLETE_FRAMES");
+            if (!value || value[0] == '\0')
+            {
+                return 60u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 60u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 900ul));
+        }();
+        return frames;
+    }
+
+    uint32_t kofxiButtonHelpCompleteCompatMinPhase()
+    {
+        static const uint32_t phase = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_BUTTON_HELP_COMPLETE_MIN_PHASE");
+            if (!value || value[0] == '\0')
+            {
+                return 0x0Au;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 0x0Au;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 0ul, 0xFFul));
+        }();
+        return phase;
+    }
+
+    bool kofxiOrderSelectReadyCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_KOFXI_ORDER_SELECT_READY_COMPAT");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    bool traceKofxiOrderSelectReadyCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_ORDER_SELECT_READY_COMPAT");
+        if (value && value[0] != '\0')
+        {
+            return value[0] != '0';
+        }
+        return kofxiOrderSelectReadyCompatEnabled();
+    }
+
+    uint32_t kofxiOrderSelectReadyCompatFrames()
+    {
+        static const uint32_t frames = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_ORDER_SELECT_READY_FRAMES");
+            if (!value || value[0] == '\0')
+            {
+                return 60u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 60u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 900ul));
+        }();
+        return frames;
+    }
+
+    uint32_t kofxiOrderSelectReadyPreludeMinPhase()
+    {
+        static const uint32_t phase = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_ORDER_SELECT_READY_PRELUDE_MIN_PHASE");
+            if (!value || value[0] == '\0')
+            {
+                return 0x0Au;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 0x0Au;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 0ul, 0xFFul));
+        }();
+        return phase;
+    }
+
+    uint32_t kofxiOrderSelectReadyPreludeMinObjects()
+    {
+        static const uint32_t objects = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_ORDER_SELECT_READY_PRELUDE_MIN_OBJECTS");
+            if (!value || value[0] == '\0')
+            {
+                return 4u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 4u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 0ul, 0x100ul));
+        }();
+        return objects;
+    }
+
+    bool kofxiNextStageReadyCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_KOFXI_NEXT_STAGE_READY_COMPAT");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    bool traceKofxiNextStageReadyCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_NEXT_STAGE_READY_COMPAT");
+        if (value && value[0] != '\0')
+        {
+            return value[0] != '0';
+        }
+        return traceKofxiOrderSelectReadyCompatEnabled();
+    }
+
+    bool traceKofxiNextStageServiceEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_NEXT_STAGE_SERVICE");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    uint32_t kofxiNextStageServiceTraceLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_KOFXI_NEXT_STAGE_SERVICE_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 512u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 512u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 8192ul));
+        }();
+        return limit;
+    }
+
+    uint32_t kofxiNextStageReadyCompatFrames()
+    {
+        static const uint32_t frames = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_NEXT_STAGE_READY_FRAMES");
+            if (!value || value[0] == '\0')
+            {
+                return 45u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 45u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 900ul));
+        }();
+        return frames;
+    }
+
+    uint8_t kofxiNextStageReadyCompatValue()
+    {
+        static const uint8_t value = []()
+        {
+            const char *env = std::getenv("PS2X_KOFXI_NEXT_STAGE_READY_VALUE");
+            if (!env || env[0] == '\0')
+            {
+                return static_cast<uint8_t>(1u);
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(env, &end, 0);
+            if (end == env)
+            {
+                return static_cast<uint8_t>(1u);
+            }
+
+            return static_cast<uint8_t>(std::clamp<unsigned long>(parsed, 1ul, 3ul));
+        }();
+        return value;
+    }
+
+    uint16_t kofxiNextStageReadyCompatWaitValue()
+    {
+        static const uint16_t value = []()
+        {
+            const char *env = std::getenv("PS2X_KOFXI_NEXT_STAGE_READY_WAIT_VALUE");
+            if (!env || env[0] == '\0')
+            {
+                return static_cast<uint16_t>(0u);
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(env, &end, 0);
+            if (end == env)
+            {
+                return static_cast<uint16_t>(0u);
+            }
+
+            return static_cast<uint16_t>(std::clamp<unsigned long>(parsed, 0ul, 0xFFFFul));
+        }();
+        return value;
+    }
+
     bool kofxiFrontendBootstrapFastForwardCompatEnabled()
     {
         const char *value = std::getenv("PS2X_KOFXI_FRONTEND_BOOTSTRAP_FAST_FORWARD_COMPAT");
@@ -643,14 +1090,14 @@ namespace
             const char *value = std::getenv("PS2X_KOFXI_FRONTEND_BOOTSTRAP_FAST_FORWARD_MIN_STEP");
             if (!value || value[0] == '\0')
             {
-                return 0x40u;
+                return 0x20u;
             }
 
             char *end = nullptr;
             const unsigned long parsed = std::strtoul(value, &end, 0);
             if (end == value)
             {
-                return 0x40u;
+                return 0x20u;
             }
 
             return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 0ul, 0xC1ul));
@@ -686,10 +1133,233 @@ namespace
         return limit;
     }
 
+    bool traceKofxiFrontendDemoGateEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_FRONTEND_DEMO_GATE");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    uint32_t kofxiFrontendDemoGateTraceLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_KOFXI_FRONTEND_DEMO_GATE_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 256u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 256u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 8192ul));
+        }();
+        return limit;
+    }
+
+    bool kofxiFrontendDemoResourceReadyCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_KOFXI_FRONTEND_DEMO_RESOURCE_READY_COMPAT");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    bool traceKofxiFrontendDemoResourceReadyCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_FRONTEND_DEMO_RESOURCE_READY_COMPAT");
+        if (value && value[0] != '\0')
+        {
+            return value[0] != '0';
+        }
+        return kofxiFrontendDemoResourceReadyCompatEnabled();
+    }
+
+    uint32_t kofxiFrontendDemoResourceReadyCompatTraceLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_KOFXI_FRONTEND_DEMO_RESOURCE_READY_COMPAT_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 64u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 64u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 1024ul));
+        }();
+        return limit;
+    }
+
+    uint32_t kofxiFrontendDemoResourceReadyCompatMaxIndex()
+    {
+        static const uint32_t maxIndex = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_FRONTEND_DEMO_RESOURCE_READY_MAX_INDEX");
+            if (!value || value[0] == '\0')
+            {
+                return 0x93u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 0x93u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 0x400ul));
+        }();
+        return maxIndex;
+    }
+
+    uint32_t kofxiFrontendDemoResourceReadyCompatMinCandidates()
+    {
+        static const uint32_t minCandidates = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_FRONTEND_DEMO_RESOURCE_READY_MIN_CANDIDATES");
+            if (!value || value[0] == '\0')
+            {
+                return 4u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 4u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 0x400ul));
+        }();
+        return minCandidates;
+    }
+
+    uint8_t kofxiFrontendDemoResourceReadyCompatMask()
+    {
+        static const uint8_t mask = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_FRONTEND_DEMO_RESOURCE_READY_MASK");
+            if (!value || value[0] == '\0')
+            {
+                return static_cast<uint8_t>(0x88u);
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return static_cast<uint8_t>(0x88u);
+            }
+
+            const uint8_t parsedMask = static_cast<uint8_t>(parsed & 0xFFul);
+            return parsedMask != 0u ? parsedMask : static_cast<uint8_t>(0x88u);
+        }();
+        return mask;
+    }
+
     bool kofxiFrontendDemoTimerFastForwardCompatEnabled()
     {
         const char *value = std::getenv("PS2X_KOFXI_FRONTEND_DEMO_TIMER_FAST_FORWARD_COMPAT");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    bool kofxiDecordTaskBudgetCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_KOFXI_DECORD_TASK_BUDGET_COMPAT");
         return !value || value[0] == '\0' || value[0] != '0';
+    }
+
+    bool traceKofxiDecordTaskBudgetCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_DECORD_TASK_BUDGET_COMPAT");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    uint32_t kofxiDecordTaskBudgetCompatValue()
+    {
+        static const uint32_t budget = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_DECORD_TASK_BUDGET");
+            if (!value || value[0] == '\0')
+            {
+                return 0x00400000u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 0x00400000u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 0x4200ul, 0x02000000ul));
+        }();
+        return budget;
+    }
+
+    uint32_t kofxiDecordTaskBudgetCompatTraceLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_KOFXI_DECORD_TASK_BUDGET_COMPAT_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 64u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 64u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 1024ul));
+        }();
+        return limit;
+    }
+
+    bool kofxiDecordTaskFastCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_KOFXI_DECORD_TASK_FAST_COMPAT");
+        return !value || value[0] == '\0' || value[0] != '0';
+    }
+
+    bool traceKofxiDecordTaskFastCompatEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_DECORD_TASK_FAST_COMPAT");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    uint32_t kofxiDecordTaskFastCompatTraceLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_KOFXI_DECORD_TASK_FAST_COMPAT_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 64u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 64u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 1024ul));
+        }();
+        return limit;
     }
 
     bool kofxiFrontendPromptConfirmCompatEnabled()
@@ -755,7 +1425,7 @@ namespace
     bool kofxiFrontendDemoWaitCompleteCompatEnabled()
     {
         const char *value = std::getenv("PS2X_KOFXI_FRONTEND_DEMO_WAIT_COMPLETE_COMPAT");
-        return !value || value[0] == '\0' || value[0] != '0';
+        return value && value[0] != '\0' && value[0] != '0';
     }
 
     bool traceKofxiFrontendDemoWaitCompleteCompatEnabled()
@@ -930,6 +1600,72 @@ namespace
             return static_cast<uint16_t>(parsed & 0xFFFFul);
         }();
         return mask;
+    }
+
+    uint16_t kofxiTitleStartMask()
+    {
+        static const uint16_t mask = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_TITLE_START_MASK");
+            if (!value || value[0] == '\0')
+            {
+                return static_cast<uint16_t>(kofxiFrontendAutoStartMask() | 0x0008u);
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return static_cast<uint16_t>(kofxiFrontendAutoStartMask() | 0x0008u);
+            }
+
+            return static_cast<uint16_t>(parsed & 0xFFFFul);
+        }();
+        return mask;
+    }
+
+    uint32_t kofxiTitleStartDelayFrames()
+    {
+        static const uint32_t frames = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_TITLE_START_DELAY_FRAMES");
+            if (!value || value[0] == '\0')
+            {
+                return 30u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 30u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 0ul, 600ul));
+        }();
+        return frames;
+    }
+
+    uint32_t kofxiTitleStartPulseFrames()
+    {
+        static const uint32_t frames = []()
+        {
+            const char *value = std::getenv("PS2X_KOFXI_TITLE_START_PULSE_FRAMES");
+            if (!value || value[0] == '\0')
+            {
+                return 90u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 90u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 900ul));
+        }();
+        return frames;
     }
 
     uint32_t kofxiMainTaskTableTraceLimit()
@@ -1223,6 +1959,34 @@ namespace
         return value && value[0] != '\0' && value[0] != '0';
     }
 
+    bool traceKofxiSoftFloatHelperEnabled()
+    {
+        const char *value = std::getenv("PS2X_TRACE_KOFXI_SOFTFLOAT_HELPER");
+        return value && value[0] != '\0' && value[0] != '0';
+    }
+
+    uint32_t kofxiSoftFloatHelperTraceLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_KOFXI_SOFTFLOAT_HELPER_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 256u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 256u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 4096ul));
+        }();
+        return limit;
+    }
+
     uint32_t kofxiAsyncResourceHoldMicros()
     {
         static const uint32_t micros = []()
@@ -1477,6 +2241,121 @@ namespace
         return true;
     }
 
+    std::mutex &kofxiTraceLogMutex();
+
+    bool resolveGuestContiguousSpan(uint8_t *rdram, uint32_t addr, uint32_t size, uint8_t *&ptr, uint32_t &available)
+    {
+        ptr = nullptr;
+        available = 0u;
+        if (size == 0u)
+        {
+            return true;
+        }
+
+        uint32_t offset = 0u;
+        bool scratch = false;
+        if (!ps2ResolveGuestPointer(addr, offset, scratch))
+        {
+            return false;
+        }
+
+        if (scratch)
+        {
+            uint8_t *scratchpad = ps2GetScratchpadHostPtr();
+            if (!scratchpad || offset >= PS2_SCRATCHPAD_SIZE)
+            {
+                return false;
+            }
+
+            available = PS2_SCRATCHPAD_SIZE - offset;
+            ptr = scratchpad + offset;
+        }
+        else
+        {
+            if (!rdram || offset >= PS2_RAM_SIZE)
+            {
+                return false;
+            }
+
+            available = PS2_RAM_SIZE - offset;
+            ptr = rdram + offset;
+        }
+
+        return size <= available;
+    }
+
+    void kofxiGeneratedMemsetCompat(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        (void)runtime;
+        if (!ctx)
+        {
+            return;
+        }
+
+        const uint32_t entryPc = ctx->pc;
+        uint32_t originalDest = getRegU32(ctx, 4);
+        uint32_t dest = originalDest;
+        uint32_t count = getRegU32(ctx, 6);
+        uint8_t value = static_cast<uint8_t>(getRegU32(ctx, 5));
+        bool advanceA0 = false;
+        if (entryPc == 0x00127374u)
+        {
+            dest = getRegU32(ctx, 3);
+            const uint32_t remainingMinusOne = getRegU32(ctx, 6);
+            count = (remainingMinusOne == 0xFFFFFFFFu) ? 0u : (remainingMinusOne + 1u);
+        }
+        else if (entryPc == 0x0012A730u)
+        {
+            originalDest = getRegU32(ctx, 8);
+            dest = getRegU32(ctx, 4);
+            const uint32_t remainingMinusOne = getRegU32(ctx, 6);
+            count = (remainingMinusOne == 0xFFFFFFFFu) ? 0u : (remainingMinusOne + 1u);
+            value = 0u;
+            advanceA0 = true;
+        }
+
+        uint8_t *hostPtr = nullptr;
+        uint32_t available = 0u;
+        const bool fullSpan = resolveGuestContiguousSpan(rdram, dest, count, hostPtr, available);
+        const uint32_t writeCount = fullSpan ? count : std::min(count, available);
+        if (hostPtr && writeCount != 0u)
+        {
+            std::memset(hostPtr, value, writeCount);
+        }
+
+        if (traceKofxiGeneratedLibcCompatEnabled())
+        {
+            static std::atomic<uint32_t> s_generatedLibcLogs{0u};
+            const uint32_t index = s_generatedLibcLogs.fetch_add(1u, std::memory_order_relaxed);
+            if (index < kofxiGeneratedLibcTraceLimit())
+            {
+                std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+                std::cerr << "[KOFXI:generated-libc-memset] #" << std::dec << index
+                          << " entry=0x" << std::hex << entryPc
+                          << " dest=0x" << dest
+                          << " value=0x" << static_cast<uint32_t>(value)
+                          << " count=0x" << count
+                          << " written=0x" << writeCount
+                          << " full=" << (fullSpan ? 1u : 0u)
+                          << " ra=0x" << getRegU32(ctx, 31)
+                          << " ret=0x" << originalDest
+                          << std::dec << std::endl;
+            }
+        }
+
+        if (advanceA0)
+        {
+            SET_GPR_U32(ctx, 4, dest + count);
+        }
+        else
+        {
+            SET_GPR_U32(ctx, 3, dest + count);
+        }
+        SET_GPR_U32(ctx, 6, 0xFFFFFFFFu);
+        SET_GPR_U32(ctx, 2, originalDest);
+        ctx->pc = getRegU32(ctx, 31);
+    }
+
     uint32_t readGuestU32OrZero(uint8_t *rdram, uint32_t addr)
     {
         uint32_t value = 0;
@@ -1503,6 +2382,20 @@ namespace
         return ptr ? *ptr : 0;
     }
 
+    bool kofxiDemoRenderChainTraceStateMatches(uint8_t *rdram)
+    {
+        if (!kofxiDemoRenderChainTraceOrderOnly())
+        {
+            return true;
+        }
+
+        constexpr uint32_t kFrontendStatePtr = 0x0092F788u;
+        constexpr uint32_t kButtonHelpState = 0x001394B0u;
+        constexpr uint32_t kOrderSelectWaitState = 0x00139560u;
+        const uint32_t state = readGuestU32OrZero(rdram, kFrontendStatePtr);
+        return state == kButtonHelpState || state == kOrderSelectWaitState;
+    }
+
     std::string readGuestCString(uint8_t *rdram, uint32_t addr, size_t maxLength = 128u)
     {
         std::string out;
@@ -1524,6 +2417,141 @@ namespace
             out.push_back(std::isprint(ch) ? static_cast<char>(ch) : '.');
         }
         return out;
+    }
+
+    void copyGuestStrncpyFixed(uint8_t *rdram, uint32_t dest, uint32_t src, uint32_t count)
+    {
+        bool zeroFill = false;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            uint8_t value = 0u;
+            if (!zeroFill)
+            {
+                value = readGuestU8OrZero(rdram, ADD32(src, i));
+                zeroFill = value == 0u;
+            }
+
+            (void)writeGuestU8(rdram, ADD32(dest, i), value);
+        }
+    }
+
+    void kofxiResourceHalfwordSumResumeCompat(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        if (!rdram || !ctx)
+        {
+            return;
+        }
+
+        const uint32_t sp = getRegU32(ctx, 29);
+        const uint32_t resumePtr = getRegU32(ctx, 3);
+        const uint32_t remaining = getRegU32(ctx, 16);
+        const uint32_t basePtr = getRegU32(ctx, 5);
+        const uint32_t resourceEntry = getRegU32(ctx, 19);
+        const uint32_t halfwordCount = getRegU32(ctx, 20);
+        const uint32_t outHalfword = getRegU32(ctx, 22);
+        const uint32_t outByteSize = getRegU32(ctx, 23);
+        uint32_t sum = getRegU32(ctx, 18);
+        uint32_t cursor = resumePtr;
+
+        for (uint32_t i = 0; i < remaining; ++i)
+        {
+            sum = ADD32(sum, readGuestU16OrZero(rdram, cursor));
+            cursor = ADD32(cursor, 2u);
+        }
+
+        const uint32_t terminalHalfword = readGuestU16OrZero(rdram, ADD32(basePtr, halfwordCount * 2u));
+        (void)writeGuestU32(rdram, outHalfword, terminalHalfword);
+        (void)writeGuestU32(rdram, outByteSize, terminalHalfword << 11u);
+
+        const uint32_t nameOut = readGuestU32OrZero(rdram, ADD32(sp, 0u));
+        copyGuestStrncpyFixed(rdram, nameOut, ADD32(resourceEntry, 0x10u), 0x100u);
+
+        const uint32_t dataOut = readGuestU32OrZero(rdram, ADD32(sp, 4u));
+        (void)writeGuestU32(rdram, dataOut, readGuestU32OrZero(rdram, ADD32(resourceEntry, 0x110u)));
+
+        const uint32_t sumOut = readGuestU32OrZero(rdram, ADD32(sp, 8u));
+        (void)writeGuestU32(rdram, sumOut, ADD32(readGuestU32OrZero(rdram, ADD32(resourceEntry, 0x114u)), sum));
+
+        if (traceKofxiGeneratedLibcCompatEnabled())
+        {
+            static std::atomic<uint32_t> traceCount{0};
+            const uint32_t index = traceCount.fetch_add(1, std::memory_order_relaxed);
+            if (index < kofxiGeneratedLibcTraceLimit())
+            {
+                std::cerr << "[KOFXI:resource-helper-fast] #" << index
+                          << " pc=0x1b1638"
+                          << " remaining=0x" << std::hex << remaining
+                          << " resumePtr=0x" << resumePtr
+                          << " entry=0x" << resourceEntry
+                          << " count=0x" << halfwordCount
+                          << " sum=0x" << sum
+                          << " term=0x" << terminalHalfword
+                          << " outHalf=0x" << outHalfword
+                          << " outSize=0x" << outByteSize
+                          << std::dec << std::endl;
+            }
+        }
+
+        SET_GPR_U32(ctx, 2, getRegU32(ctx, 30));
+        SET_GPR_U64(ctx, 16, READ64(ADD32(sp, 0x10u)));
+        SET_GPR_U64(ctx, 17, READ64(ADD32(sp, 0x18u)));
+        SET_GPR_U64(ctx, 18, READ64(ADD32(sp, 0x20u)));
+        SET_GPR_U64(ctx, 19, READ64(ADD32(sp, 0x28u)));
+        SET_GPR_U64(ctx, 20, READ64(ADD32(sp, 0x30u)));
+        SET_GPR_U64(ctx, 21, READ64(ADD32(sp, 0x38u)));
+        SET_GPR_U64(ctx, 22, READ64(ADD32(sp, 0x40u)));
+        SET_GPR_U64(ctx, 23, READ64(ADD32(sp, 0x48u)));
+        SET_GPR_U64(ctx, 30, READ64(ADD32(sp, 0x50u)));
+        SET_GPR_U64(ctx, 31, READ64(ADD32(sp, 0x58u)));
+        SET_GPR_S32(ctx, 29, static_cast<int32_t>(ADD32(sp, 0x60u)));
+        ctx->in_delay_slot = false;
+        ctx->pc = getRegU32(ctx, 31);
+    }
+
+    void kofxiCdSearchFileCompat(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        if (!ctx)
+        {
+            return;
+        }
+
+        const uint32_t entryPc = ctx->pc;
+        const uint32_t ra = getRegU32(ctx, 31);
+        const uint32_t fileAddr = getRegU32(ctx, 4);
+        const uint32_t pathAddr = getRegU32(ctx, 5);
+        const uint32_t layer = getRegU32(ctx, 6);
+        const bool trace = traceKofxiCdSearchFileCompatEnabled();
+        const std::string path = trace ? readGuestCString(rdram, pathAddr, 260u) : std::string{};
+
+        ps2_stubs::sceCdSearchFile(rdram, ctx, runtime);
+        const uint32_t result = getRegU32(ctx, 2);
+
+        if (trace)
+        {
+            static std::atomic<uint32_t> s_logCount{0u};
+            const uint32_t index = s_logCount.fetch_add(1u, std::memory_order_relaxed);
+            if (index < 128u || (index & 0x1FFu) == 0u)
+            {
+                static std::mutex s_logMutex;
+                std::lock_guard<std::mutex> lock(s_logMutex);
+                std::cerr << "[KOFXI:cd-search-file-compat] #" << std::dec << index
+                          << " entry=0x" << std::hex << entryPc
+                          << " ra=0x" << ra
+                          << " file=0x" << fileAddr
+                          << " pathAddr=0x" << pathAddr
+                          << " layer=0x" << layer
+                          << " result=0x" << result
+                          << " lsn=0x" << readGuestU32OrZero(rdram, fileAddr)
+                          << " size=0x" << readGuestU32OrZero(rdram, fileAddr + 4u)
+                          << std::dec << " path=\"" << path << "\""
+                          << std::endl;
+            }
+        }
+
+        if (ctx->pc == entryPc)
+        {
+            ctx->pc = ra;
+        }
     }
 
     void appendGuestWords(std::ostream &out, uint8_t *rdram, uint32_t addr, uint32_t words)
@@ -1793,6 +2821,7 @@ namespace
     PS2Runtime::RecompiledFunction g_kofxiAsyncResourceRegisterSlotFn = nullptr;
     std::array<std::atomic<uint32_t>, 64u> g_kofxiHostAfsHeaderPtrs{};
     std::array<std::atomic<uint32_t>, 64u> g_kofxiHostAfsHandlePtrs{};
+    std::array<std::atomic<uint32_t>, 64u> g_kofxiHostAfsSlotPtrs{};
     PS2Runtime::RecompiledFunction g_kofxiOpenResourcePartitionFn = nullptr;
     PS2Runtime::RecompiledFunction g_kofxiInitializeResourceHandleFn = nullptr;
     PS2Runtime::RecompiledFunction g_kofxiReadPartitionInfoFn = nullptr;
@@ -1899,6 +2928,7 @@ namespace
     PS2Runtime::RecompiledFunction g_kofxiStreamWaitFn = nullptr;
     PS2Runtime::RecompiledFunction g_kofxiRenderQueueSubmitFn = nullptr;
     PS2Runtime::RecompiledFunction g_kofxiRenderQueueDrainFn = nullptr;
+    PS2Runtime::RecompiledFunction g_kofxiRenderJobCallbackFn = nullptr;
     PS2Runtime::RecompiledFunction g_kofxiRenderListProcessFn = nullptr;
     PS2Runtime::RecompiledFunction g_kofxiRenderListEnqueueFn = nullptr;
     PS2Runtime::RecompiledFunction g_kofxiRenderListClearFn = nullptr;
@@ -1910,12 +2940,16 @@ namespace
     PS2Runtime::RecompiledFunction g_kofxiObjectListRemoveFn = nullptr;
     std::unordered_map<uint32_t, PS2Runtime::RecompiledFunction> g_kofxiObjectServiceTraceFns;
     std::unordered_map<uint32_t, PS2Runtime::RecompiledFunction> g_kofxiBattleResourceStepTraceFns;
+    std::unordered_map<uint32_t, PS2Runtime::RecompiledFunction> g_kofxiNextStageServiceTraceFns;
+    std::unordered_map<uint32_t, PS2Runtime::RecompiledFunction> g_kofxiResourceFlagTransitionTraceFns;
     std::unordered_map<uint32_t, PS2Runtime::RecompiledFunction> g_kofxiResourcePackageInstallTraceFns;
     std::unordered_map<uint32_t, PS2Runtime::RecompiledFunction> g_kofxiResourceSlotCallbackTraceFns;
     std::unordered_map<uint32_t, PS2Runtime::RecompiledFunction> g_kofxiResourceDataChainTraceFns;
     PS2Runtime::RecompiledFunction g_kofxiScriptDispatchFn = nullptr;
     std::unordered_map<uint32_t, PS2Runtime::RecompiledFunction> g_kofxiFrontendTraceFns;
     std::unordered_map<uint32_t, PS2Runtime::RecompiledFunction> g_kofxiFrontendBootstrapTraceFns;
+    std::unordered_map<uint32_t, PS2Runtime::RecompiledFunction> g_kofxiFrontendDemoGateTraceFns;
+    std::unordered_map<uint32_t, PS2Runtime::RecompiledFunction> g_kofxiDemoRenderChainTraceFns;
     PS2Runtime::RecompiledFunction g_kofxiFrontendDemoTimerFn = nullptr;
     PS2Runtime::RecompiledFunction g_kofxiMainLoopFn = nullptr;
     PS2Runtime::RecompiledFunction g_kofxiMainLoopGateFn = nullptr;
@@ -1975,6 +3009,35 @@ namespace
         }
         yieldKofxiGuestCallbacks(runtime);
         logKofxiCallbackSlot("leave", name, entry, rdram, ctx);
+    }
+
+    void logKofxiSoftFloatHelperTrace(const char *phase, uint32_t index, uint8_t *rdram, R5900Context *ctx, uint32_t entryPc)
+    {
+        const uint32_t out = ctx ? getRegU32(ctx, 2) : 0u;
+        std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+        std::cerr << "[KOFXI:softfloat-helper] #" << std::dec << index
+                  << " " << (phase ? phase : "")
+                  << " entry=0x" << std::hex << entryPc
+                  << " pc=0x" << (ctx ? ctx->pc : 0u)
+                  << " ra=0x" << (ctx ? getRegU32(ctx, 31) : 0u)
+                  << " sp=0x" << (ctx ? getRegU32(ctx, 29) : 0u)
+                  << " out=0x" << out
+                  << " regs=0x" << (ctx ? GPR_U64(ctx, 9) : 0u)
+                  << "/0x" << (ctx ? GPR_U64(ctx, 10) : 0u)
+                  << "/0x" << (ctx ? GPR_U64(ctx, 11) : 0u)
+                  << "/0x" << (ctx ? GPR_U64(ctx, 12) : 0u)
+                  << "/0x" << (ctx ? GPR_U64(ctx, 13) : 0u)
+                  << "/0x" << (ctx ? GPR_U64(ctx, 14) : 0u)
+                  << "/0x" << (ctx ? GPR_U64(ctx, 15) : 0u)
+                  << " outW=0x" << readGuestU32OrZero(rdram, out)
+                  << "/0x" << readGuestU32OrZero(rdram, out + 4u)
+                  << "/0x" << readGuestU32OrZero(rdram, out + 8u)
+                  << "/0x" << readGuestU32OrZero(rdram, out + 0x10u)
+                  << "/0x" << readGuestU32OrZero(rdram, out + 0x14u)
+                  << " demo=0x" << readGuestU32OrZero(rdram, 0x009BA220u)
+                  << "/0x" << readGuestU32OrZero(rdram, 0x009BA228u)
+                  << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, 0x009BB578u))
+                  << std::dec << std::endl;
     }
 
     bool maybeResolveKofxiSoftFloatZeroMantissa(uint8_t *rdram, R5900Context *ctx, uint32_t entryPc, const char *phase)
@@ -2058,19 +3121,40 @@ namespace
         }
 
         const uint32_t entryPc = ctx->pc;
+        static std::atomic<uint32_t> s_softFloatHelperLogs{0u};
+        const bool traceHelper = traceKofxiSoftFloatHelperEnabled();
+        const uint32_t traceIndex = traceHelper ? s_softFloatHelperLogs.fetch_add(1u, std::memory_order_relaxed) : 0u;
+        const bool shouldTraceHelper = traceHelper && traceIndex < kofxiSoftFloatHelperTraceLimit();
+        if (shouldTraceHelper)
+        {
+            logKofxiSoftFloatHelperTrace("enter", traceIndex, rdram, ctx, entryPc);
+        }
+
         if (maybeResolveKofxiSoftFloatZeroMantissa(rdram, ctx, entryPc, "pre"))
         {
+            if (shouldTraceHelper)
+            {
+                logKofxiSoftFloatHelperTrace("leave-pre-resolve", traceIndex, rdram, ctx, entryPc);
+            }
             return;
         }
 
         PS2Runtime::RecompiledFunction original = g_kofxiSoftFloatHelperFn;
         if (!original || original == &kofxiSoftFloatZeroMantissaCompat)
         {
+            if (shouldTraceHelper)
+            {
+                logKofxiSoftFloatHelperTrace("missing-original", traceIndex, rdram, ctx, entryPc);
+            }
             return;
         }
 
         original(rdram, ctx, runtime);
         (void)maybeResolveKofxiSoftFloatZeroMantissa(rdram, ctx, entryPc, "post");
+        if (shouldTraceHelper)
+        {
+            logKofxiSoftFloatHelperTrace("leave", traceIndex, rdram, ctx, entryPc);
+        }
     }
 
     void runKofxiDeferredCallbackTraceCall(
@@ -2718,6 +3802,41 @@ namespace
                readGuestU32OrZero(rdram, child + 0x58u) == 0u;
     }
 
+    bool isKofxiActiveResourceReadCompleteWaitCandidate(
+        uint8_t *rdram,
+        uint32_t handle,
+        uint32_t status)
+    {
+        constexpr uint32_t kActiveHandle = 0x0036F818u;
+        if (!rdram || handle != kActiveHandle || status != 2u)
+        {
+            return false;
+        }
+
+        const uint32_t state0 = readGuestU8OrZero(rdram, handle);
+        const uint32_t state1 = readGuestU8OrZero(rdram, handle + 1u);
+        const uint32_t object = readGuestU32OrZero(rdram, handle + 0x04u);
+        const uint32_t requested = readGuestU32OrZero(rdram, handle + 0x0Cu);
+        const uint32_t completed = readGuestU32OrZero(rdram, handle + 0x20u);
+        const uint32_t remaining = readGuestU32OrZero(rdram, handle + 0x24u);
+        if (state0 != 1u ||
+            state1 != 2u ||
+            object == 0u ||
+            requested == 0u ||
+            completed < requested ||
+            remaining != 0u)
+        {
+            return false;
+        }
+
+        const uint32_t objectState0 = readGuestU8OrZero(rdram, object);
+        const uint32_t objectState1 = readGuestU8OrZero(rdram, object + 1u);
+        const uint32_t objectCompleted = readGuestU32OrZero(rdram, object + 0x20u);
+        return objectState0 == 1u &&
+               objectState1 == 2u &&
+               (objectCompleted == 0u || objectCompleted >= requested);
+    }
+
     bool shouldMapKofxiResourceWaitStatusComplete(
         uint8_t *rdram,
         R5900Context *ctx,
@@ -2764,6 +3883,11 @@ namespace
             object == 0u &&
             remaining0 == 0u &&
             remaining1 == 0u)
+        {
+            return true;
+        }
+
+        if (isKofxiActiveResourceReadCompleteWaitCandidate(rdram, handle, status))
         {
             return true;
         }
@@ -2882,7 +4006,7 @@ namespace
         SET_GPR_U32(ctx, 2, 3u);
         kofxiResourceWaitServicedClosedHandle().store(0u, std::memory_order_relaxed);
         logKofxiResourceWaitStatusCompat(
-            status == 0u ? "mapped-closed" : "mapped",
+            status == 0u ? "mapped-closed" : (status == 2u ? "mapped-read-complete" : "mapped"),
             rdram,
             ctx,
             handle,
@@ -3800,12 +4924,47 @@ namespace
                        { return static_cast<char>(std::tolower(c)); });
         std::replace(normalized.begin(), normalized.end(), '/', '\\');
 
-        constexpr std::string_view kBgmAfs = "\\zdx\\kofxibgm.afs";
-        constexpr std::string_view kBgmAfsWithCdrom0 = "cdrom0:\\zdx\\kofxibgm.afs";
-        constexpr std::string_view kBgmAfsWithCdrom = "cdrom:\\zdx\\kofxibgm.afs";
-        return normalized == kBgmAfs ||
-               normalized == kBgmAfsWithCdrom0 ||
-               normalized == kBgmAfsWithCdrom;
+        while (!normalized.empty() && std::isspace(static_cast<unsigned char>(normalized.back())))
+        {
+            normalized.pop_back();
+        }
+        while (!normalized.empty() && std::isspace(static_cast<unsigned char>(normalized.front())))
+        {
+            normalized.erase(normalized.begin());
+        }
+
+        const std::size_t versionSep = normalized.find(';');
+        if (versionSep != std::string::npos && versionSep + 1u < normalized.size())
+        {
+            bool numericVersion = true;
+            for (std::size_t i = versionSep + 1u; i < normalized.size(); ++i)
+            {
+                if (!std::isdigit(static_cast<unsigned char>(normalized[i])))
+                {
+                    numericVersion = false;
+                    break;
+                }
+            }
+            if (numericVersion)
+            {
+                normalized.erase(versionSep);
+            }
+        }
+
+        std::string_view guestPath = normalized;
+        if (guestPath.rfind("cdrom0:", 0u) == 0u)
+        {
+            guestPath.remove_prefix(7u);
+        }
+        else if (guestPath.rfind("cdrom:", 0u) == 0u)
+        {
+            guestPath.remove_prefix(6u);
+        }
+
+        return guestPath == "\\zdx\\kofxibgm.afs" ||
+               guestPath == "zdx\\kofxibgm.afs" ||
+               guestPath == "\\data\\zdx\\kofxibgm.afs" ||
+               guestPath == "data\\zdx\\kofxibgm.afs";
     }
 
     bool isKofxiAdxPathWithoutDevice(const std::string &path)
@@ -3869,6 +5028,7 @@ namespace
         uint32_t sizeBytes = 0u;
         uint32_t sectorCount = 0u;
         uint32_t currentSector = 0u;
+        std::vector<uint8_t> protectedReadSink;
     };
 
     std::mutex &kofxiHostCdvMutex()
@@ -3892,6 +5052,42 @@ namespace
     bool isKofxiHostCdvCookie(uint32_t cookie)
     {
         return cookie >= 0xFFB00000u && cookie < 0xFFC00000u;
+    }
+
+    bool rangesOverlap(uint32_t addr, size_t size, uint32_t begin, uint32_t end)
+    {
+        if (size == 0u || begin >= end)
+        {
+            return false;
+        }
+
+        const uint64_t rangeBegin = addr;
+        const uint64_t rangeEnd = rangeBegin + static_cast<uint64_t>(size);
+        return rangeBegin < end && rangeEnd > begin;
+    }
+
+    bool kofxiHostAfsReadOverlapsSlotScratch(uint32_t dst, size_t size)
+    {
+        constexpr uint32_t kSlotScratchBeginOffset = 0x800u;
+        constexpr uint32_t kSlotScratchEndOffset = 0x1800u;
+
+        for (const auto &slotPtrAtomic : g_kofxiHostAfsSlotPtrs)
+        {
+            const uint32_t slotPtr = slotPtrAtomic.load(std::memory_order_relaxed);
+            if (slotPtr == 0u)
+            {
+                continue;
+            }
+
+            const uint32_t scratchBegin = slotPtr + kSlotScratchBeginOffset;
+            const uint32_t scratchEnd = slotPtr + kSlotScratchEndOffset;
+            if (rangesOverlap(dst, size, scratchBegin, scratchEnd))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     uint32_t allocateKofxiHostCdvCookieLocked()
@@ -4168,6 +5364,7 @@ namespace
         uint32_t sectorCount = 0u;
         std::string guestPath;
         std::string hostPath;
+        bool protectedSlotScratchRead = false;
 
         {
             std::lock_guard<std::mutex> lock(kofxiHostCdvMutex());
@@ -4188,9 +5385,18 @@ namespace
                     const size_t bytesToRead = static_cast<size_t>(std::min<uint64_t>(static_cast<uint64_t>(sectorsToRead) << 11u, remainingBytes));
                     if (std::fseek(handle.file, static_cast<long>(byteOffset), SEEK_SET) == 0)
                     {
+                        const bool sinkSlotScratch =
+                            kofxiAdxHostCdvSlotScratchProtectEnabled() &&
+                            isKofxiBgmAfsGuestPath(handle.guestPath) &&
+                            kofxiHostAfsReadOverlapsSlotScratch(dst, bytesToRead);
                         std::array<uint8_t, 2048u> sector{};
                         size_t bytesReadTotal = 0u;
                         bool writeFailed = false;
+                        protectedSlotScratchRead = sinkSlotScratch;
+                        if (sinkSlotScratch && handle.protectedReadSink.size() < bytesToRead)
+                        {
+                            handle.protectedReadSink.resize(bytesToRead);
+                        }
                         while (bytesReadTotal < bytesToRead)
                         {
                             const size_t chunk = std::min<size_t>(sector.size(), bytesToRead - bytesReadTotal);
@@ -4199,10 +5405,16 @@ namespace
                             {
                                 break;
                             }
-                            if (!writeGuestBytes(rdram,
-                                                 dst + static_cast<uint32_t>(bytesReadTotal),
-                                                 sector.data(),
-                                                 bytesRead))
+                            if (sinkSlotScratch)
+                            {
+                                std::memcpy(handle.protectedReadSink.data() + bytesReadTotal,
+                                            sector.data(),
+                                            bytesRead);
+                            }
+                            else if (!writeGuestBytes(rdram,
+                                                      dst + static_cast<uint32_t>(bytesReadTotal),
+                                                      sector.data(),
+                                                      bytesRead))
                             {
                                 writeFailed = true;
                                 break;
@@ -4230,7 +5442,14 @@ namespace
         }
 
         returnFromGuestCall(ctx, sectorsRead);
-        logKofxiHostCdvCompat("read", cookie, guestPath, hostPath, currentSector, requestedSectors, sectorsRead, ctx);
+        logKofxiHostCdvCompat(protectedSlotScratchRead ? "read-sink-slot-scratch" : "read",
+                              cookie,
+                              guestPath,
+                              hostPath,
+                              currentSector,
+                              requestedSectors,
+                              sectorsRead,
+                              ctx);
         return true;
     }
 
@@ -4397,6 +5616,7 @@ namespace
 
         g_kofxiHostAfsHeaderPtrs[slotId].store(headerPtr, std::memory_order_relaxed);
         g_kofxiHostAfsHandlePtrs[slotId].store(fakeHandlePtr, std::memory_order_relaxed);
+        g_kofxiHostAfsSlotPtrs[slotId].store(slotPtr, std::memory_order_relaxed);
 
         (void)writeGuestU32(rdram, kAsyncProgressIndex, 0u);
         (void)writeGuestU32(rdram, kAsyncActiveHandle, fakeHandlePtr);
@@ -6807,6 +8027,13 @@ namespace
 
     bool isKofxiUpperEmptyChildCompletePending(uint8_t *rdram, uint32_t upper, uint32_t child);
 
+    void promoteKofxiUpperZeroStateForSlotConsumeIfNeeded(
+        uint8_t *rdram,
+        R5900Context *ctx,
+        const KofxiObjectPumpPointers &ptrs,
+        uint32_t slot,
+        PS2Runtime *runtime);
+
     void consumeKofxiCompletedPumpSlotIfNeeded(
         uint8_t *rdram,
         R5900Context *ctx,
@@ -7561,6 +8788,7 @@ namespace
             return;
         }
 
+        promoteKofxiUpperZeroStateForSlotConsumeIfNeeded(rdram, ctx, before, slot, runtime);
         if (!isKofxiPumpSlotConsumeCandidate(rdram, slot, before, runtime))
         {
             logKofxiPumpSlotConsumeReject("candidate-filter", rdram, ctx, slot, before, runtime);
@@ -8009,6 +9237,96 @@ namespace
                readGuestU32OrZero(rdram, upper + 0x28u) == child &&
                readGuestU8OrZero(rdram, child) == 1u &&
                readGuestU8OrZero(rdram, child + 1u) == 4u;
+    }
+
+    void promoteKofxiUpperZeroStateForSlotConsumeIfNeeded(
+        uint8_t *rdram,
+        R5900Context *ctx,
+        const KofxiObjectPumpPointers &ptrs,
+        uint32_t slot,
+        PS2Runtime *runtime)
+    {
+        if (!kofxiUpperChildCompleteCompatEnabled() || !rdram || !runtime ||
+            !isKofxiCallbackResourceSlotAddress(slot))
+        {
+            return;
+        }
+
+        if (readGuestU8OrZero(rdram, slot) != 1u ||
+            readGuestU8OrZero(rdram, slot + 1u) != 6u ||
+            readGuestU8OrZero(rdram, slot + 2u) != 4u ||
+            readGuestU8OrZero(rdram, slot + 0xADu) != 1u)
+        {
+            return;
+        }
+
+        const uint32_t upper = ptrs.upper ? ptrs.upper : readGuestU32OrZero(rdram, slot + 0x94u);
+        const uint32_t slotChild = readGuestU32OrZero(rdram, slot + 0x08u);
+        const uint32_t upperChild = isKofxiUpperResourceSlotAddress(upper) ? readGuestU32OrZero(rdram, upper + 0x28u) : 0u;
+        const uint32_t child = isKofxiChildResourceAddress(slotChild) ? slotChild : upperChild;
+        if (!isKofxiUpperResourceSlotAddress(upper) ||
+            !isKofxiChildResourceAddress(child) ||
+            upperChild != child ||
+            readGuestU8OrZero(rdram, upper) != 1u ||
+            readGuestU8OrZero(rdram, upper + 1u) != 0u ||
+            readGuestU8OrZero(rdram, upper + 2u) != 0u ||
+            readGuestU8OrZero(rdram, upper + 3u) != 0u ||
+            readGuestU8OrZero(rdram, upper + 4u) != 0u ||
+            readGuestU32OrZero(rdram, upper + 0x20u) != 0u ||
+            readGuestU32OrZero(rdram, upper + 0x24u) != 0u ||
+            readGuestU8OrZero(rdram, child) != 1u ||
+            readGuestU8OrZero(rdram, child + 1u) != 4u ||
+            readGuestU32OrZero(rdram, child + 0x24u) != 0u ||
+            readGuestU32OrZero(rdram, child + 0x28u) != 0u)
+        {
+            return;
+        }
+
+        const uint32_t object10 = readGuestU32OrZero(rdram, slot + 0x10u);
+        const uint32_t object10Vtable = object10 ? readGuestU32OrZero(rdram, object10) : 0u;
+        const uint32_t callback = object10Vtable ? readGuestU32OrZero(rdram, object10Vtable + 0x14u) : 0u;
+        if (object10 == 0u ||
+            object10Vtable == 0u ||
+            (callback != 0u && !runtime->hasFunction(callback)))
+        {
+            return;
+        }
+
+        const uint32_t callbackCount = readGuestU8OrZero(rdram, slot + 3u);
+        if (callbackCount > 8u)
+        {
+            return;
+        }
+        for (uint32_t i = 0u; i < callbackCount; ++i)
+        {
+            const uint32_t object = readGuestU32OrZero(rdram, slot + 0x18u + i * 4u);
+            const uint32_t vtable = object ? readGuestU32OrZero(rdram, object) : 0u;
+            const uint32_t objectCallback = vtable ? readGuestU32OrZero(rdram, vtable + 0x14u) : 0u;
+            if (object == 0u ||
+                vtable == 0u ||
+                (objectCallback != 0u && !runtime->hasFunction(objectCallback)))
+            {
+                return;
+            }
+        }
+
+        const uint32_t beforeState = readGuestU8OrZero(rdram, upper + 1u);
+        if (!writeGuestU8(rdram, upper + 1u, 3u))
+        {
+            return;
+        }
+
+        KofxiObjectPumpPointers promoted = ptrs;
+        promoted.slot = slot;
+        promoted.upper = upper;
+        logKofxiUpperChildCompleteCompat(
+            "promote-upper-zero-state-slot-consume",
+            upper,
+            child,
+            promoted,
+            rdram,
+            ctx,
+            beforeState);
     }
 
     uint32_t resolveKofxiPumpChild(uint8_t *rdram, const KofxiObjectPumpPointers &ptrs)
@@ -10071,10 +11389,19 @@ namespace
         constexpr uint32_t kPendingListCount = 0x0092F0F8u;
         constexpr uint32_t kPendingListProcessed = 0x0092F0F0u;
         constexpr uint32_t kPendingListBase = 0x0092EFF0u;
+        constexpr uint32_t kJobListBase = 0x01DA47B0u;
         const uint32_t count = readGuestU32OrZero(rdram, kCounter);
         const uint32_t pending = readGuestU32OrZero(rdram, kPendingListCount);
         const uint32_t processed = readGuestU32OrZero(rdram, kPendingListProcessed);
         const uint32_t firstItem = readGuestU32OrZero(rdram, kPendingListBase);
+        const uint32_t firstJob = readGuestU32OrZero(rdram, kJobListBase);
+        const uint32_t secondJob = readGuestU32OrZero(rdram, kJobListBase + 4u);
+        const uint32_t firstJobState0 = firstJob ? readGuestU32OrZero(rdram, firstJob + 0x100u) : 0u;
+        const uint32_t firstJobState1 = firstJob ? readGuestU32OrZero(rdram, firstJob + 0x104u) : 0u;
+        const uint32_t firstJobState2 = firstJob ? readGuestU32OrZero(rdram, firstJob + 0x108u) : 0u;
+        const uint32_t firstJobState3 = firstJob ? readGuestU32OrZero(rdram, firstJob + 0x10Cu) : 0u;
+        const uint32_t firstJobSort = firstJob ? readGuestU32OrZero(rdram, firstJob + 0x110u) : 0u;
+        const uint32_t firstJobCallback = firstJob ? readGuestU32OrZero(rdram, firstJob + 0x114u) : 0u;
 
         std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
         std::cerr << "[KOFXI:render-queue-drain] #" << logIndex
@@ -10090,6 +11417,12 @@ namespace
                   << " pending=0x" << pending
                   << " processed=0x" << processed
                   << " firstItem=0x" << firstItem
+                  << " job0=0x" << firstJob
+                  << " job1=0x" << secondJob
+                  << " job0State=0x" << firstJobState0 << "/0x" << firstJobState1
+                  << "/0x" << firstJobState2 << "/0x" << firstJobState3
+                  << " job0Sort=0x" << firstJobSort
+                  << " job0Cb=0x" << firstJobCallback
                   << " ret=0x" << (ctx ? getRegU32(ctx, 2) : 0u)
                   << std::dec << std::endl;
     }
@@ -10121,6 +11454,88 @@ namespace
         }
 
         logKofxiRenderQueueDrainTrace("leave", name, rdram, ctx, entryPc, callRa, callSp, a0, a1, countBefore);
+    }
+
+    void logKofxiRenderJobCallbackTrace(
+        const char *phase,
+        uint8_t *rdram,
+        R5900Context *ctx,
+        PS2Runtime *runtime,
+        uint32_t entryPc,
+        uint32_t callRa,
+        uint32_t callSp,
+        uint32_t job)
+    {
+        if (!traceKofxiRenderQueueDrainEnabled())
+        {
+            return;
+        }
+
+        static std::atomic<uint32_t> s_renderJobCallbackLogs{0u};
+        const uint32_t logIndex = s_renderJobCallbackLogs.fetch_add(1u, std::memory_order_relaxed);
+        if (logIndex >= 512u)
+        {
+            return;
+        }
+
+        auto jobWord = [&](uint32_t offset) -> uint32_t
+        {
+            return job ? readGuestU32OrZero(rdram, job + offset) : 0u;
+        };
+
+        const uint32_t gifChcr = readKofxiIo32Snapshot(runtime, rdram, ctx, 0x1000A000u);
+        const uint32_t gifMadr = readKofxiIo32Snapshot(runtime, rdram, ctx, 0x1000A010u);
+        const uint32_t gifQwc = readKofxiIo32Snapshot(runtime, rdram, ctx, 0x1000A020u);
+        const uint32_t gifTadr = readKofxiIo32Snapshot(runtime, rdram, ctx, 0x1000A030u);
+        const uint32_t dStat = readKofxiIo32Snapshot(runtime, rdram, ctx, 0x1000E010u);
+        const uint32_t gsCsr = readKofxiIo32Snapshot(runtime, rdram, ctx, 0x12001000u);
+
+        std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+        std::cerr << "[KOFXI:render-job-callback] #" << logIndex
+                  << " " << (phase ? phase : "")
+                  << " entry=0x" << std::hex << entryPc
+                  << " pc=0x" << (ctx ? ctx->pc : 0u)
+                  << " ra=0x" << callRa
+                  << " sp=0x" << callSp
+                  << " job=0x" << job
+                  << " w00..1c=0x" << jobWord(0x00u) << "/0x" << jobWord(0x04u)
+                  << "/0x" << jobWord(0x08u) << "/0x" << jobWord(0x0Cu)
+                  << "/0x" << jobWord(0x10u) << "/0x" << jobWord(0x14u)
+                  << "/0x" << jobWord(0x18u) << "/0x" << jobWord(0x1Cu)
+                  << " w20..3c=0x" << jobWord(0x20u) << "/0x" << jobWord(0x24u)
+                  << "/0x" << jobWord(0x28u) << "/0x" << jobWord(0x2Cu)
+                  << "/0x" << jobWord(0x30u) << "/0x" << jobWord(0x34u)
+                  << "/0x" << jobWord(0x38u) << "/0x" << jobWord(0x3Cu)
+                  << " state=0x" << jobWord(0x100u) << "/0x" << jobWord(0x104u)
+                  << "/0x" << jobWord(0x108u) << "/0x" << jobWord(0x10Cu)
+                  << " sort=0x" << jobWord(0x110u)
+                  << " cb=0x" << jobWord(0x114u)
+                  << " gif=0x" << gifChcr << "/0x" << gifMadr << "/0x" << gifQwc << "/0x" << gifTadr
+                  << " dstat=0x" << dStat
+                  << " gsCsr=0x" << gsCsr
+                  << " ret=0x" << (ctx ? getRegU32(ctx, 2) : 0u)
+                  << std::dec << std::endl;
+    }
+
+    void kofxiTraceRenderJobCallback(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        if (!rdram || !ctx)
+        {
+            return;
+        }
+
+        const uint32_t entryPc = ctx->pc;
+        const uint32_t callRa = getRegU32(ctx, 31);
+        const uint32_t callSp = getRegU32(ctx, 29);
+        const uint32_t job = getRegU32(ctx, 4);
+        logKofxiRenderJobCallbackTrace("enter", rdram, ctx, runtime, entryPc, callRa, callSp, job);
+
+        if (g_kofxiRenderJobCallbackFn && g_kofxiRenderJobCallbackFn != &kofxiTraceRenderJobCallback)
+        {
+            g_kofxiRenderJobCallbackFn(rdram, ctx, runtime);
+        }
+
+        logKofxiRenderJobCallbackTrace("leave", rdram, ctx, runtime, entryPc, callRa, callSp, job);
     }
 
     void logKofxiRenderListStateTrace(
@@ -10634,11 +12049,13 @@ namespace
         case 0x00176580u: return "resourceObjectBindSoundB";
         case 0x001765B8u: return "resourceObjectDone";
         case 0x00176690u: return "resourceObjectRun";
+        case 0x00176760u: return "resourceObjectRun2";
         case 0x00177750u: return "resourceObjectSelectExtra";
         case 0x00177F30u: return "resourceObjectInitTables";
         case 0x00177F70u: return "resourceObjectSpawnPair";
         case 0x00177420u: return "resourceObjectBucketFe";
         case 0x001779C0u: return "resourceObjectBucketFd";
+        case 0x001986E0u: return "demoDecordTask";
         default: return "objectServiceTrace";
         }
     }
@@ -10691,6 +12108,101 @@ namespace
         }
     }
 
+    void appendKofxiObjectBucketSummary(std::ostream &out, uint8_t *rdram, const char *label, uint32_t bucketAddr)
+    {
+        const uint32_t object = readGuestU32OrZero(rdram, bucketAddr);
+        out << " " << (label ? label : "bucket") << "=0x" << object;
+        if (object != 0u)
+        {
+            appendKofxiObjectServiceObject(out, rdram, object);
+        }
+    }
+
+    void appendKofxiResourceIndexMiniSummary(std::ostream &out, uint8_t *rdram, const char *label, uint32_t index)
+    {
+        constexpr uint32_t kResourceFlags = 0x009BAC60u;
+        constexpr uint32_t kResourceLoading = 0x009BACF0u;
+        constexpr uint32_t kResourceSlots = 0x009BA380u;
+        constexpr uint32_t kResourceActive = 0x009BA580u;
+        constexpr uint32_t kResourceFallback = 0x009BABE0u;
+
+        out << " " << (label ? label : "res") << "=0x" << index;
+        if (index >= 0x100u)
+        {
+            return;
+        }
+
+        out << "/flag0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kResourceFlags + index))
+            << "/load0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kResourceLoading + index))
+            << "/fallback0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kResourceFallback + index))
+            << "/slot0x" << readGuestU32OrZero(rdram, kResourceSlots + index * 4u)
+            << "/active0x" << readGuestU32OrZero(rdram, kResourceActive + index * 4u);
+    }
+
+    void appendKofxiObjectBucketsSummary(std::ostream &out, uint8_t *rdram)
+    {
+        constexpr uint32_t kBucketBase = 0x009AFFD0u;
+        appendKofxiObjectBucketSummary(out, rdram, "bucket0obj", kBucketBase);
+        appendKofxiObjectBucketSummary(out, rdram, "bucketFDobj", kBucketBase + 0xFDu * 8u);
+        appendKofxiObjectBucketSummary(out, rdram, "bucketFEobj", kBucketBase + 0xFEu * 8u);
+        appendKofxiObjectBucketSummary(out, rdram, "bucketFFobj", kBucketBase + 0xFFu * 8u);
+    }
+
+    void appendKofxiActiveObjectBucketsBrief(std::ostream &out, uint8_t *rdram, const char *label, uint32_t maxBuckets)
+    {
+        constexpr uint32_t kBucketBase = 0x009AFFD0u;
+        constexpr uint32_t kBucketStride = 8u;
+
+        out << " " << (label ? label : "activeBuckets") << "=";
+        uint32_t total = 0u;
+        uint32_t logged = 0u;
+        for (uint32_t i = 0u; i < 256u; ++i)
+        {
+            const uint32_t bucket = kBucketBase + i * kBucketStride;
+            const uint32_t head = readGuestU32OrZero(rdram, bucket);
+            const uint32_t tail = readGuestU32OrZero(rdram, bucket + 4u);
+            if (head == 0u && tail == 0u)
+            {
+                continue;
+            }
+
+            ++total;
+            if (logged >= maxBuckets)
+            {
+                continue;
+            }
+
+            out << (logged == 0u ? "[" : ",")
+                << std::hex << i
+                << ":0x" << head
+                << "/0x" << tail;
+            if (head != 0u)
+            {
+                out << ":cb0x" << readGuestU32OrZero(rdram, head + 0x08u)
+                    << ":b0x" << readGuestU32OrZero(rdram, head + 0x04u);
+                const std::string name = readGuestCString(rdram, head + 0x22u, 20u);
+                if (!name.empty())
+                {
+                    out << ":'" << name << "'";
+                }
+            }
+            ++logged;
+        }
+
+        if (total == 0u)
+        {
+            out << "[]";
+            return;
+        }
+
+        out << "]";
+        if (total > logged)
+        {
+            out << "+0x" << std::hex << (total - logged);
+        }
+        out << "/0x" << std::hex << total;
+    }
+
     void logKofxiObjectServiceTrace(
         const char *phase,
         const char *name,
@@ -10730,6 +12242,9 @@ namespace
         const uint32_t object = kofxiTraceObjectForEntry(rdram, entryPc, a0, a1);
         const uint32_t callback = readGuestU32OrZero(rdram, object + 0x08u);
         const uint32_t bucket0 = readGuestU32OrZero(rdram, kBucketBase);
+        const uint32_t bucketFd = readGuestU32OrZero(rdram, kBucketBase + 0xFDu * 8u);
+        const uint32_t bucketFe = readGuestU32OrZero(rdram, kBucketBase + 0xFEu * 8u);
+        const uint32_t bucketFf = readGuestU32OrZero(rdram, kBucketBase + 0xFFu * 8u);
 
         std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
         std::cerr << "[KOFXI:object-service] #" << logIndex
@@ -10751,6 +12266,12 @@ namespace
                   << " buckets=0x" << countKofxiObjectBuckets(rdram)
                   << " bucket0=0x" << bucket0
                   << "/0x" << readGuestU32OrZero(rdram, kBucketBase + 4u)
+                  << " bucketFD=0x" << bucketFd
+                  << "/0x" << readGuestU32OrZero(rdram, kBucketBase + 0xFDu * 8u + 4u)
+                  << " bucketFE=0x" << bucketFe
+                  << "/0x" << readGuestU32OrZero(rdram, kBucketBase + 0xFEu * 8u + 4u)
+                  << " bucketFF=0x" << bucketFf
+                  << "/0x" << readGuestU32OrZero(rdram, kBucketBase + 0xFFu * 8u + 4u)
                   << " objectQueue=0x" << objectQueueBefore
                   << "->0x" << readGuestU16OrZero(rdram, kObjectRenderQueueCount)
                   << " render=0x" << readGuestU32OrZero(rdram, kRenderSubmitCount)
@@ -10765,6 +12286,11 @@ namespace
         {
             std::cerr << " target=0x" << a0
                       << " targetName=" << kofxiObjectServiceTraceName(a0);
+        }
+        appendKofxiResourceIndexMiniSummary(std::cerr, rdram, "res0A", 0x0Au);
+        if (bucketFf != 0u)
+        {
+            appendKofxiObjectBucketSummary(std::cerr, rdram, "bucketFFobj", kBucketBase + 0xFFu * 8u);
         }
 
         std::cerr << std::dec << std::endl;
@@ -10879,6 +12405,11 @@ namespace
         case 0x0017A590u: return "battleResourceCleanup";
         case 0x0017A650u: return "battleResourceCommandPump";
         case 0x0017A260u: return "battleResourceState2Ready";
+        case 0x00176370u: return "battleResourceObjectStageA";
+        case 0x00176480u: return "battleResourceObjectLoadGate";
+        case 0x00176540u: return "battleResourceObjectBindSoundA";
+        case 0x00176690u: return "battleResourceObjectRun";
+        case 0x00176760u: return "battleResourceObjectRun2";
         case 0x00198390u: return "battleResourceLoadRequest";
         case 0x001985D0u: return "battleResourceLoadFinish";
         case 0x0019F340u: return "battleResourceSoundStart";
@@ -11078,6 +12609,7 @@ namespace
         {
             appendKofxiObjectServiceObject(out, rdram, mainObject);
         }
+        appendKofxiObjectBucketsSummary(out, rdram);
     }
 
     void logKofxiBattleResourceStepTrace(
@@ -11201,12 +12733,13 @@ namespace
                   << "/0x" << readGuestU32OrZero(rdram, kRenderListCount)
                   << "/0x" << readGuestU32OrZero(rdram, kRenderListProcessed)
                   << "/0x" << readGuestU32OrZero(rdram, kRenderSubmitCount);
+        appendKofxiObjectBucketsSummary(std::cerr, rdram);
         appendKofxiBattleResourceBytes(std::cerr, rdram, "cmdBytes", commandPtr, 32u);
         appendKofxiBattleResourceBytes(std::cerr, rdram, "flags", kResourceFlags, 16u);
         std::cerr << std::dec << std::endl;
     }
 
-    bool maybeAdvanceKofxiFrontendDemoAfterCommandPump(uint8_t *rdram, R5900Context *ctx, uint32_t entryPc, uint32_t payload)
+    bool maybeAdvanceKofxiFrontendDemoGateCompat(uint8_t *rdram, R5900Context *ctx, uint32_t entryPc, uint32_t payload)
     {
         constexpr uint32_t kCommandPump = 0x0017A650u;
         constexpr uint32_t kFrontendStatePtr = 0x0092F788u;
@@ -11218,11 +12751,12 @@ namespace
         constexpr uint32_t kDemoTimerIncrementFlag = 0x009BB578u;
         constexpr uint32_t kDemoEventResult = 0x009BA7A0u;
 
+        const bool fromCommandPump = entryPc == kCommandPump;
+        const bool fromDemoTimer = entryPc == kFrontendDemoState;
         if (!kofxiFrontendDemoAdvanceCompatEnabled() ||
             !rdram ||
             !ctx ||
-            entryPc != kCommandPump ||
-            payload == 0u ||
+            (!fromCommandPump && !fromDemoTimer) ||
             readGuestU32OrZero(rdram, kFrontendStatePtr) != kFrontendDemoState)
         {
             return false;
@@ -11231,18 +12765,20 @@ namespace
         const uint32_t bucket0 = readGuestU32OrZero(rdram, kObjectBucketBase);
         const uint32_t callback = bucket0 != 0u ? readGuestU32OrZero(rdram, bucket0 + 0x08u) : 0u;
         const uint32_t bucketPayload = bucket0 != 0u ? readGuestU32OrZero(rdram, bucket0 + 0x10u) : 0u;
+        const uint32_t effectivePayload = fromDemoTimer ? bucketPayload : payload;
         if (bucket0 == 0u ||
             callback != kDemoTaskCallback ||
-            bucketPayload != payload ||
+            effectivePayload == 0u ||
+            bucketPayload != effectivePayload ||
             readGuestU8OrZero(rdram, kDemoAdvanceGate) != 0u)
         {
             return false;
         }
 
         const uint32_t eventResult = readGuestU32OrZero(rdram, kDemoEventResult);
-        const uint32_t commandPtr = readGuestU32OrZero(rdram, payload + 0x0Cu);
-        const uint16_t payloadB4 = readGuestU16OrZero(rdram, payload + 0xB4u);
-        const uint32_t payloadFlags = readGuestU32OrZero(rdram, payload + 0xB8u);
+        const uint32_t commandPtr = readGuestU32OrZero(rdram, effectivePayload + 0x0Cu);
+        const uint16_t payloadB4 = readGuestU16OrZero(rdram, effectivePayload + 0xB4u);
+        const uint32_t payloadFlags = readGuestU32OrZero(rdram, effectivePayload + 0xB8u);
         const uint32_t timer = readGuestU32OrZero(rdram, kDemoTimerCounter);
         const uint8_t incFlag = readGuestU8OrZero(rdram, kDemoTimerIncrementFlag);
         if (eventResult == 0u ||
@@ -11268,8 +12804,9 @@ namespace
                           << " entry=0x" << std::hex << entryPc
                           << " pc=0x" << (ctx ? ctx->pc : 0u)
                           << " ra=0x" << (ctx ? getRegU32(ctx, 31) : 0u)
+                          << " source=" << (fromDemoTimer ? "timer" : "command")
                           << " bucket0=0x" << bucket0
-                          << " payload=0x" << payload
+                          << " payload=0x" << effectivePayload
                           << " eventResult=0x" << eventResult
                           << " commandPtr=0x" << commandPtr
                           << " payloadB4B8=0x" << payloadB4 << "/0x" << payloadFlags
@@ -11359,7 +12896,7 @@ namespace
         }
 
         original(rdram, ctx, runtime);
-        (void)maybeAdvanceKofxiFrontendDemoAfterCommandPump(rdram, ctx, entryPc, a0);
+        (void)maybeAdvanceKofxiFrontendDemoGateCompat(rdram, ctx, entryPc, a0);
 
         if (shouldLog)
         {
@@ -11483,6 +13020,274 @@ namespace
         out << " readyCursor=0x" << scan << "/0x" << fe << "/0x" << fd << "/0x" << count;
         appendKofxiReadyEntrySnapshot(out, rdram, "readyFe", fe);
         appendKofxiReadyEntrySnapshot(out, rdram, "readyFd", fd);
+    }
+
+    const char *kofxiResourceFlagTransitionTraceName(uint32_t entry)
+    {
+        switch (entry)
+        {
+        case 0x001770D0u: return "resourceFrameService";
+        case 0x00177198u: return "resourceRecordScan";
+        case 0x00177350u: return "resourceSlotSelect";
+        case 0x00177420u: return "resourceSlotSelectLoop";
+        case 0x00177494u: return "resourceSlotMeasureReturn";
+        case 0x001774BCu: return "resourceSlotLoadNext";
+        case 0x0017753Cu: return "resourceSlotFlag40Tail";
+        case 0x001775A0u: return "resourceLoadOne";
+        case 0x001775F0u: return "resourceLoadGate";
+        case 0x00177628u: return "resourceLoadFindEmpty";
+        case 0x001776B8u: return "resourceLoadFinishReturn";
+        case 0x00178090u: return "resourceStateCleanup";
+        case 0x001780DCu: return "resourceStateCleanupCallback";
+        case 0x001780E4u: return "resourceStateClear20";
+        case 0x00178118u: return "resourceStateClearSlots";
+        case 0x00178128u: return "resourceStateZeroFlags";
+        case 0x00178170u: return "resourceStateAdvance";
+        case 0x00178220u: return "resourceStateSet2";
+        case 0x00178298u: return "resourceStateSet3";
+        case 0x00178310u: return "resourceStateCheckReady";
+        case 0x00178394u: return "resourceStateFinalize";
+        case 0x001783E4u: return "resourceStateRelease";
+        case 0x00178428u: return "resourceStateDone";
+        case 0x00178560u: return "resourceReadyGate";
+        case 0x001789E0u: return "resourceState0Ready";
+        case 0x00178AC8u: return "resourceState0GateA";
+        case 0x00178BA0u: return "resourceState0DrawSetup";
+        case 0x00178BC0u: return "resourceState0Flag2";
+        case 0x00178BC8u: return "resourceState0Flag2Tail";
+        case 0x00178CACu: return "resourceState0Return";
+        case 0x00178CF0u: return "resourceState1Ready";
+        case 0x00178D7Cu: return "resourceState1MathA";
+        case 0x00178D9Cu: return "resourceState1MathB";
+        case 0x00178DA4u: return "resourceState1AfterMath";
+        case 0x0017A1DCu: return "resourceState1ReturnA";
+        case 0x0017A208u: return "resourceState1ReturnB";
+        case 0x0017A22Cu: return "resourceState1ReturnC";
+        case 0x0017A260u: return "resourceState2Ready";
+        default: return "resourceFlagTransition";
+        }
+    }
+
+    uint32_t kofxiResourceIndexFromObject(uint8_t *rdram, uint32_t object)
+    {
+        if (!rdram || object == 0u || !getMemPtr(rdram, object + 0x1Cu))
+        {
+            return UINT32_MAX;
+        }
+
+        const uint32_t tag = readGuestU32OrZero(rdram, object + 0x1Cu);
+        const uint32_t oneBased = tag >> 12;
+        if (oneBased == 0u)
+        {
+            return UINT32_MAX;
+        }
+
+        const uint32_t index = oneBased - 1u;
+        return index < 0x100u ? index : UINT32_MAX;
+    }
+
+    void appendKofxiResourceFlagIndex(std::ostream &out, uint8_t *rdram, const char *label, uint32_t index)
+    {
+        constexpr uint32_t kResourceFlags = 0x009BAC60u;
+        constexpr uint32_t kResourceLoading = 0x009BACF0u;
+        constexpr uint32_t kResourceSlots = 0x009BA380u;
+        constexpr uint32_t kResourceActive = 0x009BA580u;
+        constexpr uint32_t kResourceFallback = 0x009BABE0u;
+        constexpr uint32_t kResourceRecords = 0x009BAF70u;
+
+        out << " " << (label ? label : "idx") << "=0x" << index;
+        if (index >= 0x100u)
+        {
+            return;
+        }
+
+        out << "/flag0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kResourceFlags + index))
+            << "/load0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kResourceLoading + index))
+            << "/fallback0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kResourceFallback + index))
+            << "/slot0x" << readGuestU32OrZero(rdram, kResourceSlots + index * 4u)
+            << "/active0x" << readGuestU32OrZero(rdram, kResourceActive + index * 4u)
+            << "/record0x" << readGuestU32OrZero(rdram, kResourceRecords + index * 4u);
+    }
+
+    void appendKofxiResourceFlagFocus(
+        std::ostream &out,
+        uint8_t *rdram,
+        R5900Context *ctx,
+        uint32_t a0,
+        uint32_t a1,
+        uint32_t a2,
+        uint32_t a3)
+    {
+        constexpr uint32_t kResourceFlags = 0x009BAC60u;
+        constexpr uint32_t kResourceLoading = 0x009BACF0u;
+        constexpr uint32_t kResourceActive = 0x009BA580u;
+        constexpr uint32_t kResourceSlots = 0x009BA380u;
+        constexpr uint32_t kResourceTable = 0x009BAF68u;
+        constexpr uint32_t kResourceList = 0x009BA7D8u;
+        constexpr uint32_t kDemoGate = 0x009BA220u;
+        constexpr uint32_t kDemoPayloadPtr = 0x009BA240u;
+
+        appendKofxiReadyCursorSnapshot(out, rdram);
+        appendKofxiBattleResourceBytes(out, rdram, "flags", kResourceFlags, 16u);
+        appendKofxiBattleResourceBytes(out, rdram, "loading", kResourceLoading, 16u);
+        out << " slots=";
+        appendGuestWords(out, rdram, kResourceSlots, 8u);
+        out << " active=";
+        appendGuestWords(out, rdram, kResourceActive, 8u);
+        out << " brPtrs=0x" << readGuestU32OrZero(rdram, kResourceTable)
+            << "/0x" << readGuestU32OrZero(rdram, kResourceList)
+            << " demo=0x" << readGuestU32OrZero(rdram, kDemoGate)
+            << "/0x" << readGuestU32OrZero(rdram, kDemoPayloadPtr);
+
+        appendKofxiResourceFlagIndex(out, rdram, "a0ObjIdx", kofxiResourceIndexFromObject(rdram, a0));
+        appendKofxiResourceFlagIndex(out, rdram, "a1ObjIdx", kofxiResourceIndexFromObject(rdram, a1));
+        appendKofxiResourceFlagIndex(out, rdram, "a2ObjIdx", kofxiResourceIndexFromObject(rdram, a2));
+        appendKofxiResourceFlagIndex(out, rdram, "a3ObjIdx", kofxiResourceIndexFromObject(rdram, a3));
+        if (ctx)
+        {
+            appendKofxiResourceFlagIndex(out, rdram, "s0Idx", getRegU32(ctx, 16));
+            appendKofxiResourceFlagIndex(out, rdram, "s1Idx", getRegU32(ctx, 17));
+            appendKofxiResourceFlagIndex(out, rdram, "s2Idx", getRegU32(ctx, 18));
+            appendKofxiResourceFlagIndex(out, rdram, "s5ObjIdx", kofxiResourceIndexFromObject(rdram, getRegU32(ctx, 21)));
+        }
+    }
+
+    void logKofxiResourceFlagTransitionTrace(
+        const char *phase,
+        uint32_t index,
+        const char *name,
+        uint8_t *rdram,
+        R5900Context *ctx,
+        uint32_t entryPc,
+        uint32_t callRa,
+        uint32_t callSp,
+        uint32_t a0,
+        uint32_t a1,
+        uint32_t a2,
+        uint32_t a3,
+        uint32_t v0Before,
+        uint32_t v1Before)
+    {
+        std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+        std::cerr << "[KOFXI:resource-flag-transition] #" << index
+                  << " " << (phase ? phase : "")
+                  << " " << (name ? name : "")
+                  << " entry=0x" << std::hex << entryPc
+                  << " pc=0x" << (ctx ? ctx->pc : 0u)
+                  << " ra=0x" << callRa
+                  << " sp=0x" << callSp
+                  << " a=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " s=0x" << (ctx ? getRegU32(ctx, 16) : 0u)
+                  << "/0x" << (ctx ? getRegU32(ctx, 17) : 0u)
+                  << "/0x" << (ctx ? getRegU32(ctx, 18) : 0u)
+                  << "/0x" << (ctx ? getRegU32(ctx, 21) : 0u)
+                  << " v=0x" << v0Before << "/0x" << v1Before
+                  << "->0x" << (ctx ? getRegU32(ctx, 2) : 0u)
+                  << "/0x" << (ctx ? getRegU32(ctx, 3) : 0u);
+
+        appendKofxiResourceFlagFocus(std::cerr, rdram, ctx, a0, a1, a2, a3);
+        if (entryPc == 0x00177198u || (ctx && ctx->pc == 0x00177198u))
+        {
+            appendKofxiBattleResourceRecordCursor(std::cerr, rdram, ctx);
+        }
+        std::cerr << std::dec << std::endl;
+    }
+
+    void runKofxiResourceFlagTransitionTraceCall(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        if (!ctx)
+        {
+            return;
+        }
+
+        const uint32_t entryPc = ctx->pc;
+        auto it = g_kofxiResourceFlagTransitionTraceFns.find(entryPc);
+        PS2Runtime::RecompiledFunction original =
+            (it != g_kofxiResourceFlagTransitionTraceFns.end()) ? it->second : nullptr;
+        if (!original && runtime && runtime->hasFunction(entryPc))
+        {
+            original = runtime->lookupFunction(entryPc);
+        }
+        if (!original || original == &runKofxiResourceFlagTransitionTraceCall)
+        {
+            return;
+        }
+
+        const uint32_t index = []()
+        {
+            static std::atomic<uint32_t> s_resourceFlagTransitionLogs{0u};
+            return s_resourceFlagTransitionLogs.fetch_add(1u, std::memory_order_relaxed);
+        }();
+        const bool shouldLog = rdram && index < kofxiResourceFlagTransitionsTraceLimit();
+        const char *name = kofxiResourceFlagTransitionTraceName(entryPc);
+        const uint32_t callRa = getRegU32(ctx, 31);
+        const uint32_t callSp = getRegU32(ctx, 29);
+        const uint32_t a0 = getRegU32(ctx, 4);
+        const uint32_t a1 = getRegU32(ctx, 5);
+        const uint32_t a2 = getRegU32(ctx, 6);
+        const uint32_t a3 = getRegU32(ctx, 7);
+        const uint32_t v0Before = getRegU32(ctx, 2);
+        const uint32_t v1Before = getRegU32(ctx, 3);
+
+        if (shouldLog)
+        {
+            logKofxiResourceFlagTransitionTrace(
+                "enter",
+                index,
+                name,
+                rdram,
+                ctx,
+                entryPc,
+                callRa,
+                callSp,
+                a0,
+                a1,
+                a2,
+                a3,
+                v0Before,
+                v1Before);
+        }
+
+        original(rdram, ctx, runtime);
+
+        if (shouldLog)
+        {
+            logKofxiResourceFlagTransitionTrace(
+                "leave",
+                index,
+                name,
+                rdram,
+                ctx,
+                entryPc,
+                callRa,
+                callSp,
+                a0,
+                a1,
+                a2,
+                a3,
+                v0Before,
+                v1Before);
+        }
+    }
+
+    void kofxiTraceResourceFlagTransition(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        runKofxiResourceFlagTransitionTraceCall(rdram, ctx, runtime);
+    }
+
+    void registerKofxiResourceFlagTransitionTrace(PS2Runtime &runtime, uint32_t entry)
+    {
+        if (!runtime.hasFunction(entry))
+        {
+            return;
+        }
+
+        PS2Runtime::RecompiledFunction original = runtime.lookupFunction(entry);
+        if (original && original != &kofxiTraceResourceFlagTransition)
+        {
+            g_kofxiResourceFlagTransitionTraceFns[entry] = original;
+            runtime.registerFunction(entry, &kofxiTraceResourceFlagTransition);
+        }
     }
 
     void logKofxiResourceSlotCallbackTrace(
@@ -12387,6 +14192,14 @@ namespace
         constexpr uint32_t kFrontendGlobalMode = 0x009E9780u;
         constexpr uint32_t kInputAButtons = 0x009BEA22u;
         constexpr uint32_t kInputBButtons = 0x009BEA2Eu;
+        constexpr uint32_t kNextStagePhase = 0x009BDA48u;
+        constexpr uint32_t kNextStageTimer = 0x009BDA10u;
+        constexpr uint32_t kNextStageMode = 0x009BDA50u;
+        constexpr uint32_t kNextStageRoundTime = 0x009BDA60u;
+        constexpr uint32_t kNextStageFlagA = 0x009BDAE0u;
+        constexpr uint32_t kNextStageFlagB = 0x009BDB10u;
+        constexpr uint32_t kNextStageGate = 0x009F9780u;
+        constexpr uint32_t kNextStageSubGate = 0x009CB286u;
 
         const uint32_t currentState = readGuestU32OrZero(rdram, kFrontendStatePtr);
         const uint32_t objectBuckets = countKofxiObjectBuckets(rdram);
@@ -12422,13 +14235,22 @@ namespace
                   << " objects=0x" << objectBuckets
                   << " free=0x" << readGuestU16OrZero(rdram, kObjectFreeCount)
                   << " bucket0=0x" << readGuestU32OrZero(rdram, kObjectBucketBase)
-                  << "/0x" << readGuestU32OrZero(rdram, kObjectBucketBase + 4u)
-                  << " objectQueue=0x" << objectQueueCount
+                  << "/0x" << readGuestU32OrZero(rdram, kObjectBucketBase + 4u);
+        appendKofxiActiveObjectBucketsBrief(std::cerr, rdram, "activeBuckets", 10u);
+        std::cerr << " objectQueue=0x" << objectQueueCount
                   << "/0x" << readGuestU32OrZero(rdram, kObjectRenderQueueBase)
                   << " render=0x" << renderSubmitCount
                   << "/0x" << renderListCount
                   << "/0x" << readGuestU32OrZero(rdram, kRenderListProcessed)
-                  << "/0x" << readGuestU32OrZero(rdram, kRenderListBase);
+                  << "/0x" << readGuestU32OrZero(rdram, kRenderListBase)
+                  << " nextStage=0x" << readGuestU32OrZero(rdram, kNextStagePhase)
+                  << "/0x" << readGuestU32OrZero(rdram, kNextStageTimer)
+                  << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kNextStageMode))
+                  << "/0x" << readGuestU16OrZero(rdram, kNextStageRoundTime)
+                  << " flags=0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kNextStageFlagA))
+                  << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kNextStageFlagB))
+                  << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kNextStageGate))
+                  << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kNextStageSubGate));
 
         if (a0 != 0u)
         {
@@ -12489,6 +14311,709 @@ namespace
         }
     }
 
+    void maybeApplyKofxiTitleStartCompat(uint8_t *rdram, uint32_t entryPc)
+    {
+        constexpr uint32_t kFrontendDispatch = 0x00155FE0u;
+        constexpr uint32_t kTitleWaitState = 0x00139560u;
+        constexpr uint32_t kFrontendStatePtr = 0x0092F788u;
+        constexpr uint32_t kFrontendStateStruct = 0x0092F780u;
+        constexpr uint32_t kInputAButtons = 0x009BEA22u;
+        constexpr uint32_t kInputBButtons = 0x009BEA2Eu;
+        constexpr uint32_t kOrderSelectFrontendData = 0x0030D6C0u;
+
+        static std::atomic<uint32_t> s_titleStartFrames{0u};
+        if (!kofxiTitleStartCompatEnabled() ||
+            !rdram ||
+            entryPc != kFrontendDispatch ||
+            readGuestU32OrZero(rdram, kFrontendStatePtr) != kTitleWaitState ||
+            readGuestU32OrZero(rdram, kFrontendStateStruct + 8u) != kTitleWaitState ||
+            readGuestU32OrZero(rdram, kFrontendStateStruct + 0x0Cu) == kOrderSelectFrontendData)
+        {
+            s_titleStartFrames.store(0u, std::memory_order_relaxed);
+            return;
+        }
+
+        const uint32_t frame = s_titleStartFrames.fetch_add(1u, std::memory_order_relaxed) + 1u;
+        const uint32_t delay = kofxiTitleStartDelayFrames();
+        const uint32_t pulses = kofxiTitleStartPulseFrames();
+        if (frame <= delay || frame > delay + pulses)
+        {
+            return;
+        }
+
+        const uint16_t inputA = readGuestU16OrZero(rdram, kInputAButtons);
+        const uint16_t inputB = readGuestU16OrZero(rdram, kInputBButtons);
+        const uint16_t pulseMask = kofxiTitleStartMask();
+        writeGuestU16(rdram, kInputAButtons, static_cast<uint16_t>(inputA | pulseMask));
+        writeGuestU16(rdram, kInputBButtons, static_cast<uint16_t>(inputB | pulseMask));
+
+        if (traceKofxiFrontendStateEnabled())
+        {
+            static std::atomic<uint32_t> s_titleStartLogs{0u};
+            const uint32_t index = s_titleStartLogs.fetch_add(1u, std::memory_order_relaxed);
+            if (index < 32u)
+            {
+                std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+                std::cerr << "[KOFXI:title-start-compat] #" << std::dec << index
+                          << " frame=" << frame
+                          << " delay=" << delay
+                          << " pulses=" << pulses
+                          << " entry=0x" << std::hex << entryPc
+                          << " state=0x" << readGuestU32OrZero(rdram, kFrontendStatePtr)
+                          << " stateStruct=0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 8u)
+                          << " mask=0x" << pulseMask
+                          << " inputA=0x" << inputA << "->0x" << static_cast<uint16_t>(inputA | pulseMask)
+                          << " inputB=0x" << inputB << "->0x" << static_cast<uint16_t>(inputB | pulseMask)
+                          << std::dec << std::endl;
+            }
+        }
+    }
+
+    void maybeCompleteKofxiPostTitleWaitCompat(uint8_t *rdram, uint32_t entryPc)
+    {
+        constexpr uint32_t kFrontendDispatch = 0x00155FE0u;
+        constexpr uint32_t kFrontendStatePtr = 0x0092F788u;
+        constexpr uint32_t kFrontendStateStruct = 0x0092F780u;
+        constexpr uint32_t kPostTitleWaitState = 0x00134930u;
+        constexpr uint32_t kPostTitleWaitDone = 0x004158B8u;
+        constexpr uint32_t kPostTitleWaitCode = 0x004158C0u;
+
+        static std::atomic<uint32_t> s_waitFrames{0u};
+        if (!kofxiPostTitleWaitCompleteCompatEnabled() || !rdram)
+        {
+            s_waitFrames.store(0u, std::memory_order_relaxed);
+            return;
+        }
+
+        if (readGuestU32OrZero(rdram, kFrontendStatePtr) != kPostTitleWaitState)
+        {
+            s_waitFrames.store(0u, std::memory_order_relaxed);
+            return;
+        }
+
+        if (entryPc != kFrontendDispatch)
+        {
+            return;
+        }
+
+        const uint8_t doneBefore = readGuestU8OrZero(rdram, kPostTitleWaitDone);
+        if (doneBefore != 0u)
+        {
+            s_waitFrames.store(0u, std::memory_order_relaxed);
+            return;
+        }
+
+        const uint32_t frames = s_waitFrames.fetch_add(1u, std::memory_order_relaxed) + 1u;
+        const uint32_t threshold = kofxiPostTitleWaitCompleteCompatFrames();
+        if (frames < threshold)
+        {
+            return;
+        }
+
+        const uint8_t codeBefore = readGuestU8OrZero(rdram, kPostTitleWaitCode);
+        const uint8_t codeAfter = codeBefore != 0u ? codeBefore : static_cast<uint8_t>(0x20u);
+        (void)writeGuestU8(rdram, kPostTitleWaitCode, codeAfter);
+        (void)writeGuestU8(rdram, kPostTitleWaitDone, 1u);
+
+        if (traceKofxiPostTitleWaitCompleteCompatEnabled())
+        {
+            static std::atomic<uint32_t> s_postTitleWaitLogs{0u};
+            const uint32_t index = s_postTitleWaitLogs.fetch_add(1u, std::memory_order_relaxed);
+            if (index < 16u)
+            {
+                std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+                std::cerr << "[KOFXI:post-title-wait-complete-compat] #" << std::dec << index
+                          << " entry=0x" << std::hex << entryPc
+                          << " frames=0x" << frames
+                          << "/0x" << threshold
+                          << " state=0x" << readGuestU32OrZero(rdram, kFrontendStatePtr)
+                          << " stateStruct=0x" << readGuestU32OrZero(rdram, kFrontendStateStruct)
+                          << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 4u)
+                          << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 8u)
+                          << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 0xCu)
+                          << " wait=0x" << static_cast<uint32_t>(doneBefore)
+                          << "->0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kPostTitleWaitDone))
+                          << " code=0x" << static_cast<uint32_t>(codeBefore)
+                          << "->0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kPostTitleWaitCode))
+                          << std::dec << std::endl;
+            }
+        }
+    }
+
+    void maybeCompleteKofxiButtonHelpCompat(uint8_t *rdram, uint32_t entryPc)
+    {
+        constexpr uint32_t kFrontendDispatch = 0x00155FE0u;
+        constexpr uint32_t kFrontendStatePtr = 0x0092F788u;
+        constexpr uint32_t kFrontendStateStruct = 0x0092F780u;
+        constexpr uint32_t kButtonHelpState = 0x001394B0u;
+        constexpr uint32_t kButtonHelpDone = 0x004158A8u;
+        constexpr uint32_t kButtonHelpPhase = 0x004158B0u;
+        constexpr uint32_t kInputAButtons = 0x009BEA22u;
+        constexpr uint32_t kInputBButtons = 0x009BEA2Eu;
+
+        static std::atomic<uint32_t> s_buttonHelpFrames{0u};
+        if (!kofxiButtonHelpCompleteCompatEnabled() || !rdram)
+        {
+            s_buttonHelpFrames.store(0u, std::memory_order_relaxed);
+            return;
+        }
+
+        if (readGuestU32OrZero(rdram, kFrontendStatePtr) != kButtonHelpState)
+        {
+            s_buttonHelpFrames.store(0u, std::memory_order_relaxed);
+            return;
+        }
+
+        if (entryPc != kFrontendDispatch)
+        {
+            return;
+        }
+
+        const uint8_t doneBefore = readGuestU8OrZero(rdram, kButtonHelpDone);
+        if (doneBefore != 0u)
+        {
+            s_buttonHelpFrames.store(0u, std::memory_order_relaxed);
+            return;
+        }
+
+        const uint32_t frames = s_buttonHelpFrames.fetch_add(1u, std::memory_order_relaxed) + 1u;
+        const uint32_t threshold = kofxiButtonHelpCompleteCompatFrames();
+        if (frames < threshold)
+        {
+            return;
+        }
+
+        const uint8_t phaseBefore = readGuestU8OrZero(rdram, kButtonHelpPhase);
+        const uint32_t minPhase = kofxiButtonHelpCompleteCompatMinPhase();
+        if (phaseBefore < minPhase)
+        {
+            if (traceKofxiButtonHelpCompleteCompatEnabled())
+            {
+                static std::atomic<uint32_t> s_buttonHelpSkipLogs{0u};
+                const uint32_t index = s_buttonHelpSkipLogs.fetch_add(1u, std::memory_order_relaxed);
+                if (index < 32u)
+                {
+                    std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+                    std::cerr << "[KOFXI:button-help-complete-skip] #" << std::dec << index
+                              << " reason=phase"
+                              << " entry=0x" << std::hex << entryPc
+                              << " frames=0x" << frames
+                              << "/0x" << threshold
+                              << " state=0x" << readGuestU32OrZero(rdram, kFrontendStatePtr)
+                              << " stateStruct=0x" << readGuestU32OrZero(rdram, kFrontendStateStruct)
+                              << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 4u)
+                              << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 8u)
+                              << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 0xCu)
+                              << " done=0x" << static_cast<uint32_t>(doneBefore)
+                              << " phase=0x" << static_cast<uint32_t>(phaseBefore)
+                              << "/0x" << minPhase
+                              << " input=0x" << readGuestU16OrZero(rdram, kInputAButtons)
+                              << "/0x" << readGuestU16OrZero(rdram, kInputBButtons)
+                              << std::dec << std::endl;
+                }
+            }
+            return;
+        }
+
+        (void)writeGuestU8(rdram, kButtonHelpDone, 1u);
+
+        if (traceKofxiButtonHelpCompleteCompatEnabled())
+        {
+            static std::atomic<uint32_t> s_buttonHelpLogs{0u};
+            const uint32_t index = s_buttonHelpLogs.fetch_add(1u, std::memory_order_relaxed);
+            if (index < 16u)
+            {
+                std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+                std::cerr << "[KOFXI:button-help-complete-compat] #" << std::dec << index
+                          << " entry=0x" << std::hex << entryPc
+                          << " frames=0x" << frames
+                          << "/0x" << threshold
+                          << " state=0x" << readGuestU32OrZero(rdram, kFrontendStatePtr)
+                          << " stateStruct=0x" << readGuestU32OrZero(rdram, kFrontendStateStruct)
+                          << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 4u)
+                          << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 8u)
+                          << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 0xCu)
+                          << " done=0x" << static_cast<uint32_t>(doneBefore)
+                          << "->0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kButtonHelpDone))
+                          << " phase=0x" << static_cast<uint32_t>(phaseBefore)
+                          << "/0x" << minPhase
+                          << " input=0x" << readGuestU16OrZero(rdram, kInputAButtons)
+                          << "/0x" << readGuestU16OrZero(rdram, kInputBButtons)
+                          << std::dec << std::endl;
+            }
+        }
+    }
+
+    static std::atomic<bool> s_kofxiNextStageReadyArmed{false};
+
+    void maybeCompleteKofxiOrderSelectReadyCompat(uint8_t *rdram, uint32_t entryPc)
+    {
+        constexpr uint32_t kFrontendDispatch = 0x00155FE0u;
+        constexpr uint32_t kFrontendStatePtr = 0x0092F788u;
+        constexpr uint32_t kFrontendStateStruct = 0x0092F780u;
+        constexpr uint32_t kOrderSelectWaitState = 0x00139560u;
+        constexpr uint32_t kOrderSelectBusy = 0x00415D28u;
+        constexpr uint32_t kOrderSelectReady = 0x01DCF360u;
+        constexpr uint32_t kButtonHelpDone = 0x004158A8u;
+        constexpr uint32_t kButtonHelpPhase = 0x004158B0u;
+        constexpr uint32_t kInputAButtons = 0x009BEA22u;
+        constexpr uint32_t kInputBButtons = 0x009BEA2Eu;
+        constexpr uint32_t kOrderSelectFrontendData = 0x0030D6C0u;
+
+        static std::atomic<uint32_t> s_orderSelectFrames{0u};
+        static std::atomic<bool> s_orderSelectSawBusy{false};
+        if (!kofxiOrderSelectReadyCompatEnabled() || !rdram)
+        {
+            s_orderSelectFrames.store(0u, std::memory_order_relaxed);
+            s_orderSelectSawBusy.store(false, std::memory_order_relaxed);
+            return;
+        }
+
+        if (readGuestU32OrZero(rdram, kFrontendStatePtr) != kOrderSelectWaitState)
+        {
+            s_orderSelectFrames.store(0u, std::memory_order_relaxed);
+            s_orderSelectSawBusy.store(false, std::memory_order_relaxed);
+            return;
+        }
+
+        if (entryPc != kFrontendDispatch)
+        {
+            return;
+        }
+
+        const uint8_t busyBefore = readGuestU8OrZero(rdram, kOrderSelectBusy);
+        const uint8_t readyBefore = readGuestU8OrZero(rdram, kOrderSelectReady);
+        if (busyBefore != 0u)
+        {
+            s_orderSelectSawBusy.store(true, std::memory_order_relaxed);
+        }
+
+        const uint8_t buttonDone = readGuestU8OrZero(rdram, kButtonHelpDone);
+        const uint8_t buttonPhase = readGuestU8OrZero(rdram, kButtonHelpPhase);
+        const uint32_t objectBuckets = countKofxiObjectBuckets(rdram);
+        const uint32_t preludeMinPhase = kofxiOrderSelectReadyPreludeMinPhase();
+        const uint32_t preludeMinObjects = kofxiOrderSelectReadyPreludeMinObjects();
+        const bool orderPreludeReady =
+            buttonDone != 0u &&
+            buttonPhase >= preludeMinPhase &&
+            objectBuckets >= preludeMinObjects &&
+            readGuestU32OrZero(rdram, kFrontendStateStruct + 12u) == kOrderSelectFrontendData;
+
+        if (busyBefore == 0u && readyBefore == 0xFFu)
+        {
+            s_kofxiNextStageReadyArmed.store(true, std::memory_order_relaxed);
+            s_orderSelectFrames.store(0u, std::memory_order_relaxed);
+            return;
+        }
+
+        if (!s_orderSelectSawBusy.load(std::memory_order_relaxed) && !orderPreludeReady)
+        {
+            s_orderSelectFrames.store(0u, std::memory_order_relaxed);
+            if (traceKofxiOrderSelectReadyCompatEnabled())
+            {
+                static std::atomic<uint32_t> s_orderSelectSkipLogs{0u};
+                const uint32_t index = s_orderSelectSkipLogs.fetch_add(1u, std::memory_order_relaxed);
+                if (index < 32u)
+                {
+                    std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+                    std::cerr << "[KOFXI:order-select-ready-skip] #" << std::dec << index
+                              << " reason=no-busy"
+                              << " entry=0x" << std::hex << entryPc
+                              << " state=0x" << readGuestU32OrZero(rdram, kFrontendStatePtr)
+                              << " stateStruct=0x" << readGuestU32OrZero(rdram, kFrontendStateStruct)
+                              << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 4u)
+                              << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 8u)
+                              << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 0xCu)
+                              << " busy=0x" << static_cast<uint32_t>(busyBefore)
+                              << " ready=0x" << static_cast<uint32_t>(readyBefore)
+                              << " button=0x" << static_cast<uint32_t>(buttonDone)
+                              << "/0x" << static_cast<uint32_t>(buttonPhase)
+                              << "/0x" << preludeMinPhase
+                              << " input=0x" << readGuestU16OrZero(rdram, kInputAButtons)
+                              << "/0x" << readGuestU16OrZero(rdram, kInputBButtons)
+                              << " objects=0x" << objectBuckets
+                              << "/0x" << preludeMinObjects
+                              << std::dec << std::endl;
+                }
+            }
+            return;
+        }
+
+        const uint32_t frames = s_orderSelectFrames.fetch_add(1u, std::memory_order_relaxed) + 1u;
+        const uint32_t threshold = kofxiOrderSelectReadyCompatFrames();
+        if (frames < threshold)
+        {
+            return;
+        }
+
+        if (busyBefore != 0u)
+        {
+            (void)writeGuestU8(rdram, kOrderSelectBusy, 0u);
+        }
+        if (readyBefore != 0xFFu)
+        {
+            (void)writeGuestU8(rdram, kOrderSelectReady, 0xFFu);
+        }
+        s_kofxiNextStageReadyArmed.store(true, std::memory_order_relaxed);
+
+        if (traceKofxiOrderSelectReadyCompatEnabled())
+        {
+            static std::atomic<uint32_t> s_orderSelectLogs{0u};
+            const uint32_t index = s_orderSelectLogs.fetch_add(1u, std::memory_order_relaxed);
+            if (index < 16u)
+            {
+                std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+                std::cerr << "[KOFXI:order-select-ready-compat] #" << std::dec << index
+                          << " entry=0x" << std::hex << entryPc
+                          << " frames=0x" << frames
+                          << "/0x" << threshold
+                          << " state=0x" << readGuestU32OrZero(rdram, kFrontendStatePtr)
+                          << " stateStruct=0x" << readGuestU32OrZero(rdram, kFrontendStateStruct)
+                          << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 4u)
+                          << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 8u)
+                          << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 0xCu)
+                          << " busy=0x" << static_cast<uint32_t>(busyBefore)
+                          << "->0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kOrderSelectBusy))
+                          << " ready=0x" << static_cast<uint32_t>(readyBefore)
+                          << "->0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kOrderSelectReady))
+                          << " button=0x" << static_cast<uint32_t>(buttonDone)
+                          << "/0x" << static_cast<uint32_t>(buttonPhase)
+                          << "/0x" << preludeMinPhase
+                          << " objects=0x" << objectBuckets
+                          << "/0x" << preludeMinObjects
+                          << " source=" << (s_orderSelectSawBusy.load(std::memory_order_relaxed) ? "busy" : "prelude")
+                          << std::dec << std::endl;
+            }
+        }
+    }
+
+    void maybeApplyKofxiNextStageReadyCompat(uint8_t *rdram, uint32_t entryPc)
+    {
+        constexpr uint32_t kNextStageState = 0x0030D830u;
+        constexpr uint32_t kFrontendDispatch = 0x00155FE0u;
+        constexpr uint32_t kFrontendStateStruct = 0x0092F780u;
+        constexpr uint32_t kFrontendStatePtr = 0x0092F788u;
+        constexpr uint32_t kNextStagePhase = 0x009BDA48u;
+        constexpr uint32_t kNextStageWait = 0x009BDAB0u;
+        constexpr uint32_t kNextStageGate = 0x009F9780u;
+        constexpr uint32_t kNextStageSubGate = 0x009CB286u;
+
+        static std::atomic<uint32_t> s_nextStageFrames{0u};
+        const bool explicitEnabled = kofxiNextStageReadyCompatEnabled();
+        const bool armed = s_kofxiNextStageReadyArmed.load(std::memory_order_relaxed);
+        if ((!explicitEnabled && !armed) || !rdram)
+        {
+            s_nextStageFrames.store(0u, std::memory_order_relaxed);
+            return;
+        }
+
+        const uint32_t frontendState = readGuestU32OrZero(rdram, kFrontendStatePtr);
+        const uint32_t frontendStateStructState = readGuestU32OrZero(rdram, kFrontendStateStruct + 8u);
+        if (frontendState != kNextStageState ||
+            frontendStateStructState != kNextStageState)
+        {
+            s_nextStageFrames.store(0u, std::memory_order_relaxed);
+            return;
+        }
+
+        if (entryPc != kFrontendDispatch)
+        {
+            return;
+        }
+
+        const uint32_t phase = readGuestU32OrZero(rdram, kNextStagePhase);
+        const uint16_t wait = readGuestU16OrZero(rdram, kNextStageWait);
+        const uint8_t gate = readGuestU8OrZero(rdram, kNextStageGate);
+        const uint8_t subGate = readGuestU8OrZero(rdram, kNextStageSubGate);
+        const bool blockedByGate = gate == 0x0Du || gate == 0x0Eu;
+        const bool needsReady = wait == 0x0102u || subGate == 0u;
+        if (phase != 1u ||
+            blockedByGate ||
+            !needsReady)
+        {
+            if (traceKofxiNextStageReadyCompatEnabled())
+            {
+                static std::atomic<uint32_t> s_nextStageSkipLogs{0u};
+                const uint32_t index = s_nextStageSkipLogs.fetch_add(1u, std::memory_order_relaxed);
+                if (index < 32u)
+                {
+                    const char *reason =
+                        (phase != 1u) ? "phase" :
+                        blockedByGate ? "gate" :
+                        "ready";
+                    std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+                    std::cerr << "[KOFXI:next-stage-ready-skip] #" << std::dec << index
+                              << " reason=" << reason
+                              << " entry=0x" << std::hex << entryPc
+                              << " state=0x" << frontendState
+                              << " stateStruct=0x" << frontendStateStructState
+                              << " phase=0x" << phase
+                              << " wait=0x" << wait
+                              << " gate=0x" << static_cast<uint32_t>(gate)
+                              << " subGate=0x" << static_cast<uint32_t>(subGate)
+                              << std::dec << std::endl;
+                }
+            }
+            s_nextStageFrames.store(0u, std::memory_order_relaxed);
+            return;
+        }
+
+        const uint32_t frames = s_nextStageFrames.fetch_add(1u, std::memory_order_relaxed) + 1u;
+        const uint32_t threshold = kofxiNextStageReadyCompatFrames();
+        if (frames < threshold)
+        {
+            return;
+        }
+
+        const uint8_t value = kofxiNextStageReadyCompatValue();
+        const uint16_t waitValue = kofxiNextStageReadyCompatWaitValue();
+        (void)writeGuestU16(rdram, kNextStageWait, waitValue);
+        (void)writeGuestU8(rdram, kNextStageSubGate, value);
+        s_nextStageFrames.store(0u, std::memory_order_relaxed);
+
+        if (traceKofxiNextStageReadyCompatEnabled())
+        {
+            static std::atomic<uint32_t> s_nextStageLogs{0u};
+            const uint32_t index = s_nextStageLogs.fetch_add(1u, std::memory_order_relaxed);
+            if (index < 32u)
+            {
+                std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+                std::cerr << "[KOFXI:next-stage-ready-compat] #" << std::dec << index
+                          << " entry=0x" << std::hex << entryPc
+                          << " state=0x" << frontendState
+                          << " stateStruct=0x" << frontendStateStructState
+                          << " frames=0x" << frames
+                          << "/0x" << threshold
+                          << " phase=0x" << phase
+                          << " wait=0x" << wait
+                          << "->0x" << readGuestU16OrZero(rdram, kNextStageWait)
+                          << " gate=0x" << static_cast<uint32_t>(gate)
+                          << " subGate=0x" << static_cast<uint32_t>(subGate)
+                          << "->0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kNextStageSubGate))
+                          << std::dec << std::endl;
+            }
+        }
+    }
+
+    const char *kofxiNextStageServiceTraceName(uint32_t entry)
+    {
+        switch (entry)
+        {
+        case 0x0030D7D0u:
+            return "nextStagePrecheck";
+        case 0x0030D830u:
+            return "nextStageState";
+        case 0x0030D890u:
+            return "nextStagePhaseSetup";
+        case 0x0030D8ECu:
+            return "nextStageServiceDone";
+        case 0x0030D9D0u:
+            return "nextStageAltDone";
+        case 0x003208D0u:
+            return "nextStageServiceReset";
+        case 0x00320900u:
+            return "nextStagePollService";
+        case 0x00320D60u:
+            return "nextStageRunService";
+        default:
+            if (entry >= 0x0030D830u && entry <= 0x0030DFE8u)
+            {
+                return "nextStageStateResume";
+            }
+            if (entry >= 0x00320900u && entry <= 0x00320D20u)
+            {
+                return "nextStagePollResume";
+            }
+            if (entry >= 0x00320D60u && entry <= 0x00320EC4u)
+            {
+                return "nextStageRunResume";
+            }
+            return "nextStageService";
+        }
+    }
+
+    void logKofxiNextStageServiceTrace(
+        uint32_t index,
+        const char *phase,
+        const char *name,
+        uint8_t *rdram,
+        R5900Context *ctx,
+        uint32_t entryPc,
+        uint32_t callRa,
+        uint32_t callSp,
+        uint32_t a0,
+        uint32_t a1,
+        uint32_t a2,
+        uint32_t a3,
+        uint32_t v0Before,
+        uint32_t v1Before)
+    {
+        constexpr uint32_t kFrontendStateStruct = 0x0092F780u;
+        constexpr uint32_t kFrontendStatePtr = 0x0092F788u;
+        constexpr uint32_t kNextStagePhase = 0x009BDA48u;
+        constexpr uint32_t kNextStageTimer = 0x009BDA10u;
+        constexpr uint32_t kNextStageMode = 0x009BDA50u;
+        constexpr uint32_t kNextStageRoundTime = 0x009BDA60u;
+        constexpr uint32_t kNextStageFlagA = 0x009BDAE0u;
+        constexpr uint32_t kNextStageFlagB = 0x009BDB10u;
+        constexpr uint32_t kNextStageWait = 0x009BDAB0u;
+        constexpr uint32_t kNextStageGate = 0x009F9780u;
+        constexpr uint32_t kNextStageSubGate = 0x009CB286u;
+        constexpr uint32_t kServiceGlobalA = 0x01DC0380u;
+        constexpr uint32_t kServiceBusy = 0x01DC0388u;
+        constexpr uint32_t kServiceQueueA = 0x01DC03A0u;
+        constexpr uint32_t kServiceQueueB = 0x01DC03C0u;
+        constexpr uint32_t kServiceWait = 0x01DC03E0u;
+        constexpr uint32_t kServiceSignal = 0x01DC03E8u;
+        constexpr uint32_t kServiceDmaFlags = 0x01D4D918u;
+        constexpr uint32_t kBattleHalf = 0x01DCF370u;
+        constexpr uint32_t kBattleWordA = 0x009BCED0u;
+        constexpr uint32_t kBattleWordB = 0x009BD9A0u;
+
+        std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+        std::cerr << "[KOFXI:next-stage-service] #" << std::dec << index
+                  << " " << (phase ? phase : "")
+                  << " " << (name ? name : "")
+                  << " entry=0x" << std::hex << entryPc
+                  << " pc=0x" << (ctx ? ctx->pc : 0u)
+                  << " ra=0x" << callRa
+                  << " sp=0x" << callSp
+                  << " a=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " v=0x" << (ctx ? getRegU32(ctx, 2) : 0u)
+                  << "/0x" << (ctx ? getRegU32(ctx, 3) : 0u)
+                  << " before=0x" << v0Before << "/0x" << v1Before
+                  << " state=0x" << readGuestU32OrZero(rdram, kFrontendStatePtr)
+                  << " stateStruct=0x" << readGuestU32OrZero(rdram, kFrontendStateStruct)
+                  << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 4u)
+                  << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 8u)
+                  << "/0x" << readGuestU32OrZero(rdram, kFrontendStateStruct + 12u)
+                  << " next=0x" << readGuestU32OrZero(rdram, kNextStagePhase)
+                  << "/0x" << readGuestU32OrZero(rdram, kNextStageTimer)
+                  << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kNextStageMode))
+                  << "/0x" << readGuestU16OrZero(rdram, kNextStageRoundTime)
+                  << " ready=0x" << readGuestU16OrZero(rdram, kNextStageWait)
+                  << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kNextStageGate))
+                  << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kNextStageSubGate))
+                  << " flags=0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kNextStageFlagA))
+                  << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kNextStageFlagB))
+                  << " svc=0x" << readGuestU32OrZero(rdram, kServiceGlobalA)
+                  << "/0x" << readGuestU32OrZero(rdram, kServiceBusy)
+                  << "/0x" << readGuestU32OrZero(rdram, kServiceQueueA)
+                  << "/0x" << readGuestU32OrZero(rdram, kServiceQueueB)
+                  << "/0x" << readGuestU32OrZero(rdram, kServiceWait)
+                  << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kServiceSignal))
+                  << "/0x" << readGuestU32OrZero(rdram, kServiceDmaFlags)
+                  << " battle=0x" << readGuestU16OrZero(rdram, kBattleHalf)
+                  << "/0x" << readGuestU32OrZero(rdram, kBattleWordA)
+                  << "/0x" << readGuestU32OrZero(rdram, kBattleWordB)
+                  << std::dec << std::endl;
+    }
+
+    void kofxiTraceNextStageService(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
+
+    void runKofxiNextStageServiceTraceCall(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        if (!ctx)
+        {
+            return;
+        }
+
+        const uint32_t entryPc = ctx->pc;
+        auto it = g_kofxiNextStageServiceTraceFns.find(entryPc);
+        PS2Runtime::RecompiledFunction original =
+            (it != g_kofxiNextStageServiceTraceFns.end()) ? it->second : nullptr;
+        if (!original && runtime && runtime->hasFunction(entryPc))
+        {
+            original = runtime->lookupFunction(entryPc);
+        }
+
+        if (!original || original == &kofxiTraceNextStageService)
+        {
+            return;
+        }
+
+        if (!rdram)
+        {
+            original(rdram, ctx, runtime);
+            return;
+        }
+
+        static std::atomic<uint32_t> s_nextStageServiceLogs{0u};
+        const uint32_t index = s_nextStageServiceLogs.fetch_add(1u, std::memory_order_relaxed);
+        const bool shouldLog = index < kofxiNextStageServiceTraceLimit();
+        const char *name = kofxiNextStageServiceTraceName(entryPc);
+        const uint32_t callRa = getRegU32(ctx, 31);
+        const uint32_t callSp = getRegU32(ctx, 29);
+        const uint32_t a0 = getRegU32(ctx, 4);
+        const uint32_t a1 = getRegU32(ctx, 5);
+        const uint32_t a2 = getRegU32(ctx, 6);
+        const uint32_t a3 = getRegU32(ctx, 7);
+        const uint32_t v0Before = getRegU32(ctx, 2);
+        const uint32_t v1Before = getRegU32(ctx, 3);
+
+        if (shouldLog)
+        {
+            logKofxiNextStageServiceTrace(
+                index,
+                "enter",
+                name,
+                rdram,
+                ctx,
+                entryPc,
+                callRa,
+                callSp,
+                a0,
+                a1,
+                a2,
+                a3,
+                v0Before,
+                v1Before);
+        }
+
+        original(rdram, ctx, runtime);
+
+        if (shouldLog)
+        {
+            logKofxiNextStageServiceTrace(
+                index,
+                "leave",
+                name,
+                rdram,
+                ctx,
+                entryPc,
+                callRa,
+                callSp,
+                a0,
+                a1,
+                a2,
+                a3,
+                v0Before,
+                v1Before);
+        }
+    }
+
+    void kofxiTraceNextStageService(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        runKofxiNextStageServiceTraceCall(rdram, ctx, runtime);
+    }
+
+    void registerKofxiNextStageServiceTrace(PS2Runtime &runtime, uint32_t entry)
+    {
+        if (!runtime.hasFunction(entry))
+        {
+            return;
+        }
+
+        PS2Runtime::RecompiledFunction original = runtime.lookupFunction(entry);
+        if (!original || original == &kofxiTraceNextStageService)
+        {
+            return;
+        }
+
+        g_kofxiNextStageServiceTraceFns[entry] = original;
+        runtime.registerFunction(entry, &kofxiTraceNextStageService);
+    }
+
     void kofxiTraceFrontendState(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         if (!ctx)
@@ -12528,6 +15053,11 @@ namespace
         const uint32_t a3 = getRegU32(ctx, 7);
 
         maybeApplyKofxiFrontendAutoStartCompat(rdram, entryPc);
+        maybeApplyKofxiTitleStartCompat(rdram, entryPc);
+        maybeCompleteKofxiPostTitleWaitCompat(rdram, entryPc);
+        maybeCompleteKofxiButtonHelpCompat(rdram, entryPc);
+        maybeCompleteKofxiOrderSelectReadyCompat(rdram, entryPc);
+        maybeApplyKofxiNextStageReadyCompat(rdram, entryPc);
 
         if (shouldLog)
         {
@@ -12581,6 +15111,944 @@ namespace
 
         g_kofxiFrontendTraceFns[entry] = original;
         runtime.registerFunction(entry, &kofxiTraceFrontendState);
+    }
+
+    const char *kofxiDemoRenderChainTraceName(uint32_t entry)
+    {
+        switch (entry)
+        {
+        case 0x00121658u:
+            return "demoStep121658";
+        case 0x001354A0u:
+            return "leaderDirectorObject";
+        case 0x001394B0u:
+            return "buttonHelpFrontendState";
+        case 0x00139D50u:
+            return "buttonHelpTextObject";
+        case 0x0013A500u:
+            return "buttonHelpLrObject";
+        case 0x001520E0u:
+            return "renderListProducer";
+        case 0x00152138u:
+            return "renderListProducerBeforeEnqueue";
+        case 0x00152220u:
+            return "renderListEnqueue";
+        case 0x00155F1Cu:
+            return "frontendDispatchResume";
+        case 0x00176690u:
+            return "demoTask";
+        case 0x001766BCu:
+            return "demoTaskResume166bc";
+        case 0x001766F0u:
+            return "demoTaskPostResource";
+        case 0x0017671Cu:
+            return "demoTaskPostResourceResume";
+        case 0x00176760u:
+            return "demoResourceObjectRun";
+        case 0x00177198u:
+            return "demoStep177198";
+        case 0x00177420u:
+            return "demoBehindRea";
+        case 0x00177448u:
+            return "demoBehindReaState";
+        case 0x00177450u:
+            return "demoBehindReaAfterFind";
+        case 0x0017747Cu:
+            return "demoBehindReaAfterAlloc";
+        case 0x00177494u:
+            return "demoBehindReaAfterLink";
+        case 0x001774BCu:
+            return "demoBehindReaAfterStep";
+        case 0x001774E0u:
+            return "demoBehindReaPostStep";
+        case 0x0017753Cu:
+            return "demoBehindReaCleanup";
+        case 0x001779C0u:
+            return "demoBehindVtr";
+        case 0x00177A08u:
+            return "demoBehindVtrLoopCheck";
+        case 0x00177A10u:
+            return "demoBehindVtrAfterCheck";
+        case 0x00177A9Cu:
+            return "demoBehindVtrAfterA";
+        case 0x00177AB8u:
+            return "demoBehindVtrAfterB";
+        case 0x00177AFCu:
+            return "demoBehindVtrAfterC";
+        case 0x00177B40u:
+            return "demoBehindVtrCleanupA";
+        case 0x00177B48u:
+            return "demoBehindVtrCleanupB";
+        case 0x00177B68u:
+            return "demoBehindVtrFinish";
+        case 0x00177BA0u:
+            return "demoBehindVtrStepA";
+        case 0x00177CC0u:
+            return "demoBehindVtrStepB";
+        case 0x00177E30u:
+            return "demoBehindVtrStepC";
+        case 0x0017A664u:
+            return "demoStep17a664";
+        case 0x001986E0u:
+            return "demoDecordTask";
+        case 0x0019872Cu:
+            return "demoDecordTaskInitService";
+        case 0x00198734u:
+            return "demoDecordTaskAfterInitService";
+        case 0x00198764u:
+            return "demoDecordTaskLoop";
+        case 0x00199480u:
+            return "demoDecordTaskService";
+        case 0x00199488u:
+            return "demoDecordTaskAfterService";
+        case 0x00199494u:
+            return "demoDecordTaskCallback";
+        case 0x0019949Cu:
+            return "demoDecordTaskAfterCallback";
+        case 0x001994B8u:
+            return "demoDecordTaskTimeStart";
+        case 0x001994C4u:
+            return "demoDecordTaskTimeCheck";
+        case 0x001994D0u:
+            return "demoDecordTaskLoopCheck";
+        case 0x001A53B4u:
+            return "demoStep1a53b4";
+        case 0x003037C0u:
+            return "objectRenderEnqueue";
+        case 0x00324260u:
+            return "objectRenderSetup";
+        case 0x00324298u:
+            return "objectRenderSetupAfterResA";
+        case 0x003242A8u:
+            return "objectRenderSetupAfterResB";
+        case 0x00324D9Cu:
+            return "objectRenderSetupAfterMatrix";
+        case 0x00324E0Cu:
+            return "objectRenderSetupReturn";
+        case 0x00324E30u:
+            return "objectRenderProducer";
+        case 0x00324E58u:
+            return "objectRenderProducerAfterResA";
+        case 0x00324E64u:
+            return "objectRenderProducerAfterResB";
+        case 0x00324E74u:
+            return "objectRenderProducerReadyCheck";
+        case 0x00324F0Cu:
+            return "objectRenderProducerMathA";
+        case 0x00324F14u:
+            return "objectRenderProducerMathB";
+        case 0x00324F20u:
+            return "objectRenderProducerPosA";
+        case 0x00324F68u:
+            return "objectRenderProducerMathC";
+        case 0x00324F70u:
+            return "objectRenderProducerMathD";
+        case 0x00324F7Cu:
+            return "objectRenderProducerPosB";
+        case 0x003250B8u:
+            return "objectRenderProducerAfterEnqueue";
+        case 0x00327CA0u:
+            return "objectRenderIterator";
+        case 0x00327CF0u:
+            return "objectRenderIteratorCallback";
+        case 0x00328180u:
+            return "objectRenderIteratorReadyGate";
+        case 0x00328188u:
+            return "objectRenderIteratorProducerCall";
+        case 0x00328190u:
+            return "objectRenderIteratorAfterProducer";
+        case 0x00328198u:
+            return "objectRenderIteratorSkipProducer";
+        default:
+            return "demoRenderChain";
+        }
+    }
+
+    void appendKofxiDemoRenderChainObjectFields(
+        std::ostream &out,
+        uint8_t *rdram,
+        const char *label,
+        uint32_t object)
+    {
+        if (!object)
+        {
+            return;
+        }
+
+        out << " " << label << "=0x" << object
+            << " w=0x" << readGuestU32OrZero(rdram, object)
+            << "/0x" << readGuestU32OrZero(rdram, object + 0x04u)
+            << "/0x" << readGuestU32OrZero(rdram, object + 0x08u)
+            << "/0x" << readGuestU32OrZero(rdram, object + 0x10u)
+            << " x=0x" << readGuestU32OrZero(rdram, object + 0x0Cu)
+            << "/0x" << readGuestU32OrZero(rdram, object + 0x10u)
+            << "/0x" << readGuestU32OrZero(rdram, object + 0x14u)
+            << "/0x" << readGuestU32OrZero(rdram, object + 0x18u)
+            << " b=0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, object + 0x70u))
+            << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, object + 0x71u))
+            << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, object + 0x72u))
+            << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, object + 0x78u))
+            << " q=0x" << readGuestU16OrZero(rdram, object + 0x50u)
+            << "/0x" << readGuestU16OrZero(rdram, object + 0x52u)
+            << "/0x" << readGuestU16OrZero(rdram, object + 0x80u)
+            << " rc=0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, object + 0x8Au))
+            << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, object + 0x8Bu))
+            << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, object + 0x8Cu))
+            << " ro=0x" << readGuestU32OrZero(rdram, object + 0xC8u)
+            << "/0x" << readGuestU32OrZero(rdram, object + 0xD0u)
+            << "/0x" << readGuestU16OrZero(rdram, object + 0xD4u)
+            << "/0x" << readGuestU16OrZero(rdram, object + 0xDAu)
+            << "/0x" << readGuestU16OrZero(rdram, object + 0xDCu)
+            << "/0x" << readGuestU16OrZero(rdram, object + 0xE4u)
+            << " pos=0x" << readGuestU32OrZero(rdram, object + 0x20u)
+            << "/0x" << readGuestU32OrZero(rdram, object + 0x24u)
+            << "/0x" << readGuestU32OrZero(rdram, object + 0xF8u)
+            << "/0x" << readGuestU32OrZero(rdram, object + 0xFCu);
+
+        const std::string name = readGuestCString(rdram, object + 0x22u, 24u);
+        if (!name.empty())
+        {
+            out << " name='" << name << "'";
+        }
+    }
+
+    void appendKofxiDemoRenderChainProducerFields(
+        std::ostream &out,
+        uint8_t *rdram,
+        uint32_t sourceObject,
+        uint32_t renderObject,
+        uint32_t resourceObject)
+    {
+        if (sourceObject)
+        {
+            out << " srcCtl=0x" << readGuestU16OrZero(rdram, sourceObject)
+                << "/0x" << readGuestU16OrZero(rdram, sourceObject + 0x02u)
+                << "/0x" << readGuestU16OrZero(rdram, sourceObject + 0x04u)
+                << " srcRes=0x" << readGuestU16OrZero(rdram, sourceObject + 0xDAu)
+                << "/0x" << readGuestU16OrZero(rdram, sourceObject + 0xDCu)
+                << " srcC8=0x" << readGuestU32OrZero(rdram, sourceObject + 0xC8u)
+                << " srcPos=0x" << readGuestU32OrZero(rdram, sourceObject + 0x20u)
+                << "/0x" << readGuestU32OrZero(rdram, sourceObject + 0x24u)
+                << "/0x" << readGuestU32OrZero(rdram, sourceObject + 0xF8u)
+                << "/0x" << readGuestU32OrZero(rdram, sourceObject + 0xFCu);
+        }
+        if (renderObject)
+        {
+            appendKofxiDemoRenderChainObjectFields(out, rdram, "renderObj", renderObject);
+        }
+        if (resourceObject)
+        {
+            out << " resObj=0x" << resourceObject
+                << " resReadyA=0x" << readGuestU16OrZero(rdram, resourceObject + 0x06u)
+                << "/0x" << readGuestU16OrZero(rdram, resourceObject + 0x08u)
+                << "/0x" << readGuestU16OrZero(rdram, resourceObject + 0x0Au)
+                << " resWord=0x" << readGuestU32OrZero(rdram, resourceObject)
+                << "/0x" << readGuestU32OrZero(rdram, resourceObject + 0x04u);
+        }
+    }
+
+    uint32_t kofxiSpriteResourceRecordAddress(uint8_t *rdram, uint32_t resourceId, uint32_t variantRaw)
+    {
+        constexpr uint32_t kRecordBase = 0x01DCC410u;
+        constexpr uint32_t kVariantIndexTable = 0x01DDF028u;
+        constexpr uint32_t kRecordStride = 20u;
+
+        const uint32_t variant = variantRaw & 0xFFFFu;
+        if (!rdram || resourceId > 0x3FFu || variant > 0x3FFu)
+        {
+            return 0u;
+        }
+
+        const uint32_t variantIndex = readGuestU16OrZero(rdram, ADD32(kVariantIndexTable, variant * 4u));
+        if (resourceId + variantIndex > 0x3FFu)
+        {
+            return 0u;
+        }
+
+        return ADD32(kRecordBase, (resourceId + variantIndex) * kRecordStride);
+    }
+
+    void appendKofxiSpriteResourceRecordFields(
+        std::ostream &out,
+        uint8_t *rdram,
+        uint32_t sourceObject)
+    {
+        if (!sourceObject)
+        {
+            return;
+        }
+
+        const uint32_t resourceId = readGuestU16OrZero(rdram, sourceObject + 0xDAu);
+        const uint32_t variant = readGuestU16OrZero(rdram, sourceObject + 0xDCu);
+        const uint32_t record = kofxiSpriteResourceRecordAddress(rdram, resourceId, variant);
+        if (record == 0u)
+        {
+            return;
+        }
+
+        out << " resRec=0x" << std::hex << record
+            << " resXY=0x" << readGuestU16OrZero(rdram, record + 0x06u)
+            << "/0x" << readGuestU16OrZero(rdram, record + 0x08u)
+            << " resH=[";
+        for (uint32_t i = 0u; i < 10u; ++i)
+        {
+            if (i != 0u)
+            {
+                out << ",";
+            }
+            out << "0x" << readGuestU16OrZero(rdram, record + i * 2u);
+        }
+        out << "]";
+
+        const uint32_t command = readGuestU32OrZero(rdram, sourceObject + 0xD0u);
+        if (command == 0u)
+        {
+            return;
+        }
+
+        out << " d0H=[";
+        for (uint32_t i = 0u; i < 16u; ++i)
+        {
+            if (i != 0u)
+            {
+                out << ",";
+            }
+            out << "0x" << readGuestU16OrZero(rdram, command + i * 2u);
+        }
+        out << "]";
+    }
+
+    void appendKofxiObjectRenderSetupTileFields(
+        std::ostream &out,
+        uint8_t *rdram,
+        uint32_t entryPc,
+        uint32_t sourceObject)
+    {
+        if (entryPc != 0x00324260u || !sourceObject)
+        {
+            return;
+        }
+
+        const uint32_t tileIndex = readGuestU16OrZero(rdram, sourceObject);
+        const uint32_t tileTable = readGuestU32OrZero(rdram, sourceObject + 0xC8u);
+        const uint32_t tileEntry = tileTable + ((tileIndex * 7u) << 1u);
+
+        out << " setupTile=idx0x" << std::hex << tileIndex
+            << "/base0x" << tileTable
+            << "/entry0x" << tileEntry
+            << " srcXY=0x" << readGuestU16OrZero(rdram, sourceObject + 0x0Cu)
+            << "/0x" << readGuestU16OrZero(rdram, sourceObject + 0x0Eu)
+            << " finalXY=0x" << readGuestU16OrZero(rdram, sourceObject + 0x14u)
+            << "/0x" << readGuestU16OrZero(rdram, sourceObject + 0x16u)
+            << " res=0x" << readGuestU16OrZero(rdram, sourceObject + 0xDAu)
+            << "/0x" << readGuestU16OrZero(rdram, sourceObject + 0xDCu)
+            << " d0=0x" << readGuestU32OrZero(rdram, sourceObject + 0xD0u)
+            << " tileH=[";
+        for (uint32_t i = 0; i < 7u; ++i)
+        {
+            if (i != 0u)
+            {
+                out << ",";
+            }
+            out << "0x" << readGuestU16OrZero(rdram, tileEntry + i * 2u);
+        }
+        out << "]";
+        appendKofxiSpriteResourceRecordFields(out, rdram, sourceObject);
+    }
+
+    struct KofxiScopedHalfwordPatch
+    {
+        uint8_t *rdram = nullptr;
+        uint32_t addr = 0u;
+        uint16_t before = 0u;
+        uint16_t after = 0u;
+        bool active = false;
+
+        void apply(uint8_t *nextRdram, uint32_t nextAddr, uint16_t nextValue)
+        {
+            restore();
+            if (!nextRdram || nextAddr == 0u)
+            {
+                return;
+            }
+
+            before = readGuestU16OrZero(nextRdram, nextAddr);
+            if (!writeGuestU16(nextRdram, nextAddr, nextValue))
+            {
+                return;
+            }
+
+            rdram = nextRdram;
+            addr = nextAddr;
+            after = nextValue;
+            active = true;
+        }
+
+        void restore()
+        {
+            if (active)
+            {
+                (void)writeGuestU16(rdram, addr, before);
+            }
+
+            active = false;
+            rdram = nullptr;
+            addr = 0u;
+        }
+
+        ~KofxiScopedHalfwordPatch()
+        {
+            restore();
+        }
+    };
+
+    void maybeApplyKofxiOrderPleaseWaitCenterCompat(
+        uint8_t *rdram,
+        R5900Context *ctx,
+        uint32_t entryPc,
+        uint32_t sourceObject,
+        KofxiScopedHalfwordPatch &patch)
+    {
+        constexpr uint32_t kObjectRenderSetup = 0x00324260u;
+        constexpr uint32_t kFrontendStatePtr = 0x0092F788u;
+        constexpr uint32_t kButtonHelpOrderState = 0x001394B0u;
+        constexpr uint32_t kPleaseWaitObject = 0x0092F808u;
+        constexpr uint32_t kPleaseWaitCommand = 0x00B3AABAu;
+        constexpr uint32_t kPleaseWaitResource = 0x5Au;
+        constexpr uint32_t kPleaseWaitVariant = 0u;
+        constexpr uint16_t kExpectedFlags = 0x0108u;
+        constexpr uint16_t kExpectedSourceX = 0xFFF1u;
+        constexpr uint16_t kExpectedSourceY = 0xFFF6u;
+        constexpr uint16_t kExpectedResourceX = 0x00F1u;
+        constexpr uint16_t kExpectedResourceY = 0x0136u;
+        constexpr uint16_t kCenteredResourceX = 0x0125u;
+
+        if (!kofxiOrderPleaseWaitCenterCompatEnabled() ||
+            !rdram ||
+            !ctx ||
+            entryPc != kObjectRenderSetup ||
+            sourceObject != kPleaseWaitObject ||
+            readGuestU32OrZero(rdram, kFrontendStatePtr) != kButtonHelpOrderState ||
+            readGuestU16OrZero(rdram, sourceObject + 0xD4u) != kExpectedFlags ||
+            readGuestU16OrZero(rdram, sourceObject + 0xDAu) != kPleaseWaitResource ||
+            readGuestU16OrZero(rdram, sourceObject + 0xDCu) != kPleaseWaitVariant ||
+            readGuestU16OrZero(rdram, sourceObject + 0x0Cu) != kExpectedSourceX ||
+            readGuestU16OrZero(rdram, sourceObject + 0x0Eu) != kExpectedSourceY ||
+            readGuestU32OrZero(rdram, sourceObject + 0xD0u) != kPleaseWaitCommand)
+        {
+            return;
+        }
+
+        const uint32_t record = kofxiSpriteResourceRecordAddress(rdram, kPleaseWaitResource, kPleaseWaitVariant);
+        if (record == 0u ||
+            readGuestU16OrZero(rdram, record + 0x06u) != kExpectedResourceX ||
+            readGuestU16OrZero(rdram, record + 0x08u) != kExpectedResourceY)
+        {
+            return;
+        }
+
+        patch.apply(rdram, record + 0x06u, kCenteredResourceX);
+        if (!patch.active || !traceKofxiOrderPleaseWaitCenterCompatEnabled())
+        {
+            return;
+        }
+
+        static std::atomic<uint32_t> s_pleaseWaitCenterLogs{0u};
+        const uint32_t index = s_pleaseWaitCenterLogs.fetch_add(1u, std::memory_order_relaxed);
+        if (index >= kofxiOrderPleaseWaitCenterCompatTraceLimit())
+        {
+            return;
+        }
+
+        std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+        std::cerr << "[KOFXI:order-please-wait-center-compat] #" << std::dec << index
+                  << std::hex
+                  << " entry=0x" << entryPc
+                  << " pc=0x" << (ctx ? ctx->pc : 0u)
+                  << " src=0x" << sourceObject
+                  << " command=0x" << kPleaseWaitCommand
+                  << " record=0x" << record
+                  << " x=0x" << patch.before
+                  << "->0x" << patch.after
+                  << " y=0x" << readGuestU16OrZero(rdram, record + 0x08u)
+                  << " srcXY=0x" << readGuestU16OrZero(rdram, sourceObject + 0x0Cu)
+                  << "/0x" << readGuestU16OrZero(rdram, sourceObject + 0x0Eu)
+                  << std::dec << std::endl;
+    }
+
+    void logKofxiDemoRenderChainTrace(
+        uint32_t index,
+        const char *phase,
+        const char *name,
+        uint8_t *rdram,
+        R5900Context *ctx,
+        uint32_t entryPc,
+        uint32_t callRa,
+        uint32_t callSp,
+        uint32_t a0,
+        uint32_t a1,
+        uint32_t a2,
+        uint32_t a3)
+    {
+        constexpr uint32_t kFrontendStatePtr = 0x0092F788u;
+        constexpr uint32_t kObjectBucketBase = 0x009AFFD0u;
+        constexpr uint32_t kObjectRenderQueueCount = 0x01D11530u;
+        constexpr uint32_t kObjectRenderQueueBase = 0x01D11540u;
+        constexpr uint32_t kRenderSubmitCount = 0x01DA29E0u;
+        constexpr uint32_t kRenderListCount = 0x0092F0F8u;
+        constexpr uint32_t kRenderListProcessed = 0x0092F0F0u;
+        constexpr uint32_t kRenderListBase = 0x0092EFF0u;
+
+        const uint32_t s0 = ctx ? getRegU32(ctx, 16) : 0u;
+        const uint32_t s1 = ctx ? getRegU32(ctx, 17) : 0u;
+        const uint32_t s2 = ctx ? getRegU32(ctx, 18) : 0u;
+        const uint32_t s3 = ctx ? getRegU32(ctx, 19) : 0u;
+        const bool producerEntry = entryPc >= 0x00324E30u && entryPc <= 0x003250B8u;
+        const uint32_t producerSource = producerEntry ? (entryPc == 0x00324E30u ? a0 : s3) : 0u;
+        const uint32_t producerRenderObject = producerEntry ? (s2 ? s2 : (producerSource ? producerSource + 0x30u : 0u)) : 0u;
+        const uint32_t producerResource = producerEntry ? s1 : 0u;
+
+        std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+        std::cerr << "[KOFXI:demo-render-chain] #" << std::dec << index
+                  << " " << (phase ? phase : "")
+                  << " " << (name ? name : "")
+                  << " entry=0x" << std::hex << entryPc
+                  << " pc=0x" << (ctx ? ctx->pc : 0u)
+                  << " ra=0x" << callRa
+                  << " sp=0x" << callSp
+                  << " a=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " v=0x" << (ctx ? getRegU32(ctx, 2) : 0u)
+                  << "/0x" << (ctx ? getRegU32(ctx, 3) : 0u)
+                  << " s=0x" << s0 << "/0x" << s1 << "/0x" << s2 << "/0x" << s3
+                  << " state=0x" << readGuestU32OrZero(rdram, kFrontendStatePtr)
+                  << " objects=0x" << countKofxiObjectBuckets(rdram)
+                  << " bucket0=0x" << readGuestU32OrZero(rdram, kObjectBucketBase)
+                  << "/0x" << readGuestU32OrZero(rdram, kObjectBucketBase + 4u)
+                  << " bucketFD=0x" << readGuestU32OrZero(rdram, kObjectBucketBase + 0xFDu * 8u)
+                  << "/0x" << readGuestU32OrZero(rdram, kObjectBucketBase + 0xFDu * 8u + 4u)
+                  << " bucketFE=0x" << readGuestU32OrZero(rdram, kObjectBucketBase + 0xFEu * 8u)
+                  << "/0x" << readGuestU32OrZero(rdram, kObjectBucketBase + 0xFEu * 8u + 4u)
+                  << " bucketFF=0x" << readGuestU32OrZero(rdram, kObjectBucketBase + 0xFFu * 8u)
+                  << "/0x" << readGuestU32OrZero(rdram, kObjectBucketBase + 0xFFu * 8u + 4u)
+                  << " objectQueue=0x" << readGuestU16OrZero(rdram, kObjectRenderQueueCount)
+                  << "/0x" << readGuestU32OrZero(rdram, kObjectRenderQueueBase)
+                  << " render=0x" << readGuestU32OrZero(rdram, kRenderSubmitCount)
+                  << "/0x" << readGuestU32OrZero(rdram, kRenderListCount)
+                  << "/0x" << readGuestU32OrZero(rdram, kRenderListProcessed)
+                  << "/0x" << readGuestU32OrZero(rdram, kRenderListBase);
+
+        appendKofxiDemoRenderChainObjectFields(std::cerr, rdram, "a0obj", a0);
+        appendKofxiDemoRenderChainObjectFields(std::cerr, rdram, "s0obj", s0);
+        appendKofxiDemoRenderChainObjectFields(std::cerr, rdram, "s1obj", s1);
+        appendKofxiDemoRenderChainObjectFields(std::cerr, rdram, "s2obj", s2);
+        appendKofxiDemoRenderChainObjectFields(std::cerr, rdram, "s3obj", s3);
+        appendKofxiObjectRenderSetupTileFields(std::cerr, rdram, entryPc, a0);
+        appendKofxiResourceIndexMiniSummary(std::cerr, rdram, "res0A", 0x0Au);
+        appendKofxiObjectBucketSummary(std::cerr, rdram, "bucketFFobj", kObjectBucketBase + 0xFFu * 8u);
+        appendKofxiDemoRenderChainProducerFields(
+            std::cerr,
+            rdram,
+            producerSource,
+            producerRenderObject,
+            producerResource);
+
+        if (a0 != 0u)
+        {
+            const uint32_t payload = readGuestU32OrZero(rdram, a0 + 0x10u);
+            if (payload != 0u)
+            {
+                std::cerr << " payload=0x" << payload
+                          << " payloadB=0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, payload))
+                          << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, payload + 0x01u))
+                          << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, payload + 0x02u))
+                          << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, payload + 0x03u))
+                          << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, payload + 0x04u))
+                          << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, payload + 0x05u))
+                          << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, payload + 0x06u))
+                          << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, payload + 0x07u))
+                          << " payloadW=0x" << readGuestU32OrZero(rdram, payload)
+                          << "/0x" << readGuestU32OrZero(rdram, payload + 0x04u)
+                          << "/0x" << readGuestU32OrZero(rdram, payload + 0x08u)
+                          << "/0x" << readGuestU32OrZero(rdram, payload + 0x0Cu)
+                          << " payloadCtrl=0x" << readGuestU32OrZero(rdram, payload + 0x10u)
+                          << "/0x" << readGuestU32OrZero(rdram, payload + 0x14u)
+                          << "/0x" << readGuestU32OrZero(rdram, payload + 0x18u)
+                          << " payloadReady=0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, payload + 0x44u))
+                          << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, payload + 0x45u))
+                          << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, payload + 0x46u))
+                          << " payloadB4B8=0x" << readGuestU16OrZero(rdram, payload + 0xB4u)
+                          << "/0x" << readGuestU32OrZero(rdram, payload + 0xB8u);
+            }
+        }
+
+        if (entryPc == 0x001394B0u || entryPc == 0x00139D50u || entryPc == 0x0013A500u)
+        {
+            std::cerr << " buttonGlobals=0x"
+                      << static_cast<uint32_t>(readGuestU8OrZero(rdram, 0x004158A8u))
+                      << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, 0x01DCF360u))
+                      << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, 0x009CDB50u))
+                      << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, 0x009CDB55u))
+                      << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, 0x009CDB5Au))
+                      << " buttonTables=0x" << readGuestU32OrZero(rdram, 0x0035DBC0u)
+                      << "/0x" << readGuestU32OrZero(rdram, 0x0035DC60u)
+                      << "/0x" << readGuestU32OrZero(rdram, 0x0035DC70u)
+                      << " local9cdb=0x" << readGuestU32OrZero(rdram, 0x009CDB50u)
+                      << "/0x" << readGuestU32OrZero(rdram, 0x009CDB54u)
+                      << "/0x" << readGuestU32OrZero(rdram, 0x009CDB58u)
+                      << "/0x" << readGuestU32OrZero(rdram, 0x009CDB5Cu);
+        }
+
+        std::cerr << std::dec << std::endl;
+    }
+
+    struct KofxiDecordFastResult
+    {
+        uint32_t originalRemaining = 0u;
+        uint32_t sourceStart = 0u;
+        uint32_t destStart = 0u;
+        uint32_t sourceEnd = 0u;
+        uint32_t destEnd = 0u;
+        uint32_t finalRemaining = 0u;
+    };
+
+    bool tryDecodeKofxiDecordTask(
+        uint8_t *rdram,
+        uint32_t payload,
+        uint32_t sourceOverride,
+        uint32_t destOverride,
+        KofxiDecordFastResult &result)
+    {
+        constexpr uint32_t kDecordLengthTable = 0x003DE930u;
+        constexpr uint32_t kMaxFastDecodeOutput = 0x00400000u;
+
+        result = {};
+        if (!kofxiDecordTaskFastCompatEnabled() || !rdram || payload == 0u)
+        {
+            return false;
+        }
+
+        const uint32_t remaining = readGuestU32OrZero(rdram, payload + 0x04u);
+        uint32_t source = sourceOverride ? sourceOverride : readGuestU32OrZero(rdram, payload + 0x08u);
+        uint32_t dest = destOverride ? destOverride : readGuestU32OrZero(rdram, payload + 0x0Cu);
+        if (remaining == 0u || remaining > kMaxFastDecodeOutput || source == 0u || dest == 0u)
+        {
+            return false;
+        }
+
+        if (!getMemPtr(rdram, source) || !getMemPtr(rdram, dest))
+        {
+            return false;
+        }
+
+        result.originalRemaining = remaining;
+        result.sourceStart = source;
+        result.destStart = dest;
+
+        uint32_t remainingOut = remaining;
+        uint32_t finalRemaining = 0u;
+        while (remainingOut != 0u)
+        {
+            uint8_t *controlPtr = getMemPtr(rdram, source);
+            if (!controlPtr)
+            {
+                return false;
+            }
+            const uint8_t control = *controlPtr;
+            ++source;
+
+            for (uint32_t mask = 0x80u; mask != 0u && remainingOut != 0u; mask >>= 1u)
+            {
+                if ((control & mask) == 0u)
+                {
+                    uint8_t *literalPtr = getMemPtr(rdram, source);
+                    uint8_t *destPtr = getMemPtr(rdram, dest);
+                    if (!literalPtr || !destPtr)
+                    {
+                        return false;
+                    }
+
+                    *destPtr = *literalPtr;
+                    ++source;
+                    ++dest;
+                    --remainingOut;
+                    continue;
+                }
+
+                uint8_t *tokenPtr = getMemPtr(rdram, source);
+                if (!tokenPtr)
+                {
+                    return false;
+                }
+
+                const uint8_t token = *tokenPtr;
+                ++source;
+
+                const uint32_t distance = 16u - ((static_cast<uint32_t>(token) >> 4u) & 0x0Fu);
+                const uint32_t copyLength = readGuestU8OrZero(rdram, kDecordLengthTable + (token & 0x0Fu));
+                if (distance == 0u || distance > 16u || copyLength == 0u || copyLength > 16u)
+                {
+                    return false;
+                }
+
+                uint32_t backref = dest - distance;
+                for (uint32_t i = 0u; i < copyLength; ++i)
+                {
+                    uint8_t *srcPtr = getMemPtr(rdram, backref);
+                    uint8_t *destPtr = getMemPtr(rdram, dest);
+                    if (!srcPtr || !destPtr)
+                    {
+                        return false;
+                    }
+
+                    *destPtr = *srcPtr;
+                    ++backref;
+                    ++dest;
+                }
+
+                const uint32_t nextRemaining = remainingOut - copyLength;
+                if (copyLength >= remainingOut)
+                {
+                    finalRemaining = nextRemaining;
+                    remainingOut = 0u;
+                }
+                else
+                {
+                    remainingOut = nextRemaining;
+                }
+            }
+        }
+
+        result.sourceEnd = source;
+        result.destEnd = dest;
+        result.finalRemaining = finalRemaining;
+        return writeGuestU32(rdram, payload + 0x04u, finalRemaining) &&
+               writeGuestU32(rdram, payload + 0x08u, source == 0u ? 0u : (source - 1u)) &&
+               writeGuestU32(rdram, payload + 0x0Cu, dest);
+    }
+
+    void traceKofxiDecordTaskFastCompat(uint32_t entryPc, uint32_t object, uint32_t payload, const KofxiDecordFastResult &result)
+    {
+        if (!traceKofxiDecordTaskFastCompatEnabled())
+        {
+            return;
+        }
+
+        static std::atomic<uint32_t> s_decordFastLogs{0u};
+        const uint32_t index = s_decordFastLogs.fetch_add(1u, std::memory_order_relaxed);
+        if (index >= kofxiDecordTaskFastCompatTraceLimit())
+        {
+            return;
+        }
+
+        std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+        std::cerr << "[KOFXI:decord-fast] #" << std::dec << index
+                  << std::hex
+                  << " entry=0x" << entryPc
+                  << " object=0x" << object
+                  << " payload=0x" << payload
+                  << " rem=0x" << result.originalRemaining
+                  << " finalRem=0x" << result.finalRemaining
+                  << " src=0x" << result.sourceStart
+                  << "->0x" << result.sourceEnd
+                  << " dst=0x" << result.destStart
+                  << "->0x" << result.destEnd
+                  << std::dec << std::endl;
+    }
+
+    void maybeApplyKofxiDecordTaskBudgetCompat(uint8_t *rdram, R5900Context *ctx, uint32_t entryPc)
+    {
+        constexpr uint32_t kDecordTaskEntry = 0x001986E0u;
+        constexpr uint32_t kDecordTaskLoop = 0x00198764u;
+        constexpr uint32_t kObjectBucketDecord = 0xFFu;
+
+        if (!kofxiDecordTaskBudgetCompatEnabled() ||
+            !rdram ||
+            !ctx ||
+            (entryPc != kDecordTaskEntry && entryPc != kDecordTaskLoop))
+        {
+            return;
+        }
+
+        const uint32_t object = (entryPc == kDecordTaskEntry) ? getRegU32(ctx, 4) : getRegU32(ctx, 22);
+        const uint32_t payloadFromObject = object ? readGuestU32OrZero(rdram, object + 0x10u) : 0u;
+        const uint32_t payloadFromRegister = (entryPc == kDecordTaskLoop) ? getRegU32(ctx, 17) : 0u;
+        const uint32_t payload = payloadFromRegister ? payloadFromRegister : payloadFromObject;
+        if (payload == 0u)
+        {
+            return;
+        }
+
+        const uint32_t cb = object ? readGuestU32OrZero(rdram, object + 0x08u) : 0u;
+        const uint32_t bucket = object ? readGuestU32OrZero(rdram, object + 0x04u) : 0u;
+        if (cb != kDecordTaskEntry || bucket != kObjectBucketDecord)
+        {
+            return;
+        }
+
+        const uint32_t remaining = readGuestU32OrZero(rdram, payload + 0x04u);
+        const uint32_t source = readGuestU32OrZero(rdram, payload + 0x08u);
+        const uint32_t dest = readGuestU32OrZero(rdram, payload + 0x0Cu);
+        const uint32_t currentBudget = readGuestU32OrZero(rdram, payload + 0x10u);
+        const uint32_t desiredBudget = kofxiDecordTaskBudgetCompatValue();
+        KofxiDecordFastResult fastResult{};
+        const uint32_t liveSource = (entryPc == kDecordTaskLoop) ? getRegU32(ctx, 20) : 0u;
+        const uint32_t liveDest = (entryPc == kDecordTaskLoop) ? getRegU32(ctx, 19) : 0u;
+        if (tryDecodeKofxiDecordTask(rdram, payload, liveSource, liveDest, fastResult))
+        {
+            if (entryPc == kDecordTaskLoop)
+            {
+                SET_GPR_U32(ctx, 17, payload);
+                SET_GPR_U32(ctx, 19, fastResult.destEnd);
+                SET_GPR_U32(ctx, 20, fastResult.sourceEnd == 0u ? 0u : (fastResult.sourceEnd - 1u));
+                if (getRegU32(ctx, 16) < desiredBudget)
+                {
+                    SET_GPR_U32(ctx, 16, desiredBudget);
+                }
+            }
+
+            traceKofxiDecordTaskFastCompat(entryPc, object, payload, fastResult);
+            return;
+        }
+
+        if (remaining == 0u || source == 0u || dest == 0u || currentBudget == 0u || currentBudget >= desiredBudget)
+        {
+            if (entryPc == kDecordTaskLoop && getRegU32(ctx, 16) < desiredBudget && currentBudget >= desiredBudget)
+            {
+                SET_GPR_U32(ctx, 16, desiredBudget);
+            }
+            return;
+        }
+
+        if (!writeGuestU32(rdram, payload + 0x10u, desiredBudget))
+        {
+            return;
+        }
+
+        if (entryPc == kDecordTaskLoop)
+        {
+            SET_GPR_U32(ctx, 16, desiredBudget);
+        }
+
+        if (traceKofxiDecordTaskBudgetCompatEnabled())
+        {
+            static std::atomic<uint32_t> s_decordBudgetLogs{0u};
+            const uint32_t index = s_decordBudgetLogs.fetch_add(1u, std::memory_order_relaxed);
+            if (index < kofxiDecordTaskBudgetCompatTraceLimit())
+            {
+                std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+                std::cerr << "[KOFXI:decord-budget] #" << std::dec << index
+                          << std::hex
+                          << " entry=0x" << entryPc
+                          << " object=0x" << object
+                          << " payload=0x" << payload
+                          << " rem=0x" << remaining
+                          << " src=0x" << source
+                          << " dst=0x" << dest
+                          << " budget=0x" << currentBudget
+                          << "->0x" << desiredBudget
+                          << " s0=0x" << getRegU32(ctx, 16)
+                          << std::dec << std::endl;
+            }
+        }
+    }
+
+    void kofxiTraceDemoRenderChain(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        if (!ctx)
+        {
+            return;
+        }
+
+        const uint32_t entryPc = ctx->pc;
+        auto it = g_kofxiDemoRenderChainTraceFns.find(entryPc);
+        PS2Runtime::RecompiledFunction original =
+            (it != g_kofxiDemoRenderChainTraceFns.end()) ? it->second : nullptr;
+        if (!original && runtime && runtime->hasFunction(entryPc))
+        {
+            original = runtime->lookupFunction(entryPc);
+        }
+
+        if (!original || original == &kofxiTraceDemoRenderChain)
+        {
+            return;
+        }
+
+        if (!rdram)
+        {
+            original(rdram, ctx, runtime);
+            return;
+        }
+
+        static std::atomic<uint32_t> s_demoRenderChainLogs{0u};
+        const bool traceEnabled = traceKofxiDemoRenderChainEnabled();
+        const bool traceStateMatches = traceEnabled && kofxiDemoRenderChainTraceStateMatches(rdram);
+        const uint32_t index = traceStateMatches ? s_demoRenderChainLogs.fetch_add(1u, std::memory_order_relaxed) : 0u;
+        const bool shouldLog = traceStateMatches && index < kofxiDemoRenderChainTraceLimit();
+        const char *name = kofxiDemoRenderChainTraceName(entryPc);
+        const uint32_t callRa = getRegU32(ctx, 31);
+        const uint32_t callSp = getRegU32(ctx, 29);
+        const uint32_t a0 = getRegU32(ctx, 4);
+        const uint32_t a1 = getRegU32(ctx, 5);
+        const uint32_t a2 = getRegU32(ctx, 6);
+        const uint32_t a3 = getRegU32(ctx, 7);
+
+        if (shouldLog)
+        {
+            logKofxiDemoRenderChainTrace(
+                index,
+                "enter",
+                name,
+                rdram,
+                ctx,
+                entryPc,
+                callRa,
+                callSp,
+                a0,
+                a1,
+                a2,
+                a3);
+        }
+
+        maybeApplyKofxiDecordTaskBudgetCompat(rdram, ctx, entryPc);
+
+        KofxiScopedHalfwordPatch pleaseWaitCenterPatch;
+        maybeApplyKofxiOrderPleaseWaitCenterCompat(rdram, ctx, entryPc, a0, pleaseWaitCenterPatch);
+        original(rdram, ctx, runtime);
+        pleaseWaitCenterPatch.restore();
+
+        if (shouldLog)
+        {
+            logKofxiDemoRenderChainTrace(
+                index,
+                "leave",
+                name,
+                rdram,
+                ctx,
+                entryPc,
+                callRa,
+                callSp,
+                a0,
+                a1,
+                a2,
+                a3);
+        }
+    }
+
+    void registerKofxiDemoRenderChainTrace(PS2Runtime &runtime, uint32_t entry)
+    {
+        if (!runtime.hasFunction(entry))
+        {
+            return;
+        }
+
+        PS2Runtime::RecompiledFunction original = runtime.lookupFunction(entry);
+        if (!original || original == &kofxiTraceDemoRenderChain)
+        {
+            return;
+        }
+
+        g_kofxiDemoRenderChainTraceFns[entry] = original;
+        runtime.registerFunction(entry, &kofxiTraceDemoRenderChain);
     }
 
     void logKofxiFrontendDemoTimerTrace(
@@ -12658,6 +16126,367 @@ namespace
         }
 
         std::cerr << std::dec << std::endl;
+    }
+
+    const char *kofxiFrontendDemoGateTraceName(uint32_t entry)
+    {
+        switch (entry)
+        {
+        case 0x00176690u:
+            return "demoTask";
+        case 0x001766BCu:
+            return "demoTaskAfterReady";
+        case 0x001766F0u:
+            return "demoTaskPostResource";
+        case 0x0017671Cu:
+            return "demoTaskAfterGateSet";
+        case 0x00176760u:
+            return "demoResourceObjectRun";
+        case 0x0035812Cu:
+            return "gateClearInit";
+        case 0x003581C4u:
+            return "gateClearAlt";
+        case 0x003581E0u:
+            return "gateReadEarly";
+        case 0x003582D0u:
+            return "gateReadDispatch";
+        case 0x003582E0u:
+            return "gateRead";
+        case 0x00358350u:
+            return "gateCounterTick";
+        case 0x0035839Cu:
+            return "gateSetCall";
+        case 0x003583A0u:
+            return "gateSetDelay";
+        default:
+            return "gateStep";
+        }
+    }
+
+    void logKofxiFrontendDemoGateTrace(
+        const char *phase,
+        uint32_t index,
+        uint8_t *rdram,
+        R5900Context *ctx,
+        uint32_t entryPc,
+        uint32_t callRa,
+        uint32_t callSp,
+        uint32_t a0,
+        uint32_t a1,
+        uint32_t a2,
+        uint32_t a3,
+        uint32_t s0,
+        uint32_t s1)
+    {
+        constexpr uint32_t kFrontendStatePtr = 0x0092F788u;
+        constexpr uint32_t kObjectBucketBase = 0x009AFFD0u;
+        constexpr uint32_t kObjectRenderQueueCount = 0x01D11530u;
+        constexpr uint32_t kRenderSubmitCount = 0x01DA29E0u;
+        constexpr uint32_t kRenderListCount = 0x0092F0F8u;
+        constexpr uint32_t kRenderListProcessed = 0x0092F0F0u;
+        constexpr uint32_t kDemoAdvanceGate = 0x009BA220u;
+        constexpr uint32_t kDemoTimerCounter = 0x009BA228u;
+        constexpr uint32_t kDemoTimerIncrementFlag = 0x009BB578u;
+        constexpr uint32_t kDemoEventResult = 0x009BA7A0u;
+        constexpr uint32_t kDemoReadyTable = 0x009BA7B0u;
+        constexpr uint32_t kDemoEventIndex = 0x003637F8u;
+
+        const uint32_t bucket0 = readGuestU32OrZero(rdram, kObjectBucketBase);
+        const uint32_t payload = bucket0 != 0u ? readGuestU32OrZero(rdram, bucket0 + 0x10u) : 0u;
+        const uint32_t a0CounterPtr = a0 != 0u ? readGuestU32OrZero(rdram, a0 + 0x10u) : 0u;
+        const uint32_t s1CounterPtr = s1 != 0u ? readGuestU32OrZero(rdram, s1 + 0x10u) : 0u;
+
+        std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+        std::cerr << "[KOFXI:frontend-demo-gate] #" << std::dec << index
+                  << " " << (phase ? phase : "")
+                  << " " << kofxiFrontendDemoGateTraceName(entryPc)
+                  << " entry=0x" << std::hex << entryPc
+                  << " pc=0x" << (ctx ? ctx->pc : 0u)
+                  << " ra=0x" << callRa
+                  << " sp=0x" << callSp
+                  << " a=0x" << a0 << "/0x" << a1 << "/0x" << a2 << "/0x" << a3
+                  << " s=0x" << s0 << "/0x" << s1
+                  << " v=0x" << (ctx ? getRegU32(ctx, 2) : 0u)
+                  << "/0x" << (ctx ? getRegU32(ctx, 3) : 0u)
+                  << " state=0x" << readGuestU32OrZero(rdram, kFrontendStatePtr)
+                  << " demo=0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kDemoAdvanceGate))
+                  << "/0x" << readGuestU32OrZero(rdram, kDemoTimerCounter)
+                  << "/0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kDemoTimerIncrementFlag))
+                  << " event=0x" << readGuestU32OrZero(rdram, kDemoEventResult)
+                  << " ready=0x" << readGuestU32OrZero(rdram, kDemoReadyTable)
+                  << "/0x" << readGuestU16OrZero(rdram, kDemoEventIndex)
+                  << " objects=0x" << countKofxiObjectBuckets(rdram)
+                  << " bucket0=0x" << bucket0
+                  << "/0x" << readGuestU32OrZero(rdram, kObjectBucketBase + 4u)
+                  << " render=0x" << readGuestU32OrZero(rdram, kRenderSubmitCount)
+                  << "/0x" << readGuestU32OrZero(rdram, kRenderListCount)
+                  << "/0x" << readGuestU32OrZero(rdram, kRenderListProcessed)
+                  << " objectQueue=0x" << readGuestU16OrZero(rdram, kObjectRenderQueueCount)
+                  << " ctr=0x" << a0CounterPtr
+                  << "/0x" << readGuestU32OrZero(rdram, a0CounterPtr)
+                  << " s1ctr=0x" << s1CounterPtr
+                  << "/0x" << readGuestU32OrZero(rdram, s1CounterPtr);
+
+        if (bucket0 != 0u)
+        {
+            std::cerr << " objCb=0x" << readGuestU32OrZero(rdram, bucket0 + 0x08u)
+                      << " objName='" << readGuestCString(rdram, bucket0 + 0x22u, 16u) << "'"
+                      << " payload=0x" << payload;
+        }
+        if (payload != 0u)
+        {
+            std::cerr << " payloadW=0x" << readGuestU32OrZero(rdram, payload)
+                      << "/0x" << readGuestU32OrZero(rdram, payload + 0x04u)
+                      << "/0x" << readGuestU32OrZero(rdram, payload + 0x08u)
+                      << "/0x" << readGuestU32OrZero(rdram, payload + 0x0Cu)
+                      << " payloadB4B8=0x" << readGuestU16OrZero(rdram, payload + 0xB4u)
+                      << "/0x" << readGuestU32OrZero(rdram, payload + 0xB8u);
+        }
+        appendKofxiObjectBucketsSummary(std::cerr, rdram);
+        if (a0 != 0u)
+        {
+            std::cerr << " a0w=";
+            appendGuestWords(std::cerr, rdram, a0, 4u);
+        }
+        if (s0 != 0u)
+        {
+            std::cerr << " s0w=";
+            appendGuestWords(std::cerr, rdram, s0, 2u);
+        }
+
+        std::cerr << std::dec << std::endl;
+    }
+
+    void kofxiTraceFrontendDemoGate(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
+    {
+        if (!ctx)
+        {
+            return;
+        }
+
+        const uint32_t entryPc = ctx->pc;
+        auto it = g_kofxiFrontendDemoGateTraceFns.find(entryPc);
+        PS2Runtime::RecompiledFunction original =
+            (it != g_kofxiFrontendDemoGateTraceFns.end()) ? it->second : nullptr;
+        if (!original && runtime && runtime->hasFunction(entryPc))
+        {
+            original = runtime->lookupFunction(entryPc);
+        }
+        if (!original || original == &kofxiTraceFrontendDemoGate)
+        {
+            return;
+        }
+
+        static std::atomic<uint32_t> s_frontendDemoGateLogs{0u};
+        const uint32_t index = s_frontendDemoGateLogs.fetch_add(1u, std::memory_order_relaxed);
+        const bool shouldLog = index < kofxiFrontendDemoGateTraceLimit();
+        const uint32_t callRa = getRegU32(ctx, 31);
+        const uint32_t callSp = getRegU32(ctx, 29);
+        const uint32_t a0 = getRegU32(ctx, 4);
+        const uint32_t a1 = getRegU32(ctx, 5);
+        const uint32_t a2 = getRegU32(ctx, 6);
+        const uint32_t a3 = getRegU32(ctx, 7);
+        const uint32_t s0 = getRegU32(ctx, 16);
+        const uint32_t s1 = getRegU32(ctx, 17);
+
+        if (shouldLog)
+        {
+            logKofxiFrontendDemoGateTrace("enter", index, rdram, ctx, entryPc, callRa, callSp, a0, a1, a2, a3, s0, s1);
+        }
+
+        original(rdram, ctx, runtime);
+
+        if (shouldLog)
+        {
+            logKofxiFrontendDemoGateTrace("leave", index, rdram, ctx, entryPc, callRa, callSp, a0, a1, a2, a3, s0, s1);
+        }
+    }
+
+    void registerKofxiFrontendDemoGateTrace(PS2Runtime &runtime, uint32_t entry)
+    {
+        if (!runtime.hasFunction(entry))
+        {
+            return;
+        }
+
+        PS2Runtime::RecompiledFunction original = runtime.lookupFunction(entry);
+        if (!original || original == &kofxiTraceFrontendDemoGate)
+        {
+            return;
+        }
+
+        g_kofxiFrontendDemoGateTraceFns[entry] = original;
+        runtime.registerFunction(entry, &kofxiTraceFrontendDemoGate);
+    }
+
+    bool maybePromoteKofxiFrontendDemoResourceReadyCompat(uint8_t *rdram, R5900Context *ctx, uint32_t entryPc)
+    {
+        constexpr uint32_t kFrontendStatePtr = 0x0092F788u;
+        constexpr uint32_t kFrontendDemoState = 0x0017BBD0u;
+        constexpr uint32_t kObjectBucketBase = 0x009AFFD0u;
+        constexpr uint32_t kBucketFd = kObjectBucketBase + 0xFDu * 8u;
+        constexpr uint32_t kBucketFe = kObjectBucketBase + 0xFEu * 8u;
+        constexpr uint32_t kDemoTaskCallback = 0x00176690u;
+        constexpr uint32_t kDemoBehindVtrCallback = 0x001779C0u;
+        constexpr uint32_t kDemoBehindReaCallback = 0x00177420u;
+        constexpr uint32_t kResourceFlags = 0x009BAC60u;
+        constexpr uint32_t kResourceTablePtr = 0x009BAF68u;
+        constexpr uint32_t kResourceScanCursor = 0x009BA7C0u;
+        constexpr uint32_t kDemoAdvanceGate = 0x009BA220u;
+
+        if (!kofxiFrontendDemoResourceReadyCompatEnabled() ||
+            !rdram ||
+            !ctx ||
+            entryPc != kFrontendDemoState ||
+            readGuestU32OrZero(rdram, kFrontendStatePtr) != kFrontendDemoState)
+        {
+            return false;
+        }
+
+        const uint32_t bucket0 = readGuestU32OrZero(rdram, kObjectBucketBase);
+        const uint32_t bucketFd = readGuestU32OrZero(rdram, kBucketFd);
+        const uint32_t bucketFe = readGuestU32OrZero(rdram, kBucketFe);
+        const uint32_t callback = bucket0 != 0u ? readGuestU32OrZero(rdram, bucket0 + 0x08u) : 0u;
+        const uint32_t callbackFd = bucketFd != 0u ? readGuestU32OrZero(rdram, bucketFd + 0x08u) : 0u;
+        const uint32_t callbackFe = bucketFe != 0u ? readGuestU32OrZero(rdram, bucketFe + 0x08u) : 0u;
+        const uint32_t payload = bucket0 != 0u ? readGuestU32OrZero(rdram, bucket0 + 0x10u) : 0u;
+        if (bucket0 == 0u ||
+            bucketFd == 0u ||
+            bucketFe == 0u ||
+            callback != kDemoTaskCallback ||
+            callbackFd != kDemoBehindVtrCallback ||
+            callbackFe != kDemoBehindReaCallback ||
+            payload == 0u)
+        {
+            return false;
+        }
+
+        const uint16_t payloadB4 = readGuestU16OrZero(rdram, payload + 0xB4u);
+        const uint32_t payloadFlags = readGuestU32OrZero(rdram, payload + 0xB8u);
+        if (payloadB4 == 0u || (payloadFlags & 0x1u) != 0u)
+        {
+            return false;
+        }
+
+        const uint32_t resourceTable = readGuestU32OrZero(rdram, kResourceTablePtr);
+        const uint32_t resourceCount = resourceTable != 0u ? readGuestU16OrZero(rdram, resourceTable + 4u) : 0u;
+        if (resourceCount == 0u || resourceCount > 0x400u)
+        {
+            return false;
+        }
+
+        const uint32_t scanLimit = std::min(resourceCount, kofxiFrontendDemoResourceReadyCompatMaxIndex());
+        if (scanLimit == 0u)
+        {
+            return false;
+        }
+
+        std::array<uint8_t, 16> flagsBefore{};
+        std::array<uint8_t, 16> flagsAfter{};
+        const uint32_t snapshotLimit = std::min<uint32_t>(static_cast<uint32_t>(flagsBefore.size()), scanLimit);
+        for (uint32_t i = 0; i < snapshotLimit; ++i)
+        {
+            flagsBefore[i] = readGuestU8OrZero(rdram, kResourceFlags + i);
+        }
+
+        uint32_t candidates = 0u;
+        for (uint32_t i = 0; i < scanLimit; ++i)
+        {
+            const uint8_t flag = readGuestU8OrZero(rdram, kResourceFlags + i);
+            if ((flag & 0x60u) == 0x60u)
+            {
+                ++candidates;
+            }
+        }
+
+        if (candidates < kofxiFrontendDemoResourceReadyCompatMinCandidates())
+        {
+            return false;
+        }
+
+        const uint8_t readyMask = kofxiFrontendDemoResourceReadyCompatMask();
+        uint32_t promoted = 0u;
+        uint32_t firstIndex = 0xFFFFFFFFu;
+        uint8_t firstBefore = 0u;
+        uint8_t firstAfter = 0u;
+        for (uint32_t i = 0; i < scanLimit; ++i)
+        {
+            const uint8_t flag = readGuestU8OrZero(rdram, kResourceFlags + i);
+            if ((flag & 0x60u) != 0x60u || (flag & readyMask) == readyMask)
+            {
+                continue;
+            }
+
+            const uint8_t next = static_cast<uint8_t>(flag | readyMask);
+            if (!writeGuestU8(rdram, kResourceFlags + i, next))
+            {
+                continue;
+            }
+
+            if (firstIndex == 0xFFFFFFFFu)
+            {
+                firstIndex = i;
+                firstBefore = flag;
+                firstAfter = next;
+            }
+            ++promoted;
+        }
+
+        for (uint32_t i = 0; i < snapshotLimit; ++i)
+        {
+            flagsAfter[i] = readGuestU8OrZero(rdram, kResourceFlags + i);
+        }
+
+        if (promoted != 0u && traceKofxiFrontendDemoResourceReadyCompatEnabled())
+        {
+            static std::atomic<uint32_t> s_frontendDemoResourceReadyCompatLogs{0u};
+            const uint32_t index = s_frontendDemoResourceReadyCompatLogs.fetch_add(1u, std::memory_order_relaxed);
+            if (index < kofxiFrontendDemoResourceReadyCompatTraceLimit())
+            {
+                std::lock_guard<std::mutex> lock(kofxiTraceLogMutex());
+                std::cerr << "[KOFXI:frontend-demo-resource-ready-compat] #" << std::dec << index
+                          << " entry=0x" << std::hex << entryPc
+                          << " pc=0x" << (ctx ? ctx->pc : 0u)
+                          << " candidates=0x" << candidates
+                          << " promoted=0x" << promoted
+                          << " first=0x" << firstIndex
+                          << "/0x" << static_cast<uint32_t>(firstBefore)
+                          << "->0x" << static_cast<uint32_t>(firstAfter)
+                          << " mask=0x" << static_cast<uint32_t>(readyMask)
+                          << " scan=0x" << scanLimit
+                          << "/0x" << resourceCount
+                          << " cursor=0x" << readGuestU16OrZero(rdram, kResourceScanCursor)
+                          << " demo=0x" << static_cast<uint32_t>(readGuestU8OrZero(rdram, kDemoAdvanceGate))
+                          << " bucket0=0x" << bucket0
+                          << " bucketFD=0x" << bucketFd
+                          << " bucketFE=0x" << bucketFe
+                          << " payload=0x" << payload
+                          << " payloadB4B8=0x" << payloadB4
+                          << "/0x" << payloadFlags
+                          << " flagsBefore=";
+                for (uint32_t i = 0; i < snapshotLimit; ++i)
+                {
+                    if (i != 0u)
+                    {
+                        std::cerr << ",";
+                    }
+                    std::cerr << "0x" << static_cast<uint32_t>(flagsBefore[i]);
+                }
+                std::cerr << " flagsAfter=";
+                for (uint32_t i = 0; i < snapshotLimit; ++i)
+                {
+                    if (i != 0u)
+                    {
+                        std::cerr << ",";
+                    }
+                    std::cerr << "0x" << static_cast<uint32_t>(flagsAfter[i]);
+                }
+                appendKofxiObjectBucketsSummary(std::cerr, rdram);
+                std::cerr << std::dec << std::endl;
+            }
+        }
+
+        return promoted != 0u;
     }
 
     bool maybeApplyKofxiFrontendPromptConfirmCompat(uint8_t *rdram, R5900Context *ctx, uint32_t entryPc)
@@ -12918,9 +16747,11 @@ namespace
             logKofxiFrontendDemoTimerTrace("enter", index, rdram, ctx, entryPc, callRa, callSp, a0, a1, a2, a3);
         }
 
+        (void)maybePromoteKofxiFrontendDemoResourceReadyCompat(rdram, ctx, entryPc);
         (void)maybeCompleteKofxiFrontendDemoWait(rdram, ctx, entryPc);
         (void)maybeApplyKofxiFrontendPromptConfirmCompat(rdram, ctx, entryPc);
         (void)maybeFastForwardKofxiFrontendDemoTimer(rdram, ctx, entryPc);
+        (void)maybeAdvanceKofxiFrontendDemoGateCompat(rdram, ctx, entryPc, 0u);
         original(rdram, ctx, runtime);
 
         if (shouldLog)
@@ -14112,6 +17943,15 @@ namespace
         }
 
         runtime.registerFunction(0x001B4048u, &kofxiWakeFrameSleepThreadCompat);
+        if (runtime.hasFunction(0x00127374u))
+        {
+            runtime.registerFunction(0x00127374u, &kofxiGeneratedMemsetCompat);
+        }
+        if (runtime.hasFunction(0x0012A730u))
+        {
+            runtime.registerFunction(0x0012A730u, &kofxiGeneratedMemsetCompat);
+        }
+        runtime.registerFunction(0x001B1638u, &kofxiResourceHalfwordSumResumeCompat);
         if (runtime.hasFunction(0x001B87B8u))
         {
             g_kofxiResourceCallbackAllocFn = runtime.lookupFunction(0x001B87B8u);
@@ -14159,6 +17999,15 @@ namespace
             {
                 g_kofxiRenderQueueDrainFn = runtime.lookupFunction(0x0031E590u);
                 runtime.registerFunction(0x0031E590u, &kofxiTraceRenderQueueDrain);
+            }
+            if (runtime.hasFunction(0x0031D8F0u))
+            {
+                g_kofxiRenderJobCallbackFn = runtime.lookupFunction(0x0031D8F0u);
+                if (g_kofxiRenderJobCallbackFn &&
+                    g_kofxiRenderJobCallbackFn != &kofxiTraceRenderJobCallback)
+                {
+                    runtime.registerFunction(0x0031D8F0u, &kofxiTraceRenderJobCallback);
+                }
             }
             if (runtime.hasFunction(0x001522E0u))
             {
@@ -14223,6 +18072,7 @@ namespace
                      0x00176580u,
                      0x001765B8u,
                      0x00176690u,
+                     0x00176760u,
                      0x00177750u,
                      0x00177F30u,
                      0x00177F70u,
@@ -14322,6 +18172,51 @@ namespace
                 registerKofxiResourceSlotCallbackTrace(runtime, entry);
             }
         }
+        if (traceKofxiResourceFlagTransitionsEnabled())
+        {
+            for (uint32_t entry : {
+                     0x001770D0u,
+                     0x00177198u,
+                     0x00177350u,
+                     0x00177420u,
+                     0x00177494u,
+                     0x001774BCu,
+                     0x0017753Cu,
+                     0x001775A0u,
+                     0x001775F0u,
+                     0x00177628u,
+                     0x001776B8u,
+                     0x00178090u,
+                     0x001780DCu,
+                     0x001780E4u,
+                     0x00178118u,
+                     0x00178128u,
+                     0x00178170u,
+                     0x00178220u,
+                     0x00178298u,
+                     0x00178310u,
+                     0x00178394u,
+                     0x001783E4u,
+                     0x00178428u,
+                     0x00178560u,
+                     0x001789E0u,
+                     0x00178AC8u,
+                     0x00178BA0u,
+                     0x00178BC0u,
+                     0x00178BC8u,
+                     0x00178CACu,
+                     0x00178CF0u,
+                     0x00178D7Cu,
+                     0x00178D9Cu,
+                     0x00178DA4u,
+                     0x0017A1DCu,
+                     0x0017A208u,
+                     0x0017A22Cu,
+                     0x0017A260u})
+            {
+                registerKofxiResourceFlagTransitionTrace(runtime, entry);
+            }
+        }
         if (traceKofxiResourceDataChainEnabled())
         {
             for (uint32_t entry : {
@@ -14346,7 +18241,109 @@ namespace
                 runtime.registerFunction(0x0014E3F0u, &kofxiTraceScriptDispatch);
             }
         }
-        if (traceKofxiFrontendStateEnabled() || kofxiFrontendAutoStartCompatEnabled())
+        if (traceKofxiNextStageServiceEnabled())
+        {
+            for (uint32_t entry : {
+                     0x0030D7D0u,
+                     0x0030D830u,
+                     0x0030D844u,
+                     0x0030D890u,
+                     0x0030D898u,
+                     0x0030D8B8u,
+                     0x0030D8ECu,
+                     0x0030D954u,
+                     0x0030D96Cu,
+                     0x0030D9B0u,
+                     0x0030D9D0u,
+                     0x0030DA3Cu,
+                     0x0030DA54u,
+                     0x0030DA70u,
+                     0x0030DAB0u,
+                     0x0030DAB8u,
+                     0x0030DAC4u,
+                     0x0030DACCu,
+                     0x0030DDF8u,
+                     0x0030DE00u,
+                     0x0030DE08u,
+                     0x0030DE10u,
+                     0x0030DE18u,
+                     0x0030DE24u,
+                     0x0030DE48u,
+                     0x0030DF30u,
+                     0x0030DFC8u,
+                     0x0030DFE8u,
+                     0x003208D0u,
+                     0x00320900u,
+                     0x0032092Cu,
+                     0x00320954u,
+                     0x00320984u,
+                     0x003209CCu,
+                     0x003209D4u,
+                     0x003209DCu,
+                     0x003209E4u,
+                     0x003209ECu,
+                     0x003209F4u,
+                     0x003209FCu,
+                     0x00320A04u,
+                     0x00320A0Cu,
+                     0x00320A50u,
+                     0x00320A58u,
+                     0x00320A8Cu,
+                     0x00320AD0u,
+                     0x00320AD8u,
+                     0x00320B04u,
+                     0x00320B24u,
+                     0x00320B34u,
+                     0x00320B44u,
+                     0x00320B64u,
+                     0x00320B84u,
+                     0x00320B8Cu,
+                     0x00320BACu,
+                     0x00320BD4u,
+                     0x00320BFCu,
+                     0x00320C24u,
+                     0x00320C4Cu,
+                     0x00320C78u,
+                     0x00320CA8u,
+                     0x00320CCCu,
+                     0x00320CF8u,
+                     0x00320D0Cu,
+                     0x00320D20u,
+                     0x00320D60u,
+                     0x00320D80u,
+                     0x00320D88u,
+                     0x00320D90u,
+                     0x00320D98u,
+                     0x00320DA0u,
+                     0x00320DA8u,
+                     0x00320DB0u,
+                     0x00320DB8u,
+                     0x00320DC0u,
+                     0x00320DF0u,
+                     0x00320E00u,
+                     0x00320E08u,
+                     0x00320E3Cu,
+                     0x00320E68u,
+                     0x00320E70u,
+                     0x00320E7Cu,
+                     0x00320E84u,
+                     0x00320E8Cu,
+                     0x00320E94u,
+                     0x00320E9Cu,
+                     0x00320EA4u,
+                     0x00320EACu,
+                     0x00320EB8u,
+                     0x00320EC4u})
+            {
+                registerKofxiNextStageServiceTrace(runtime, entry);
+            }
+        }
+        if (traceKofxiFrontendStateEnabled() ||
+            kofxiFrontendAutoStartCompatEnabled() ||
+            kofxiPostTitleWaitCompleteCompatEnabled() ||
+            kofxiButtonHelpCompleteCompatEnabled() ||
+            kofxiOrderSelectReadyCompatEnabled() ||
+            kofxiNextStageReadyCompatEnabled())
         {
             for (uint32_t entry : {
                      0x001520E0u,
@@ -14389,6 +18386,8 @@ namespace
         }
         if ((traceKofxiFrontendDemoTimerEnabled() ||
              kofxiFrontendDemoTimerFastForwardCompatEnabled() ||
+             kofxiFrontendDemoResourceReadyCompatEnabled() ||
+             kofxiFrontendDemoAdvanceCompatEnabled() ||
              kofxiFrontendPromptConfirmCompatEnabled() ||
              kofxiFrontendDemoWaitCompleteCompatEnabled()) &&
             runtime.hasFunction(0x0017BBD0u))
@@ -14397,6 +18396,115 @@ namespace
             if (g_kofxiFrontendDemoTimerFn && g_kofxiFrontendDemoTimerFn != &kofxiTraceFrontendDemoTimer)
             {
                 runtime.registerFunction(0x0017BBD0u, &kofxiTraceFrontendDemoTimer);
+            }
+        }
+        if (traceKofxiFrontendDemoGateEnabled())
+        {
+            for (uint32_t entry : {
+                     0x00176690u,
+                     0x001766BCu,
+                     0x001766F0u,
+                     0x0017671Cu,
+                     0x00176760u,
+                     0x0035812Cu,
+                     0x003581C4u,
+                     0x003581E0u,
+                     0x003582D0u,
+                     0x003582E0u,
+                     0x00358350u,
+                     0x0035839Cu,
+                     0x003583A0u})
+            {
+                registerKofxiFrontendDemoGateTrace(runtime, entry);
+            }
+        }
+        if (kofxiDecordTaskBudgetCompatEnabled())
+        {
+            for (uint32_t entry : {
+                     0x001986E0u,
+                     0x00198764u})
+            {
+                registerKofxiDemoRenderChainTrace(runtime, entry);
+            }
+        }
+        if (kofxiOrderPleaseWaitCenterCompatEnabled())
+        {
+            registerKofxiDemoRenderChainTrace(runtime, 0x00324260u);
+        }
+        if (traceKofxiDemoRenderChainEnabled())
+        {
+            for (uint32_t entry : {
+                     0x001354A0u,
+                     0x001394B0u,
+                     0x00139D50u,
+                     0x0013A500u,
+                     0x001520E0u,
+                     0x00152138u,
+                     0x00152220u,
+                     0x00176690u,
+                     0x001766BCu,
+                     0x001766F0u,
+                     0x0017671Cu,
+                     0x00176760u,
+                     0x00177198u,
+                     0x00177420u,
+                     0x00177448u,
+                     0x00177450u,
+                     0x0017747Cu,
+                     0x00177494u,
+                     0x001774BCu,
+                     0x001774E0u,
+                     0x0017753Cu,
+                     0x001779C0u,
+                     0x00177A08u,
+                     0x00177A10u,
+                     0x00177A9Cu,
+                     0x00177AB8u,
+                     0x00177AFCu,
+                     0x00177B40u,
+                     0x00177B48u,
+                     0x00177B68u,
+                     0x00177BA0u,
+                     0x00177CC0u,
+                     0x00177E30u,
+                     0x0017A664u,
+                     0x001986E0u,
+                     0x0019872Cu,
+                     0x00198734u,
+                     0x00198764u,
+                     0x00199480u,
+                     0x00199488u,
+                     0x00199494u,
+                     0x0019949Cu,
+                     0x001994B8u,
+                     0x001994C4u,
+                     0x001994D0u,
+                     0x001A53B4u,
+                     0x003037C0u,
+                     0x00324260u,
+                     0x00324298u,
+                     0x003242A8u,
+                     0x00324D9Cu,
+                     0x00324E0Cu,
+                     0x00324E30u,
+                     0x00324E58u,
+                     0x00324E64u,
+                     0x00324E74u,
+                     0x00324F0Cu,
+                     0x00324F14u,
+                     0x00324F20u,
+                     0x00324F68u,
+                     0x00324F70u,
+                     0x00324F7Cu,
+                     0x003250B8u,
+                     0x00327CA0u,
+                     0x00327CF0u,
+                     0x00328180u,
+                     0x00328188u,
+                     0x00328190u,
+                     0x00328198u})
+            {
+                registerKofxiDemoRenderChainTrace(runtime, entry);
             }
         }
         if (traceKofxiFrontendBootstrapEnabled() || kofxiFrontendBootstrapFastForwardCompatEnabled())
@@ -14885,6 +18993,14 @@ namespace
         {
             g_kofxiStreamPollSemaFn = runtime.lookupFunction(0x0010CCB0u);
             runtime.registerFunction(0x0010CCB0u, &kofxiStreamPollSemaCompat);
+        }
+        if (kofxiCdSearchFileCompatEnabled() && runtime.hasFunction(0x0011B460u))
+        {
+            runtime.registerFunction(0x0011B460u, &kofxiCdSearchFileCompat);
+            if (runtime.hasFunction(0x0011B760u))
+            {
+                runtime.registerFunction(0x0011B760u, &kofxiCdSearchFileCompat);
+            }
         }
         if (traceKofxiStreamWaitEnabled() && runtime.hasFunction(0x0011C3A8u))
         {
@@ -15488,6 +19604,6 @@ namespace
 
     PS2_REGISTER_GAME_OVERRIDE("RECVX sound-driver compat", "slus_201.84", 0u, 0u, &applyRecvxSoundDriverCompat);
     PS2_REGISTER_GAME_OVERRIDE("RECVX DTX compat", "slus_201.84", 0u, 0u, &applyRecvxDtxCompat);
-    PS2_REGISTER_GAME_OVERRIDE("RECVX MPEG compat", "slus_201.84", 0u, 0u, &applyRecvxMpegCompat);
     PS2_REGISTER_GAME_OVERRIDE("KOFXI frame scheduler compat", "SLPS_256.60", 0u, 0u, &applyKofxiFrameSchedulerCompat);
-    PS2_REGISTER_GAME_OVERRIDE("LotR sound RPC compat", "SLUS_205.78", 0u, 0u, &applyLotrSoundRpcCompat);}
+    PS2_REGISTER_GAME_OVERRIDE("LotR sound RPC compat", "SLUS_205.78", 0u, 0u, &applyLotrSoundRpcCompat);
+}

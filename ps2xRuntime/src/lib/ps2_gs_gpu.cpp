@@ -51,6 +51,113 @@ namespace
         }
     }
 
+    bool traceGsImageSummaryEnabled()
+    {
+        static const bool enabled = []
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_IMAGE_SUMMARY");
+            return value && value[0] != '\0' && std::strtoul(value, nullptr, 0) != 0ul;
+        }();
+        return enabled;
+    }
+
+    uint32_t traceGsImageSummaryLimit()
+    {
+        static const uint32_t limit = []
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_IMAGE_SUMMARY_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 128u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 128u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 4096ul));
+        }();
+        return limit;
+    }
+
+    std::atomic<uint32_t> s_traceGsImageSummaryCount{0};
+
+    const char *traceGsImageDumpDir()
+    {
+        static const char *dir = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_IMAGE_DUMP_DIR");
+            return (value && value[0] != '\0') ? value : nullptr;
+        }();
+        return dir;
+    }
+
+    uint32_t traceGsImageDumpLimit()
+    {
+        static const uint32_t limit = []
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_IMAGE_DUMP_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 64u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 64u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 4096ul));
+        }();
+        return limit;
+    }
+
+    std::atomic<uint32_t> s_traceGsImageDumpCount{0};
+
+    void writePsmct16PpmPixel(std::FILE *file, uint16_t raw)
+    {
+        uint32_t r = ((raw >> 0) & 0x1Fu) << 3;
+        uint32_t g = ((raw >> 5) & 0x1Fu) << 3;
+        uint32_t b = ((raw >> 10) & 0x1Fu) << 3;
+        r |= r >> 5;
+        g |= g >> 5;
+        b |= b >> 5;
+
+        std::fputc(static_cast<int>(r), file);
+        std::fputc(static_cast<int>(g), file);
+        std::fputc(static_cast<int>(b), file);
+    }
+
+    void formatGsImageDumpPath(char *path,
+                               size_t pathSize,
+                               const char *dir,
+                               const char *kind,
+                               uint32_t index,
+                               uint32_t dbp,
+                               uint8_t psm,
+                               uint32_t width,
+                               uint32_t height)
+    {
+        const size_t dirLen = std::strlen(dir);
+        const bool hasSeparator = dirLen != 0u && (dir[dirLen - 1u] == '\\' || dir[dirLen - 1u] == '/');
+        std::snprintf(path,
+                      pathSize,
+                      "%s%sgs_image_%04u_%s_dbp%04x_psm%02x_%ux%u.ppm",
+                      dir,
+                      hasSeparator ? "" : "\\",
+                      index,
+                      kind,
+                      dbp,
+                      static_cast<uint32_t>(psm),
+                      width,
+                      height);
+    }
+
     static inline uint64_t loadLE64(const uint8_t *p)
     {
         uint64_t v;
@@ -307,6 +414,7 @@ namespace
     std::atomic<uint32_t> s_traceGsImageCount{0};
     std::atomic<uint32_t> s_traceGsLocalCopyCount{0};
     std::atomic<uint32_t> s_traceGsKickCount{0};
+    std::atomic<uint32_t> s_traceGsPresentationProbeCount{0};
     std::mutex s_pendingGifImageMutex;
     std::unordered_map<const GS *, uint32_t> s_pendingGifImageBytes;
 
@@ -350,7 +458,28 @@ namespace
             const char *value = std::getenv("PS2X_TRACE_GS_PACKET");
             return value && value[0] != '\0' && value[0] != '0';
         }();
-        return enabled;
+        if (!enabled)
+        {
+            return false;
+        }
+
+        static const uint64_t startTick = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_PACKET_START_TICK");
+            if (!value || value[0] == '\0')
+            {
+                value = std::getenv("PS2X_TRACE_GS_START_TICK");
+            }
+            if (!value || value[0] == '\0')
+            {
+                return 0ull;
+            }
+
+            char *end = nullptr;
+            const unsigned long long parsed = std::strtoull(value, &end, 0);
+            return (end != value) ? static_cast<uint64_t>(parsed) : 0ull;
+        }();
+        return startTick == 0ull || ps2_syscalls::GetCurrentVSyncTick() >= startTick;
     }
 
     uint32_t traceGsPacketLimit()
@@ -373,6 +502,86 @@ namespace
             return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 8192ul));
         }();
         return limit;
+    }
+
+    bool traceGsPresentationProbeEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_PRESENTATION_PROBE");
+            return value && value[0] != '\0' && value[0] != '0';
+        }();
+        return enabled;
+    }
+
+    uint32_t traceGsPresentationProbeLimit()
+    {
+        static const uint32_t limit = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_PRESENTATION_PROBE_LIMIT");
+            if (!value || value[0] == '\0')
+            {
+                return 128u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 128u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 4096ul));
+        }();
+        return limit;
+    }
+
+    uint32_t traceGsPresentationProbeInterval()
+    {
+        static const uint32_t interval = []()
+        {
+            const char *value = std::getenv("PS2X_TRACE_GS_PRESENTATION_PROBE_INTERVAL");
+            if (!value || value[0] == '\0')
+            {
+                return 64u;
+            }
+
+            char *end = nullptr;
+            const unsigned long parsed = std::strtoul(value, &end, 0);
+            if (end == value)
+            {
+                return 64u;
+            }
+
+            return static_cast<uint32_t>(std::clamp<unsigned long>(parsed, 1ul, 4096ul));
+        }();
+        return interval;
+    }
+
+    bool gsBlackPresentationFallbackEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *kofxiValue = std::getenv("PS2X_KOFXI_PRESENTATION_BLACK_FRAME_FALLBACK");
+            if (kofxiValue && kofxiValue[0] != '\0')
+            {
+                return kofxiValue[0] != '0';
+            }
+
+            const char *value = std::getenv("PS2X_GS_BLACK_PRESENTATION_FALLBACK");
+            return value && value[0] != '\0' && value[0] != '0';
+        }();
+        return enabled;
+    }
+
+    bool gsAlternateFieldPresentationEnabled()
+    {
+        static const bool enabled = []()
+        {
+            const char *value = std::getenv("PS2X_GS_FIELD_ALTERNATE_PRESENTATION");
+            return value && value[0] != '\0' && value[0] != '0';
+        }();
+        return enabled;
     }
 
     const char *gsRegName(uint8_t reg)
@@ -1221,7 +1430,7 @@ void GS::latchHostPresentationFrameUnlocked()
 
     const GSPmodeState pmode = decodePmode(m_privRegs->pmode);
     const GSSmode2State smode2 = decodeSMode2(m_privRegs->smode2);
-    const bool applyFieldMode = smode2.interlaced && !smode2.frameMode;
+    const bool applyFieldMode = smode2.interlaced && !smode2.frameMode && gsAlternateFieldPresentationEnabled();
     const bool oddField = (ps2_syscalls::GetCurrentVSyncTick() & 1ull) != 0ull;
     const GSFrameReg displayFrame1 = decodeDisplayFrame(m_privRegs->dispfb1);
     const GSFrameReg displayFrame2 = decodeDisplayFrame(m_privRegs->dispfb2);
@@ -1286,7 +1495,14 @@ void GS::latchHostPresentationFrameUnlocked()
             return false;
         }
 
-        if (!usedPreferred && displayFrame.fbp == 0u && countNonBlackPixels(scratch, width, height) == 0u)
+        uint32_t selectedNonBlack = countNonBlackPixels(scratch, width, height);
+        const bool allowBlackFrameFallback =
+            !usedPreferred &&
+            selectedNonBlack == 0u &&
+            (displayFrame.fbp == 0u || gsBlackPresentationFallbackEnabled());
+        bool usedBlackFrameFallback = false;
+
+        if (allowBlackFrameFallback)
         {
             for (int contextIndex = 0; contextIndex < 2; ++contextIndex)
             {
@@ -1312,14 +1528,70 @@ void GS::latchHostPresentationFrameUnlocked()
                     continue;
                 }
 
-                if (countNonBlackPixels(candidatePixels, width, height) == 0u)
+                const uint32_t candidateNonBlack = countNonBlackPixels(candidatePixels, width, height);
+                if (candidateNonBlack == 0u)
                 {
                     continue;
                 }
 
                 selectedFrame = candidate;
+                selectedNonBlack = candidateNonBlack;
                 scratch.swap(candidatePixels);
+                usedBlackFrameFallback = true;
                 break;
+            }
+        }
+
+        if (traceGsPresentationProbeEnabled())
+        {
+            const uint32_t probeIndex = s_traceGsPresentationProbeCount.fetch_add(1u, std::memory_order_relaxed);
+            const uint32_t probeInterval = traceGsPresentationProbeInterval();
+            if (probeIndex < traceGsPresentationProbeLimit() &&
+                (probeIndex < 32u || (probeIndex % probeInterval) == 0u))
+            {
+                auto sampleCandidate = [&](const GSFrameReg &frame) -> uint32_t
+                {
+                    std::vector<uint8_t> candidatePixels;
+                    if (!copyFrameToHostRgbaUnlocked(frame,
+                                                     width,
+                                                     height,
+                                                     candidatePixels,
+                                                     preserveAlpha,
+                                                     true,
+                                                     true,
+                                                     0u,
+                                                     0u))
+                    {
+                        return 0xFFFFFFFFu;
+                    }
+                    return countNonBlackPixels(candidatePixels, width, height);
+                };
+
+                const uint32_t ctx0NonBlack = sampleCandidate(m_ctx[0].frame);
+                const uint32_t ctx1NonBlack = sampleCandidate(m_ctx[1].frame);
+
+                std::cout << "[gs:presentation-probe] idx=" << probeIndex
+                          << " display=(" << displayFrame.fbp
+                          << "," << displayFrame.fbw
+                          << ",0x" << std::hex << static_cast<uint32_t>(displayFrame.psm)
+                          << std::dec << "," << displayOrigin.x
+                          << "," << displayOrigin.y << ")"
+                          << " selected=(" << selectedFrame.fbp
+                          << "," << selectedFrame.fbw
+                          << ",0x" << std::hex << static_cast<uint32_t>(selectedFrame.psm)
+                          << std::dec << ")"
+                          << " rgb=" << selectedNonBlack
+                          << " usedPreferred=" << static_cast<uint32_t>(usedPreferred ? 1u : 0u)
+                          << " usedFallback=" << static_cast<uint32_t>(usedBlackFrameFallback ? 1u : 0u)
+                          << " ctx0=(" << m_ctx[0].frame.fbp
+                          << "," << m_ctx[0].frame.fbw
+                          << ",0x" << std::hex << static_cast<uint32_t>(m_ctx[0].frame.psm)
+                          << std::dec << "," << ctx0NonBlack << ")"
+                          << " ctx1=(" << m_ctx[1].frame.fbp
+                          << "," << m_ctx[1].frame.fbw
+                          << ",0x" << std::hex << static_cast<uint32_t>(m_ctx[1].frame.psm)
+                          << std::dec << "," << ctx1NonBlack << ")"
+                          << std::endl;
             }
         }
 
@@ -2773,6 +3045,68 @@ void GS::processImageData(const uint8_t *data, uint32_t sizeBytes)
     u32 dsax = m_trxpos.dsax;
     u32 dsay = m_trxpos.dsay;
 
+    const bool traceImageSummary =
+        traceGsImageSummaryEnabled() &&
+        traceGsPacketEnabled() &&
+        sizeBytes != 0u &&
+        (dpsm == GS_PSM_CT16 || dpsm == GS_PSM_CT16S);
+    const uint32_t summaryBeforeCopied = m_transferState.copied_pixels;
+    const uint32_t summaryBeforeTotal = m_transferState.total_pixels;
+    const char *imageDumpDir = traceGsImageDumpDir();
+    const uint64_t imageDumpPixels = static_cast<uint64_t>(rrw) * static_cast<uint64_t>(rrh);
+    const uint64_t imageDumpBytes = imageDumpPixels * sizeof(uint16_t);
+    const bool traceImageDump =
+        imageDumpDir != nullptr &&
+        traceGsPacketEnabled() &&
+        (dpsm == GS_PSM_CT16 || dpsm == GS_PSM_CT16S) &&
+        summaryBeforeCopied == 0u &&
+        summaryBeforeTotal != 0u &&
+        imageDumpPixels == static_cast<uint64_t>(summaryBeforeTotal) &&
+        imageDumpPixels <= (1024ull * 1024ull) &&
+        imageDumpBytes <= static_cast<uint64_t>(sizeBytes);
+    uint32_t imageDumpIndex = 0u;
+    bool writeImageDump = false;
+    if (traceImageDump)
+    {
+        imageDumpIndex = s_traceGsImageDumpCount.fetch_add(1u, std::memory_order_relaxed);
+        writeImageDump = imageDumpIndex < traceGsImageDumpLimit();
+    }
+
+    uint32_t summaryIndex = 0u;
+    uint32_t summarySrcWords = 0u;
+    uint32_t summarySrcNonZero = 0u;
+    uint16_t summarySrcMin = 0xFFFFu;
+    uint16_t summarySrcMax = 0u;
+    uint16_t summarySrcFirst[8] = {};
+    if (traceImageSummary)
+    {
+        summaryIndex = s_traceGsImageSummaryCount.fetch_add(1u, std::memory_order_relaxed);
+        if (summaryIndex < traceGsImageSummaryLimit())
+        {
+            summarySrcWords = sizeBytes / sizeof(uint16_t);
+            const uint32_t firstCount = std::min<uint32_t>(summarySrcWords, 8u);
+            for (uint32_t i = 0; i < summarySrcWords; ++i)
+            {
+                uint16_t value = 0u;
+                std::memcpy(&value, data + i * sizeof(uint16_t), sizeof(value));
+                if (i < firstCount)
+                {
+                    summarySrcFirst[i] = value;
+                }
+                if (value != 0u)
+                {
+                    ++summarySrcNonZero;
+                }
+                summarySrcMin = std::min<uint16_t>(summarySrcMin, value);
+                summarySrcMax = std::max<uint16_t>(summarySrcMax, value);
+            }
+            if (summarySrcWords == 0u)
+            {
+                summarySrcMin = 0u;
+            }
+        }
+    }
+
     if (traceGsPacketEnabled())
     {
         const uint32_t index = s_traceGsImageCount.fetch_add(1u, std::memory_order_relaxed);
@@ -3161,6 +3495,130 @@ void GS::processImageData(const uint8_t *data, uint32_t sizeBytes)
             }
         }
         break;
+    }
+
+    if (writeImageDump)
+    {
+        char sourcePath[1024] = {};
+        char vramPath[1024] = {};
+        formatGsImageDumpPath(sourcePath,
+                              sizeof(sourcePath),
+                              imageDumpDir,
+                              "src",
+                              imageDumpIndex,
+                              dbp,
+                              dpsm,
+                              rrw,
+                              rrh);
+        formatGsImageDumpPath(vramPath,
+                              sizeof(vramPath),
+                              imageDumpDir,
+                              "vram",
+                              imageDumpIndex,
+                              dbp,
+                              dpsm,
+                              rrw,
+                              rrh);
+
+        bool wroteSource = false;
+        if (std::FILE *file = std::fopen(sourcePath, "wb"))
+        {
+            std::fprintf(file, "P6\n%u %u\n255\n", rrw, rrh);
+            for (uint32_t y = 0; y < rrh; ++y)
+            {
+                for (uint32_t x = 0; x < rrw; ++x)
+                {
+                    const uint64_t pixelIndex = static_cast<uint64_t>(y) * rrw + x;
+                    uint16_t raw = 0u;
+                    std::memcpy(&raw, data + pixelIndex * sizeof(uint16_t), sizeof(raw));
+                    writePsmct16PpmPixel(file, raw);
+                }
+            }
+            std::fclose(file);
+            wroteSource = true;
+        }
+
+        bool wroteVram = false;
+        if (std::FILE *file = std::fopen(vramPath, "wb"))
+        {
+            std::fprintf(file, "P6\n%u %u\n255\n", rrw, rrh);
+            for (uint32_t y = 0; y < rrh; ++y)
+            {
+                for (uint32_t x = 0; x < rrw; ++x)
+                {
+                    const uint16_t raw = static_cast<uint16_t>(ReadVram(dpsm, dbp, dbw, dsax + x, dsay + y));
+                    writePsmct16PpmPixel(file, raw);
+                }
+            }
+            std::fclose(file);
+            wroteVram = true;
+        }
+
+        std::cout << "[gs:image-dump] idx=" << imageDumpIndex
+                  << " dbp=0x" << std::hex << dbp
+                  << " dpsm=0x" << static_cast<uint32_t>(dpsm)
+                  << std::dec
+                  << " size=" << rrw << "x" << rrh
+                  << " src=" << (wroteSource ? 1 : 0) << " path=" << sourcePath
+                  << " vram=" << (wroteVram ? 1 : 0) << " path=" << vramPath
+                  << std::endl;
+    }
+
+    if (traceImageSummary && summaryIndex < traceGsImageSummaryLimit())
+    {
+        const uint32_t centerX = dsax + std::min<uint32_t>(rrw > 0u ? rrw - 1u : 0u, rrw / 2u);
+        const uint32_t centerY = dsay + std::min<uint32_t>(rrh > 0u ? rrh - 1u : 0u, rrh / 2u);
+        const uint32_t edgeX = dsax + std::min<uint32_t>(rrw > 0u ? rrw - 1u : 0u, 200u);
+        const uint32_t edgeY = dsay + std::min<uint32_t>(rrh > 0u ? rrh - 1u : 0u, 64u);
+        const uint32_t first = ReadVram(dpsm, dbp, dbw, dsax, dsay);
+        const uint32_t center = ReadVram(dpsm, dbp, dbw, centerX, centerY);
+        const uint32_t edge = ReadVram(dpsm, dbp, dbw, edgeX, edgeY);
+
+        uint32_t vramNonZero = 0u;
+        if (summaryBeforeCopied == 0u && summaryBeforeTotal != 0u)
+        {
+            for (uint32_t y = 0; y < rrh; ++y)
+            {
+                for (uint32_t x = 0; x < rrw; ++x)
+                {
+                    if (ReadVram(dpsm, dbp, dbw, dsax + x, dsay + y) != 0u)
+                    {
+                        ++vramNonZero;
+                    }
+                }
+            }
+        }
+
+        std::cout << "[gs:image-summary] idx=" << summaryIndex
+                  << " size=" << sizeBytes
+                  << " dbp=0x" << std::hex << dbp
+                  << " dpsm=0x" << static_cast<uint32_t>(dpsm)
+                  << std::dec
+                  << " dbw=" << static_cast<uint32_t>(dbw)
+                  << " ds=(" << dsax << "," << dsay << ")"
+                  << " rr=(" << rrw << "," << rrh << ")"
+                  << " copied=" << summaryBeforeCopied << "->" << m_transferState.copied_pixels
+                  << "/" << summaryBeforeTotal
+                  << " trxdir=" << m_trxdir
+                  << " srcWords=" << summarySrcWords
+                  << " srcNonZero=" << summarySrcNonZero
+                  << " srcMinMax=0x" << std::hex << summarySrcMin << "/0x" << summarySrcMax
+                  << " srcFirst=";
+        const uint32_t firstCount = std::min<uint32_t>(summarySrcWords, 8u);
+        for (uint32_t i = 0; i < firstCount; ++i)
+        {
+            if (i != 0u)
+            {
+                std::cout << ",";
+            }
+            std::cout << "0x" << summarySrcFirst[i];
+        }
+        std::cout << " vramSamples=0x" << first
+                  << ",0x" << center
+                  << ",0x" << edge
+                  << std::dec
+                  << " vramNonZero=" << vramNonZero
+                  << std::endl;
     }
 }
 

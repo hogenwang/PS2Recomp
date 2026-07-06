@@ -26,6 +26,26 @@ namespace
         }
     }
 
+    bool isDmaSprSelectorAddress(uint32_t address)
+    {
+        return (address & 0x80000000u) != 0u && (address & 0x7FFFC000u) == 0u;
+    }
+
+    bool isDmaScratchpadAddress(uint32_t address)
+    {
+        return ps2IsScratchpadAddress(address) || isDmaSprSelectorAddress(address);
+    }
+
+    uint32_t dmaScratchpadOffset(uint32_t address)
+    {
+        if (ps2IsScratchpadAddress(address))
+        {
+            return ps2ScratchpadOffset(address);
+        }
+
+        return address & (PS2_SCRATCHPAD_SIZE - 1u);
+    }
+
     template <typename T>
     inline T loadScalar(const uint8_t *base, uint32_t offset, size_t regionSize, const char *op, uint32_t address)
     {
@@ -1248,7 +1268,7 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                 {
                     if (qwCount == 0)
                         return;
-                    const bool scratch = isScratchpad(srcAddr);
+                    const bool scratch = isDmaScratchpadAddress(srcAddr);
                     PendingTransfer pt;
                     pt.fromScratchpad = scratch;
                     pt.srcAddr = srcAddr;
@@ -1295,9 +1315,8 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                     {
                         const uint64_t bytes64 = static_cast<uint64_t>(qwCount) * 16ull;
                         uint32_t bytes = (bytes64 > 0xFFFFFFFFull) ? 0xFFFFFFFFu : static_cast<uint32_t>(bytes64);
-                        const bool scratch = isScratchpad(srcAddr);
-                        uint32_t src = 0;
-                        src = translateAddress(srcAddr);
+                        const bool scratch = isDmaScratchpadAddress(srcAddr);
+                        uint32_t src = scratch ? dmaScratchpadOffset(srcAddr) : translateAddress(srcAddr);
                         const uint8_t *base2;
                         uint32_t maxSz2;
                         if (scratch)
@@ -1329,8 +1348,8 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                     auto appendCompactVif1TagData = [&](uint32_t localTagAddr, uint32_t qwCount)
                     {
                         uint32_t tagPhys = 0u;
-                        const bool tagScratch = isScratchpad(localTagAddr);
-                        tagPhys = translateAddress(localTagAddr);
+                        const bool tagScratch = isDmaScratchpadAddress(localTagAddr);
+                        tagPhys = tagScratch ? dmaScratchpadOffset(localTagAddr) : translateAddress(localTagAddr);
 
                         const uint8_t *localBase = tagScratch ? m_scratchpad : m_rdram;
                         const uint32_t localMax = tagScratch ? PS2_SCRATCHPAD_SIZE : PS2_RAM_SIZE;
@@ -1348,11 +1367,11 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                     while (tagsProcessed < kMaxChainTags)
                     {
                         const uint32_t currentTagAddr = tagAddr;
-                        const bool tagInSPR = isScratchpad(tagAddr);
+                        const bool tagInSPR = isDmaScratchpadAddress(tagAddr);
                         uint32_t physTag = 0;
                         try
                         {
-                            physTag = translateAddress(tagAddr);
+                            physTag = tagInSPR ? dmaScratchpadOffset(tagAddr) : translateAddress(tagAddr);
                         }
                         catch (...)
                         {
@@ -1378,7 +1397,7 @@ bool PS2Memory::writeIORegister(uint32_t address, uint32_t value)
                         uint16_t tagQwc = static_cast<uint16_t>(tag & 0xFFFF);
                         uint32_t id = static_cast<uint32_t>((tag >> 28) & 0x7);
                         const bool irq = ((tag >> 31) & 0x1ull) != 0ull;
-                        uint32_t addr = static_cast<uint32_t>((tag >> 32) & 0x7FFFFFFF);
+                        uint32_t addr = static_cast<uint32_t>((tag >> 32) & 0xFFFFFFFFull);
                         lastTagUpper = static_cast<uint32_t>((tag >> 16) & 0xFFFFu);
                         ++tagsProcessed;
 
@@ -1576,7 +1595,7 @@ void PS2Memory::processPendingTransfers()
             uint32_t srcPhys = 0;
             try
             {
-                srcPhys = translateAddress(p.srcAddr);
+                srcPhys = p.fromScratchpad ? dmaScratchpadOffset(p.srcAddr) : translateAddress(p.srcAddr);
             }
             catch (const std::exception &)
             {
@@ -1654,7 +1673,7 @@ void PS2Memory::processPendingTransfers()
             uint32_t sizeBytes = (bytes64 > 0xFFFFFFFFull) ? 0xFFFFFFFFu : static_cast<uint32_t>(bytes64);
             try
             {
-                srcPhys = translateAddress(p.srcAddr);
+                srcPhys = p.fromScratchpad ? dmaScratchpadOffset(p.srcAddr) : translateAddress(p.srcAddr);
             }
             catch (const std::exception &)
             {
@@ -1712,7 +1731,7 @@ void PS2Memory::processPendingTransfers()
             uint32_t sizeBytes = (bytes64 > 0xFFFFFFFFull) ? 0xFFFFFFFFu : static_cast<uint32_t>(bytes64);
             try
             {
-                srcPhys = translateAddress(p.srcAddr);
+                srcPhys = p.fromScratchpad ? dmaScratchpadOffset(p.srcAddr) : translateAddress(p.srcAddr);
             }
             catch (const std::exception &)
             {
