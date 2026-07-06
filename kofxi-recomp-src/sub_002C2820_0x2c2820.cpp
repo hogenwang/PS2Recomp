@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -22,5 +23,4 @@ void sub_002C2820_0x2c2820(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x2c2820: 0x27bdffe0  addiu       $sp, $sp, -0x20
     ctx->pc = 0x2c2820u;
     SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 4294967264));
-    ctx->pc = 0x2c2824u;
 }

@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -22,5 +23,4 @@ void sub_001C0834_0x1c0834(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1c0834: 0x0  nop
     ctx->pc = 0x1c0834u;
     // NOP
-    ctx->pc = 0x1c0838u;
 }

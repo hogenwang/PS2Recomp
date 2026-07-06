@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -40,10 +41,11 @@ void sub_0018C750_0x18c750(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x18c764 = (GPR_U64(ctx, 1) == GPR_U64(ctx, 0));
         if (branch_taken_0x18c764) {
             ctx->pc = 0x18C768u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x18C764u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x18C764u;
             // 0x18c768: 0x80282d  daddu       $a1, $a0, $zero (Delay Slot)
-        SET_GPR_U64(ctx, 5, (uint64_t)GPR_U64(ctx, 4) + (uint64_t)GPR_U64(ctx, 0));
-        ctx->in_delay_slot = false;
+            SET_GPR_U64(ctx, 5, (uint64_t)GPR_U64(ctx, 4) + (uint64_t)GPR_U64(ctx, 0));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x18C76Cu;
             goto label_18c76c;
         }
@@ -53,14 +55,21 @@ label_18c76c:
     // 0x18c76c: 0x3e00008  jr          $ra
     ctx->pc = 0x18C76Cu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x18C770u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x18C76Cu;
-            // 0x18c770: 0xa0102d  daddu       $v0, $a1, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x18C76Cu;
+        // 0x18c770: 0xa0102d  daddu       $v0, $a1, $zero (Delay Slot)
         SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 5) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x18C76Cu, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x18C774u;
     // 0x18c774: 0x0  nop
@@ -72,5 +81,4 @@ label_18c76c:
     // 0x18c77c: 0x0  nop
     ctx->pc = 0x18c77cu;
     // NOP
-    ctx->pc = 0x18c780u;
 }

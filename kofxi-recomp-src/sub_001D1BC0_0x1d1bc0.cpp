@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -64,17 +65,12 @@ void sub_001D1BC0_0x1d1bc0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1d1bf8: 0x8049c48  j           func_127120
     ctx->pc = 0x1D1BF8u;
     ctx->pc = 0x1D1BFCu;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x1D1BF8u;
-            // 0x1d1bfc: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
-        SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x1D1BF8u;
+    // 0x1d1bfc: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
+    SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x127120u;
-    if (runtime->hasFunction(0x127120u)) {
-        auto targetFn = runtime->lookupFunction(0x127120u);
-        targetFn(rdram, ctx, runtime); return;
-    } else {
-        sub_00127120_0x127120(rdram, ctx, runtime); return;
-    }
+    sub_00127120_0x127120(rdram, ctx, runtime); return;
     ctx->pc = 0x1D1C00u;
-    ctx->pc = 0x1d1c00u;
 }

@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -28,10 +29,11 @@ void sub_0017A3D0_0x17a3d0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x17a3d4 = (GPR_U64(ctx, 1) != GPR_U64(ctx, 0));
         if (branch_taken_0x17a3d4) {
             ctx->pc = 0x17A3D8u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x17A3D4u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x17A3D4u;
             // 0x17a3d8: 0x3c0200ff  lui         $v0, 0xFF (Delay Slot)
-        SET_GPR_S32(ctx, 2, (int32_t)((uint32_t)255 << 16));
-        ctx->in_delay_slot = false;
+            SET_GPR_S32(ctx, 2, (int32_t)((uint32_t)255 << 16));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x17A3E4u;
             goto label_17a3e4;
         }
@@ -53,15 +55,13 @@ label_17a3e4:
     // 0x17a3ec: 0x805e8d8  j           func_17A360
     ctx->pc = 0x17A3ECu;
     ctx->pc = 0x17A3F0u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x17A3ECu;
-            // 0x17a3f0: 0x622025  or          $a0, $v1, $v0 (Delay Slot)
-        SET_GPR_U64(ctx, 4, GPR_U64(ctx, 3) | GPR_U64(ctx, 2));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x17A3ECu;
+    // 0x17a3f0: 0x622025  or          $a0, $v1, $v0 (Delay Slot)
+    SET_GPR_U64(ctx, 4, GPR_U64(ctx, 3) | GPR_U64(ctx, 2));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x17A360u;
-    {
-        auto targetFn = runtime->lookupFunction(0x17A360u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x17A360u, 0x17A3ECu, 0x0u, PS2Runtime::GuestBranchKind::DirectJump, "J")) {
         return;
     }
     ctx->pc = 0x17A3F4u;
@@ -74,5 +74,4 @@ label_17a3e4:
     // 0x17a3fc: 0x0  nop
     ctx->pc = 0x17a3fcu;
     // NOP
-    ctx->pc = 0x17a400u;
 }

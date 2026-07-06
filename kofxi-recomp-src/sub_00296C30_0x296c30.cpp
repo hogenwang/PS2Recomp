@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -16,11 +17,6 @@ void sub_00296C30_0x296c30(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
 #ifdef PS2_FUNCTION_LOG_TRACKER
     PS_LOG_ENTRY("sub_00296C30_0x296c30");
 #endif
-
-    switch (ctx->pc) {
-        case 0x296c50u: goto label_296c50;
-        default: break;
-    }
 
     ctx->pc = 0x296c30u;
 
@@ -47,27 +43,38 @@ label_296c44:
     // 0x296c44: 0x3e00008  jr          $ra
     ctx->pc = 0x296C44u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x296C44u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x296C4Cu;
     // 0x296c4c: 0x0  nop
     ctx->pc = 0x296c4cu;
     // NOP
-label_296c50:
     // 0x296c50: 0x3e00008  jr          $ra
     ctx->pc = 0x296C50u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x296C54u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x296C50u;
-            // 0x296c54: 0xac850080  sw          $a1, 0x80($a0) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x296C50u;
+        // 0x296c54: 0xac850080  sw          $a1, 0x80($a0) (Delay Slot)
         WRITE32(ADD32(GPR_U32(ctx, 4), 128), GPR_U32(ctx, 5));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x296C50u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x296C58u;
-    ctx->pc = 0x296c58u;
 }

@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -38,22 +39,14 @@ void sub_002D4D20_0x2d4d20(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     ctx->pc = 0x2D4D2Cu;
     SET_GPR_U32(ctx, 31, 0x2D4D34u);
     ctx->pc = 0x2D4D30u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x2D4D2Cu;
-            // 0x2d4d30: 0x80802d  daddu       $s0, $a0, $zero (Delay Slot)
-        SET_GPR_U64(ctx, 16, (uint64_t)GPR_U64(ctx, 4) + (uint64_t)GPR_U64(ctx, 0));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x2D4D2Cu;
+    // 0x2d4d30: 0x80802d  daddu       $s0, $a0, $zero (Delay Slot)
+    SET_GPR_U64(ctx, 16, (uint64_t)GPR_U64(ctx, 4) + (uint64_t)GPR_U64(ctx, 0));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x2D4D88u;
-    if (runtime->hasFunction(0x2D4D88u)) {
-        auto targetFn = runtime->lookupFunction(0x2D4D88u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x2D4D34u; }
-        if (ctx->pc != 0x2D4D34u) { return; }
-    } else {
-        const uint32_t __entryPc = ctx->pc;
-        sub_002D4D88_0x2d4d88(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x2D4D34u; }
-        if (ctx->pc != 0x2D4D34u) { return; }
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x2D4D88u, 0x2D4D2Cu, 0x2D4D34u, PS2Runtime::GuestBranchKind::DirectCall, "JAL")) {
+        return;
     }
     ctx->pc = 0x2D4D34u;
 label_2d4d34:
@@ -69,10 +62,11 @@ label_2d4d34:
         const bool branch_taken_0x2d4d3c = (GPR_U64(ctx, 2) == GPR_U64(ctx, 0));
         if (branch_taken_0x2d4d3c) {
             ctx->pc = 0x2D4D40u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x2D4D3Cu;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x2D4D3Cu;
             // 0x2d4d40: 0xdfb00000  ld          $s0, 0x0($sp) (Delay Slot)
-        SET_GPR_U64(ctx, 16, READ64(ADD32(GPR_U32(ctx, 29), 0)));
-        ctx->in_delay_slot = false;
+            SET_GPR_U64(ctx, 16, READ64(ADD32(GPR_U32(ctx, 29), 0)));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x2D4D7Cu;
             goto label_2d4d7c;
         }
@@ -118,10 +112,11 @@ label_2d4d48:
         const bool branch_taken_0x2d4d70 = (GPR_U64(ctx, 2) != GPR_U64(ctx, 0));
         if (branch_taken_0x2d4d70) {
             ctx->pc = 0x2D4D74u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x2D4D70u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x2D4D70u;
             // 0x2d4d74: 0x8e040000  lw          $a0, 0x0($s0) (Delay Slot)
-        SET_GPR_S32(ctx, 4, (int32_t)READ32(ADD32(GPR_U32(ctx, 16), 0)));
-        ctx->in_delay_slot = false;
+            SET_GPR_S32(ctx, 4, (int32_t)READ32(ADD32(GPR_U32(ctx, 16), 0)));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x2D4D48u;
             if (runtime->shouldPreemptGuestExecution()) {
                 return;
@@ -140,15 +135,21 @@ label_2d4d7c:
     // 0x2d4d80: 0x3e00008  jr          $ra
     ctx->pc = 0x2D4D80u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x2D4D84u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x2D4D80u;
-            // 0x2d4d84: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x2D4D80u;
+        // 0x2d4d84: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
         SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x2D4D80u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x2D4D88u;
-    ctx->pc = 0x2d4d88u;
 }

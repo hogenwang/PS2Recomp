@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -39,8 +40,9 @@ void sub_0018D960_0x18d960(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x18d974 = (GPR_U64(ctx, 3) == GPR_U64(ctx, 0));
         ctx->pc = 0x18D978u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x18D974u;
-            // 0x18d978: 0x90420000  lbu         $v0, 0x0($v0) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x18D974u;
+        // 0x18d978: 0x90420000  lbu         $v0, 0x0($v0) (Delay Slot)
         SET_GPR_U32(ctx, 2, (uint8_t)READ8(ADD32(GPR_U32(ctx, 2), 0)));
         ctx->in_delay_slot = false;
         if (branch_taken_0x18d974) {
@@ -95,10 +97,11 @@ label_18d9a4:
         const bool branch_taken_0x18d9b0 = (GPR_U64(ctx, 3) == GPR_U64(ctx, 0));
         if (branch_taken_0x18d9b0) {
             ctx->pc = 0x18D9B4u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x18D9B0u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x18D9B0u;
             // 0x18d9b4: 0x3c030180  lui         $v1, 0x180 (Delay Slot)
-        SET_GPR_S32(ctx, 3, (int32_t)((uint32_t)384 << 16));
-        ctx->in_delay_slot = false;
+            SET_GPR_S32(ctx, 3, (int32_t)((uint32_t)384 << 16));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x18D9E4u;
             goto label_18d9e4;
         }
@@ -150,10 +153,11 @@ label_18d9e4:
         const bool branch_taken_0x18d9ec = (GPR_U64(ctx, 3) == GPR_U64(ctx, 0));
         if (branch_taken_0x18d9ec) {
             ctx->pc = 0x18D9F0u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x18D9ECu;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x18D9ECu;
             // 0x18d9f0: 0x30c300ff  andi        $v1, $a2, 0xFF (Delay Slot)
-        SET_GPR_U64(ctx, 3, GPR_U64(ctx, 6) & (uint64_t)(uint16_t)255);
-        ctx->in_delay_slot = false;
+            SET_GPR_U64(ctx, 3, GPR_U64(ctx, 6) & (uint64_t)(uint16_t)255);
+            ctx->in_delay_slot = false;
             ctx->pc = 0x18DA20u;
             goto label_18da20;
         }
@@ -211,10 +215,11 @@ label_18da20:
         const bool branch_taken_0x18da30 = (GPR_U64(ctx, 3) != GPR_U64(ctx, 2));
         if (branch_taken_0x18da30) {
             ctx->pc = 0x18DA34u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x18DA30u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x18DA30u;
             // 0x18da34: 0x3062ffff  andi        $v0, $v1, 0xFFFF (Delay Slot)
-        SET_GPR_U64(ctx, 2, GPR_U64(ctx, 3) & (uint64_t)(uint16_t)65535);
-        ctx->in_delay_slot = false;
+            SET_GPR_U64(ctx, 2, GPR_U64(ctx, 3) & (uint64_t)(uint16_t)65535);
+            ctx->in_delay_slot = false;
             ctx->pc = 0x18DA40u;
             goto label_18da40;
         }
@@ -230,14 +235,21 @@ label_18da40:
     // 0x18da40: 0x3e00008  jr          $ra
     ctx->pc = 0x18DA40u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x18DA44u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x18DA40u;
-            // 0x18da44: 0xe21021  addu        $v0, $a3, $v0 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x18DA40u;
+        // 0x18da44: 0xe21021  addu        $v0, $a3, $v0 (Delay Slot)
         SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 7), GPR_U32(ctx, 2)));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x18DA40u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x18DA48u;
     // 0x18da48: 0x0  nop
@@ -246,5 +258,4 @@ label_18da40:
     // 0x18da4c: 0x0  nop
     ctx->pc = 0x18da4cu;
     // NOP
-    ctx->pc = 0x18da50u;
 }

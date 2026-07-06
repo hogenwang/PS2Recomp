@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -16,11 +17,6 @@ void sub_0011A6B0_0x11a6b0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
 #ifdef PS2_FUNCTION_LOG_TRACKER
     PS_LOG_ENTRY("sub_0011A6B0_0x11a6b0");
 #endif
-
-    switch (ctx->pc) {
-        case 0x11a76cu: goto label_11a76c;
-        default: break;
-    }
 
     ctx->pc = 0x11a6b0u;
 
@@ -56,8 +52,9 @@ void sub_0011A6B0_0x11a6b0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x11a6d4 = (GPR_U64(ctx, 14) != GPR_U64(ctx, 0));
         ctx->pc = 0x11A6D8u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x11A6D4u;
-            // 0x11a6d8: 0x46006006  mov.s       $f0, $f12 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x11A6D4u;
+        // 0x11a6d8: 0x46006006  mov.s       $f0, $f12 (Delay Slot)
         ctx->f[0] = FPU_MOV_S(ctx->f[12]);
         ctx->in_delay_slot = false;
         if (branch_taken_0x11a6d4) {
@@ -154,8 +151,9 @@ label_11a6e4:
     {
         const bool branch_taken_0x11a744 = (GPR_U64(ctx, 4) != GPR_U64(ctx, 0));
         ctx->pc = 0x11A748u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x11A744u;
-            // 0x11a748: 0x46010000  add.s       $f0, $f0, $f1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x11A744u;
+        // 0x11a748: 0x46010000  add.s       $f0, $f0, $f1 (Delay Slot)
         ctx->f[0] = FPU_ADD_S(ctx->f[0], ctx->f[1]);
         ctx->in_delay_slot = false;
         if (branch_taken_0x11a744) {
@@ -185,14 +183,21 @@ label_11a6e4:
     // 0x11a764: 0x3e00008  jr          $ra
     ctx->pc = 0x11A764u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x11A768u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x11A764u;
-            // 0x11a768: 0x46006000  add.s       $f0, $f12, $f0 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x11A764u;
+        // 0x11a768: 0x46006000  add.s       $f0, $f12, $f0 (Delay Slot)
         ctx->f[0] = FPU_ADD_S(ctx->f[12], ctx->f[0]);
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x11A764u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x11A76Cu;
 label_11a76c:
@@ -207,13 +212,13 @@ label_11a76c:
     { uint32_t bits = READ32(ADD32(GPR_U32(ctx, 15), 0)); float f; std::memcpy(&f, &bits, sizeof(f)); ctx->f[1] = f; }
     // 0x11a778: 0x4601681a  mula.s      $f13, $f1
     ctx->pc = 0x11a778u;
-    ctx->f[31] = FPU_MUL_S(ctx->f[13], ctx->f[1]);
+    FPU_SET_ACC(ctx, FPU_MUL_S(ctx->f[13], ctx->f[1]));
     // 0x11a77c: 0x3c0f003e  lui         $t7, 0x3E
     ctx->pc = 0x11a77cu;
     SET_GPR_S32(ctx, 15, (int32_t)((uint32_t)62 << 16));
     // 0x11a780: 0x4600181d  msub.s      $f0, $f3, $f0
     ctx->pc = 0x11a780u;
-    ctx->f[0] = FPU_SUB_S(ctx->f[31], FPU_MUL_S(ctx->f[3], ctx->f[0]));
+    ctx->f[0] = FPU_SUB_S(ctx->f_acc, FPU_MUL_S(ctx->f[3], ctx->f[0]));
     // 0x11a784: 0x25efb0b8  addiu       $t7, $t7, -0x4F48
     ctx->pc = 0x11a784u;
     SET_GPR_S32(ctx, 15, (int32_t)ADD32(GPR_U32(ctx, 15), 4294947000));
@@ -225,10 +230,10 @@ label_11a76c:
     ctx->f[0] = FPU_MUL_S(ctx->f[2], ctx->f[0]);
     // 0x11a790: 0x460d0019  suba.s      $f0, $f13
     ctx->pc = 0x11a790u;
-    ctx->f[31] = FPU_SUB_S(ctx->f[0], ctx->f[13]);
+    FPU_SET_ACC(ctx, FPU_SUB_S(ctx->f[0], ctx->f[13]));
     // 0x11a794: 0x4601181d  msub.s      $f0, $f3, $f1
     ctx->pc = 0x11a794u;
-    ctx->f[0] = FPU_SUB_S(ctx->f[31], FPU_MUL_S(ctx->f[3], ctx->f[1]));
+    ctx->f[0] = FPU_SUB_S(ctx->f_acc, FPU_MUL_S(ctx->f[3], ctx->f[1]));
     // 0x11a798: 0x46006001  sub.s       $f0, $f12, $f0
     ctx->pc = 0x11a798u;
     ctx->f[0] = FPU_SUB_S(ctx->f[12], ctx->f[0]);
@@ -236,13 +241,18 @@ label_11a79c:
     // 0x11a79c: 0x3e00008  jr          $ra
     ctx->pc = 0x11A79Cu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x11A79Cu, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x11A7A4u;
     // 0x11a7a4: 0x0  nop
     ctx->pc = 0x11a7a4u;
     // NOP
-    ctx->pc = 0x11a7a8u;
 }

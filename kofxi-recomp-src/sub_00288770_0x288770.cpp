@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -25,5 +26,4 @@ void sub_00288770_0x288770(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x288774: 0xffb00000  sd          $s0, 0x0($sp)
     ctx->pc = 0x288774u;
     WRITE64(ADD32(GPR_U32(ctx, 29), 0), GPR_U64(ctx, 16));
-    ctx->pc = 0x288778u;
 }

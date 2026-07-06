@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -38,8 +39,9 @@ void sub_001DBDB8_0x1dbdb8(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x1dbdc4 = (GPR_S32(ctx, 4) <= 0);
         ctx->pc = 0x1DBDC8u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x1DBDC4u;
-            // 0x1dbdc8: 0x8c430058  lw          $v1, 0x58($v0) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x1DBDC4u;
+        // 0x1dbdc8: 0x8c430058  lw          $v1, 0x58($v0) (Delay Slot)
         SET_GPR_S32(ctx, 3, (int32_t)READ32(ADD32(GPR_U32(ctx, 2), 88)));
         ctx->in_delay_slot = false;
         if (branch_taken_0x1dbdc4) {
@@ -78,8 +80,9 @@ label_1dbdd8:
     {
         const bool branch_taken_0x1dbdec = (GPR_U64(ctx, 2) != GPR_U64(ctx, 0));
         ctx->pc = 0x1DBDF0u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x1DBDECu;
-            // 0x1dbdf0: 0x24630440  addiu       $v1, $v1, 0x440 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x1DBDECu;
+        // 0x1dbdf0: 0x24630440  addiu       $v1, $v1, 0x440 (Delay Slot)
         SET_GPR_S32(ctx, 3, (int32_t)ADD32(GPR_U32(ctx, 3), 1088));
         ctx->in_delay_slot = false;
         if (branch_taken_0x1dbdec) {
@@ -95,13 +98,18 @@ label_1dbdf4:
     // 0x1dbdf4: 0x3e00008  jr          $ra
     ctx->pc = 0x1DBDF4u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x1DBDF4u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x1DBDFCu;
     // 0x1dbdfc: 0x0  nop
     ctx->pc = 0x1dbdfcu;
     // NOP
-    ctx->pc = 0x1dbe00u;
 }

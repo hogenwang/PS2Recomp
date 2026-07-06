@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -34,17 +35,8 @@ void sub_001DBFC0_0x1dbfc0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     ctx->pc = 0x1DBFC8u;
     SET_GPR_U32(ctx, 31, 0x1DBFD0u);
     ctx->pc = 0x1DC428u;
-    if (runtime->hasFunction(0x1DC428u)) {
-        auto targetFn = runtime->lookupFunction(0x1DC428u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x1DBFD0u; }
-        if (ctx->pc != 0x1DBFD0u) { return; }
-    } else {
-        const uint32_t __entryPc = ctx->pc;
-        sub_001DC428_0x1dc428(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x1DBFD0u; }
-        if (ctx->pc != 0x1DBFD0u) { return; }
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x1DC428u, 0x1DBFC8u, 0x1DBFD0u, PS2Runtime::GuestBranchKind::DirectCall, "JAL")) {
+        return;
     }
     ctx->pc = 0x1DBFD0u;
 label_1dbfd0:
@@ -63,17 +55,12 @@ label_1dbfd0:
     // 0x1dbfe0: 0x807707e  j           func_1DC1F8
     ctx->pc = 0x1DBFE0u;
     ctx->pc = 0x1DBFE4u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x1DBFE0u;
-            // 0x1dbfe4: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
-        SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x1DBFE0u;
+    // 0x1dbfe4: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
+    SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x1DC1F8u;
-    if (runtime->hasFunction(0x1DC1F8u)) {
-        auto targetFn = runtime->lookupFunction(0x1DC1F8u);
-        targetFn(rdram, ctx, runtime); return;
-    } else {
-        sub_001DC1F8_0x1dc1f8(rdram, ctx, runtime); return;
-    }
+    sub_001DC1F8_0x1dc1f8(rdram, ctx, runtime); return;
     ctx->pc = 0x1DBFE8u;
-    ctx->pc = 0x1dbfe8u;
 }

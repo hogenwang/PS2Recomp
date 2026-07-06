@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -43,22 +44,14 @@ void sub_00169EA0_0x169ea0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     ctx->pc = 0x169EB4u;
     SET_GPR_U32(ctx, 31, 0x169EBCu);
     ctx->pc = 0x169EB8u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x169EB4u;
-            // 0x169eb8: 0x382d  daddu       $a3, $zero, $zero (Delay Slot)
-        SET_GPR_U64(ctx, 7, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x169EB4u;
+    // 0x169eb8: 0x382d  daddu       $a3, $zero, $zero (Delay Slot)
+    SET_GPR_U64(ctx, 7, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x1684E0u;
-    if (runtime->hasFunction(0x1684E0u)) {
-        auto targetFn = runtime->lookupFunction(0x1684E0u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x169EBCu; }
-        if (ctx->pc != 0x169EBCu) { return; }
-    } else {
-        const uint32_t __entryPc = ctx->pc;
-        sub_001684E0_0x1684e0(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x169EBCu; }
-        if (ctx->pc != 0x169EBCu) { return; }
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x1684E0u, 0x169EB4u, 0x169EBCu, PS2Runtime::GuestBranchKind::DirectCall, "JAL")) {
+        return;
     }
     ctx->pc = 0x169EBCu;
 label_169ebc:
@@ -71,18 +64,24 @@ label_169ebc:
     // 0x169ec4: 0x3e00008  jr          $ra
     ctx->pc = 0x169EC4u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x169EC8u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x169EC4u;
-            // 0x169ec8: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x169EC4u;
+        // 0x169ec8: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
         SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x169EC4u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x169ECCu;
     // 0x169ecc: 0x0  nop
     ctx->pc = 0x169eccu;
     // NOP
-    ctx->pc = 0x169ed0u;
 }

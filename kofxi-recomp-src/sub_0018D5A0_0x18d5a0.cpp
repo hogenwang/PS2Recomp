@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -92,8 +93,9 @@ label_18d5c8:
     {
         const bool branch_taken_0x18d5e4 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x18D5E8u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x18D5E4u;
-            // 0x18d5e8: 0xac60bc3c  sw          $zero, -0x43C4($v1) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x18D5E4u;
+        // 0x18d5e8: 0xac60bc3c  sw          $zero, -0x43C4($v1) (Delay Slot)
         WRITE32(ADD32(GPR_U32(ctx, 3), 4294949948), GPR_U32(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x18d5e4) {
@@ -129,8 +131,9 @@ label_18d5ec:
     {
         const bool branch_taken_0x18d608 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x18D60Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x18D608u;
-            // 0x18d60c: 0xac60bc2c  sw          $zero, -0x43D4($v1) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x18D608u;
+        // 0x18d60c: 0xac60bc2c  sw          $zero, -0x43D4($v1) (Delay Slot)
         WRITE32(ADD32(GPR_U32(ctx, 3), 4294949932), GPR_U32(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x18d608) {
@@ -168,9 +171,15 @@ label_18d630:
     // 0x18d630: 0x3e00008  jr          $ra
     ctx->pc = 0x18D630u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x18D630u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x18D638u;
     // 0x18d638: 0x0  nop
@@ -179,5 +188,4 @@ label_18d630:
     // 0x18d63c: 0x0  nop
     ctx->pc = 0x18d63cu;
     // NOP
-    ctx->pc = 0x18d640u;
 }

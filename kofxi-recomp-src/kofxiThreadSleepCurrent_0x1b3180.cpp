@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -31,20 +32,15 @@ void kofxiThreadSleepCurrent_0x1b3180(uint8_t* rdram, R5900Context* ctx, PS2Runt
     // 0x1b318c: 0x80432e0  j           func_10CB80
     ctx->pc = 0x1B318Cu;
     ctx->pc = 0x1B3190u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x1B318Cu;
-            // 0x1b3190: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
-        SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x1B318Cu;
+    // 0x1b3190: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
+    SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x10CB80u;
-    if (runtime->hasFunction(0x10CB80u)) {
-        auto targetFn = runtime->lookupFunction(0x10CB80u);
-        targetFn(rdram, ctx, runtime); return;
-    } else {
-        kofxiSyscallSleepThreadWrapper_0x10cb80(rdram, ctx, runtime); return;
-    }
+    kofxiSyscallSleepThreadWrapper_0x10cb80(rdram, ctx, runtime); return;
     ctx->pc = 0x1B3194u;
     // 0x1b3194: 0x0  nop
     ctx->pc = 0x1b3194u;
     // NOP
-    ctx->pc = 0x1b3198u;
 }

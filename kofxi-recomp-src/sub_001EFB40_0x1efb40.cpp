@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -18,7 +19,6 @@ void sub_001EFB40_0x1efb40(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
 #endif
 
     switch (ctx->pc) {
-        case 0x1efb50u: goto label_1efb50;
         case 0x1efbe0u: goto label_1efbe0;
         default: break;
     }
@@ -31,20 +31,26 @@ void sub_001EFB40_0x1efb40(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1efb44: 0x3e00008  jr          $ra
     ctx->pc = 0x1EFB44u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x1EFB48u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x1EFB44u;
-            // 0x1efb48: 0x8c620020  lw          $v0, 0x20($v1) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x1EFB44u;
+        // 0x1efb48: 0x8c620020  lw          $v0, 0x20($v1) (Delay Slot)
         SET_GPR_S32(ctx, 2, (int32_t)READ32(ADD32(GPR_U32(ctx, 3), 32)));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x1EFB44u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x1EFB4Cu;
     // 0x1efb4c: 0x0  nop
     ctx->pc = 0x1efb4cu;
     // NOP
-label_1efb50:
     // 0x1efb50: 0x27bdfff0  addiu       $sp, $sp, -0x10
     ctx->pc = 0x1efb50u;
     SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 4294967280));
@@ -151,22 +157,14 @@ label_1efb50:
     ctx->pc = 0x1EFBD8u;
     SET_GPR_U32(ctx, 31, 0x1EFBE0u);
     ctx->pc = 0x1EFBDCu;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x1EFBD8u;
-            // 0x1efbdc: 0xace30020  sw          $v1, 0x20($a3) (Delay Slot)
-        WRITE32(ADD32(GPR_U32(ctx, 7), 32), GPR_U32(ctx, 3));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x1EFBD8u;
+    // 0x1efbdc: 0xace30020  sw          $v1, 0x20($a3) (Delay Slot)
+    WRITE32(ADD32(GPR_U32(ctx, 7), 32), GPR_U32(ctx, 3));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x1272D8u;
-    if (runtime->hasFunction(0x1272D8u)) {
-        auto targetFn = runtime->lookupFunction(0x1272D8u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x1EFBE0u; }
-        if (ctx->pc != 0x1EFBE0u) { return; }
-    } else {
-        const uint32_t __entryPc = ctx->pc;
-        sub_001272D8_0x1272d8(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x1EFBE0u; }
-        if (ctx->pc != 0x1EFBE0u) { return; }
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x1272D8u, 0x1EFBD8u, 0x1EFBE0u, PS2Runtime::GuestBranchKind::DirectCall, "JAL")) {
+        return;
     }
     ctx->pc = 0x1EFBE0u;
 label_1efbe0:
@@ -188,20 +186,15 @@ label_1efbe0:
     // 0x1efbf4: 0x8049cb6  j           func_1272D8
     ctx->pc = 0x1EFBF4u;
     ctx->pc = 0x1EFBF8u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x1EFBF4u;
-            // 0x1efbf8: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
-        SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x1EFBF4u;
+    // 0x1efbf8: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
+    SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x1272D8u;
-    if (runtime->hasFunction(0x1272D8u)) {
-        auto targetFn = runtime->lookupFunction(0x1272D8u);
-        targetFn(rdram, ctx, runtime); return;
-    } else {
-        sub_001272D8_0x1272d8(rdram, ctx, runtime); return;
-    }
+    sub_001272D8_0x1272d8(rdram, ctx, runtime); return;
     ctx->pc = 0x1EFBFCu;
     // 0x1efbfc: 0x0  nop
     ctx->pc = 0x1efbfcu;
     // NOP
-    ctx->pc = 0x1efc00u;
 }

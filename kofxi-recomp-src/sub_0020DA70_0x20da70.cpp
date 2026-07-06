@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -38,8 +39,9 @@ void sub_0020DA70_0x20da70(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x20da7c = (GPR_U64(ctx, 1) == GPR_U64(ctx, 0));
         ctx->pc = 0x20DA80u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x20DA7Cu;
-            // 0x20da80: 0xffbf0010  sd          $ra, 0x10($sp) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x20DA7Cu;
+        // 0x20da80: 0xffbf0010  sd          $ra, 0x10($sp) (Delay Slot)
         WRITE64(ADD32(GPR_U32(ctx, 29), 16), GPR_U64(ctx, 31));
         ctx->in_delay_slot = false;
         if (branch_taken_0x20da7c) {
@@ -56,8 +58,9 @@ void sub_0020DA70_0x20da70(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x20da88 = (GPR_S32(ctx, 2) >= 0);
         ctx->pc = 0x20DA8Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x20DA88u;
-            // 0x20da8c: 0x304a0007  andi        $t2, $v0, 0x7 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x20DA88u;
+        // 0x20da8c: 0x304a0007  andi        $t2, $v0, 0x7 (Delay Slot)
         SET_GPR_U64(ctx, 10, GPR_U64(ctx, 2) & (uint64_t)(uint16_t)7);
         ctx->in_delay_slot = false;
         if (branch_taken_0x20da88) {
@@ -72,10 +75,11 @@ void sub_0020DA70_0x20da70(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x20da90 = (GPR_U64(ctx, 10) == GPR_U64(ctx, 0));
         if (branch_taken_0x20da90) {
             ctx->pc = 0x20DA94u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x20DA90u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x20DA90u;
             // 0x20da94: 0x218c2  srl         $v1, $v0, 3 (Delay Slot)
-        SET_GPR_S32(ctx, 3, (int32_t)SRL32(GPR_U32(ctx, 2), 3));
-        ctx->in_delay_slot = false;
+            SET_GPR_S32(ctx, 3, (int32_t)SRL32(GPR_U32(ctx, 2), 3));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x20DAA0u;
             goto label_20daa0;
         }
@@ -97,8 +101,9 @@ label_20daa0:
     {
         const bool branch_taken_0x20daa4 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x20DAA8u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x20DAA4u;
-            // 0x20daa8: 0x621023  subu        $v0, $v1, $v0 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x20DAA4u;
+        // 0x20daa8: 0x621023  subu        $v0, $v1, $v0 (Delay Slot)
         SET_GPR_S32(ctx, 2, (int32_t)SUB32(GPR_U32(ctx, 3), GPR_U32(ctx, 2)));
         ctx->in_delay_slot = false;
         if (branch_taken_0x20daa4) {
@@ -116,8 +121,9 @@ label_20daac:
     {
         const bool branch_taken_0x20dab0 = (GPR_S32(ctx, 2) >= 0);
         ctx->pc = 0x20DAB4u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x20DAB0u;
-            // 0x20dab4: 0x304a0007  andi        $t2, $v0, 0x7 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x20DAB0u;
+        // 0x20dab4: 0x304a0007  andi        $t2, $v0, 0x7 (Delay Slot)
         SET_GPR_U64(ctx, 10, GPR_U64(ctx, 2) & (uint64_t)(uint16_t)7);
         ctx->in_delay_slot = false;
         if (branch_taken_0x20dab0) {
@@ -132,10 +138,11 @@ label_20daac:
         const bool branch_taken_0x20dab8 = (GPR_U64(ctx, 10) == GPR_U64(ctx, 0));
         if (branch_taken_0x20dab8) {
             ctx->pc = 0x20DABCu;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x20DAB8u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x20DAB8u;
             // 0x20dabc: 0x28410118  slti        $at, $v0, 0x118 (Delay Slot)
-        SET_GPR_U64(ctx, 1, ((int64_t)GPR_S64(ctx, 2) < (int64_t)(int32_t)280) ? 1 : 0);
-        ctx->in_delay_slot = false;
+            SET_GPR_U64(ctx, 1, ((int64_t)GPR_S64(ctx, 2) < (int64_t)(int32_t)280) ? 1 : 0);
+            ctx->in_delay_slot = false;
             ctx->pc = 0x20DAC8u;
             goto label_20dac8;
         }
@@ -155,10 +162,11 @@ label_20dac8:
         const bool branch_taken_0x20dac8 = (GPR_U64(ctx, 1) == GPR_U64(ctx, 0));
         if (branch_taken_0x20dac8) {
             ctx->pc = 0x20DACCu;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x20DAC8u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x20DAC8u;
             // 0x20dacc: 0x2402000c  addiu       $v0, $zero, 0xC (Delay Slot)
-        SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 12));
-        ctx->in_delay_slot = false;
+            SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 12));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x20DAD8u;
             goto label_20dad8;
         }
@@ -169,8 +177,9 @@ label_20dac8:
     {
         const bool branch_taken_0x20dad0 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x20DAD4u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x20DAD0u;
-            // 0x20dad4: 0x2402000b  addiu       $v0, $zero, 0xB (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x20DAD0u;
+        // 0x20dad4: 0x2402000b  addiu       $v0, $zero, 0xB (Delay Slot)
         SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 11));
         ctx->in_delay_slot = false;
         if (branch_taken_0x20dad0) {
@@ -196,22 +205,14 @@ label_20dad8:
     ctx->pc = 0x20DAE8u;
     SET_GPR_U32(ctx, 31, 0x20DAF0u);
     ctx->pc = 0x20DAECu;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x20DAE8u;
-            // 0x20daec: 0xffa20008  sd          $v0, 0x8($sp) (Delay Slot)
-        WRITE64(ADD32(GPR_U32(ctx, 29), 8), GPR_U64(ctx, 2));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x20DAE8u;
+    // 0x20daec: 0xffa20008  sd          $v0, 0x8($sp) (Delay Slot)
+    WRITE64(ADD32(GPR_U32(ctx, 29), 8), GPR_U64(ctx, 2));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x20DA00u;
-    if (runtime->hasFunction(0x20DA00u)) {
-        auto targetFn = runtime->lookupFunction(0x20DA00u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x20DAF0u; }
-        if (ctx->pc != 0x20DAF0u) { return; }
-    } else {
-        const uint32_t __entryPc = ctx->pc;
-        sub_0020DA00_0x20da00(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x20DAF0u; }
-        if (ctx->pc != 0x20DAF0u) { return; }
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x20DA00u, 0x20DAE8u, 0x20DAF0u, PS2Runtime::GuestBranchKind::DirectCall, "JAL")) {
+        return;
     }
     ctx->pc = 0x20DAF0u;
 label_20daf0:
@@ -221,18 +222,24 @@ label_20daf0:
     // 0x20daf4: 0x3e00008  jr          $ra
     ctx->pc = 0x20DAF4u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x20DAF8u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x20DAF4u;
-            // 0x20daf8: 0x27bd0020  addiu       $sp, $sp, 0x20 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x20DAF4u;
+        // 0x20daf8: 0x27bd0020  addiu       $sp, $sp, 0x20 (Delay Slot)
         SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 32));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x20DAF4u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x20DAFCu;
     // 0x20dafc: 0x0  nop
     ctx->pc = 0x20dafcu;
     // NOP
-    ctx->pc = 0x20db00u;
 }

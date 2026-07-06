@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -17,11 +18,6 @@ void kofxiSyscallChangeThreadPriorityWrappers_0x10caf0(uint8_t* rdram, R5900Cont
     PS_LOG_ENTRY("kofxiSyscallChangeThreadPriorityWrappers_0x10caf0");
 #endif
 
-    switch (ctx->pc) {
-        case 0x10cb00u: goto label_10cb00;
-        default: break;
-    }
-
     ctx->pc = 0x10caf0u;
 
     // 0x10caf0: 0x24030029  addiu       $v1, $zero, 0x29
@@ -33,12 +29,17 @@ void kofxiSyscallChangeThreadPriorityWrappers_0x10caf0(uint8_t* rdram, R5900Cont
     // 0x10caf8: 0x3e00008  jr          $ra
     ctx->pc = 0x10CAF8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x10CAF8u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x10CB00u;
-label_10cb00:
     // 0x10cb00: 0x2403ffd6  addiu       $v1, $zero, -0x2A
     ctx->pc = 0x10cb00u;
     SET_GPR_S32(ctx, 3, (int32_t)ADD32(GPR_U32(ctx, 0), 4294967254));
@@ -48,10 +49,15 @@ label_10cb00:
     // 0x10cb08: 0x3e00008  jr          $ra
     ctx->pc = 0x10CB08u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x10CB08u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x10CB10u;
-    ctx->pc = 0x10cb10u;
 }

@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -17,12 +18,6 @@ void kofxiSyscallWakeupCancelWrappers_0x10cba0(uint8_t* rdram, R5900Context* ctx
     PS_LOG_ENTRY("kofxiSyscallWakeupCancelWrappers_0x10cba0");
 #endif
 
-    switch (ctx->pc) {
-        case 0x10cbb0u: goto label_10cbb0;
-        case 0x10cbc0u: goto label_10cbc0;
-        default: break;
-    }
-
     ctx->pc = 0x10cba0u;
 
     // 0x10cba0: 0x2403ffcc  addiu       $v1, $zero, -0x34
@@ -34,12 +29,17 @@ void kofxiSyscallWakeupCancelWrappers_0x10cba0(uint8_t* rdram, R5900Context* ctx
     // 0x10cba8: 0x3e00008  jr          $ra
     ctx->pc = 0x10CBA8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x10CBA8u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x10CBB0u;
-label_10cbb0:
     // 0x10cbb0: 0x24030035  addiu       $v1, $zero, 0x35
     ctx->pc = 0x10cbb0u;
     SET_GPR_S32(ctx, 3, (int32_t)ADD32(GPR_U32(ctx, 0), 53));
@@ -49,12 +49,17 @@ label_10cbb0:
     // 0x10cbb8: 0x3e00008  jr          $ra
     ctx->pc = 0x10CBB8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x10CBB8u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x10CBC0u;
-label_10cbc0:
     // 0x10cbc0: 0x2403ffca  addiu       $v1, $zero, -0x36
     ctx->pc = 0x10cbc0u;
     SET_GPR_S32(ctx, 3, (int32_t)ADD32(GPR_U32(ctx, 0), 4294967242));
@@ -64,10 +69,15 @@ label_10cbc0:
     // 0x10cbc8: 0x3e00008  jr          $ra
     ctx->pc = 0x10CBC8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x10CBC8u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x10CBD0u;
-    ctx->pc = 0x10cbd0u;
 }

@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -17,11 +18,6 @@ void sub_00264C88_0x264c88(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     PS_LOG_ENTRY("sub_00264C88_0x264c88");
 #endif
 
-    switch (ctx->pc) {
-        case 0x264ca0u: goto label_264ca0;
-        default: break;
-    }
-
     ctx->pc = 0x264c88u;
 
     // 0x264c88: 0x90820000  lbu         $v0, 0x0($a0)
@@ -36,20 +32,26 @@ void sub_00264C88_0x264c88(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x264c94: 0x3e00008  jr          $ra
     ctx->pc = 0x264C94u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x264C98u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264C94u;
-            // 0x264c98: 0x621025  or          $v0, $v1, $v0 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264C94u;
+        // 0x264c98: 0x621025  or          $v0, $v1, $v0 (Delay Slot)
         SET_GPR_U64(ctx, 2, GPR_U64(ctx, 3) | GPR_U64(ctx, 2));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x264C94u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x264C9Cu;
     // 0x264c9c: 0x0  nop
     ctx->pc = 0x264c9cu;
     // NOP
-label_264ca0:
     // 0x264ca0: 0x90850001  lbu         $a1, 0x1($a0)
     ctx->pc = 0x264ca0u;
     SET_GPR_U32(ctx, 5, (uint8_t)READ8(ADD32(GPR_U32(ctx, 4), 1)));
@@ -80,18 +82,24 @@ label_264ca0:
     // 0x264cc4: 0x3e00008  jr          $ra
     ctx->pc = 0x264CC4u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x264CC8u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264CC4u;
-            // 0x264cc8: 0x621025  or          $v0, $v1, $v0 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264CC4u;
+        // 0x264cc8: 0x621025  or          $v0, $v1, $v0 (Delay Slot)
         SET_GPR_U64(ctx, 2, GPR_U64(ctx, 3) | GPR_U64(ctx, 2));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x264CC4u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x264CCCu;
     // 0x264ccc: 0x0  nop
     ctx->pc = 0x264cccu;
     // NOP
-    ctx->pc = 0x264cd0u;
 }

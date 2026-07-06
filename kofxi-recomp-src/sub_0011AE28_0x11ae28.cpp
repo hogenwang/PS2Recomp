@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -31,20 +32,17 @@ void sub_0011AE28_0x11ae28(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x11ae34: 0x8046584  j           func_119610
     ctx->pc = 0x11AE34u;
     ctx->pc = 0x11AE38u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x11AE34u;
-            // 0x11ae38: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
-        SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x11AE34u;
+    // 0x11ae38: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
+    SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x119610u;
-    {
-        auto targetFn = runtime->lookupFunction(0x119610u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x119610u, 0x11AE34u, 0x0u, PS2Runtime::GuestBranchKind::DirectJump, "J")) {
         return;
     }
     ctx->pc = 0x11AE3Cu;
     // 0x11ae3c: 0x0  nop
     ctx->pc = 0x11ae3cu;
     // NOP
-    ctx->pc = 0x11ae40u;
 }

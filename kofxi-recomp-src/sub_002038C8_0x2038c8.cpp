@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -17,12 +18,6 @@ void sub_002038C8_0x2038c8(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     PS_LOG_ENTRY("sub_002038C8_0x2038c8");
 #endif
 
-    switch (ctx->pc) {
-        case 0x2038d8u: goto label_2038d8;
-        case 0x2038f8u: goto label_2038f8;
-        default: break;
-    }
-
     ctx->pc = 0x2038c8u;
 
     // 0x2038c8: 0x3c020039  lui         $v0, 0x39
@@ -31,20 +26,26 @@ void sub_002038C8_0x2038c8(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x2038cc: 0x3e00008  jr          $ra
     ctx->pc = 0x2038CCu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x2038D0u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x2038CCu;
-            // 0x2038d0: 0xfc442078  sd          $a0, 0x2078($v0) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x2038CCu;
+        // 0x2038d0: 0xfc442078  sd          $a0, 0x2078($v0) (Delay Slot)
         WRITE64(ADD32(GPR_U32(ctx, 2), 8312), GPR_U64(ctx, 4));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x2038CCu, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x2038D4u;
     // 0x2038d4: 0x0  nop
     ctx->pc = 0x2038d4u;
     // NOP
-label_2038d8:
     // 0x2038d8: 0x2402ffff  addiu       $v0, $zero, -0x1
     ctx->pc = 0x2038d8u;
     SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 4294967295));
@@ -63,20 +64,26 @@ label_2038d8:
     // 0x2038ec: 0x3e00008  jr          $ra
     ctx->pc = 0x2038ECu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x2038F0u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x2038ECu;
-            // 0x2038f0: 0xfc800010  sd          $zero, 0x10($a0) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x2038ECu;
+        // 0x2038f0: 0xfc800010  sd          $zero, 0x10($a0) (Delay Slot)
         WRITE64(ADD32(GPR_U32(ctx, 4), 16), GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x2038ECu, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x2038F4u;
     // 0x2038f4: 0x0  nop
     ctx->pc = 0x2038f4u;
     // NOP
-label_2038f8:
     // 0x2038f8: 0xdc870008  ld          $a3, 0x8($a0)
     ctx->pc = 0x2038f8u;
     SET_GPR_U64(ctx, 7, READ64(ADD32(GPR_U32(ctx, 4), 8)));
@@ -119,14 +126,21 @@ label_2038f8:
     // 0x20392c: 0x3e00008  jr          $ra
     ctx->pc = 0x20392Cu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x203930u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x20392Cu;
-            // 0x203930: 0xfc880010  sd          $t0, 0x10($a0) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x20392Cu;
+        // 0x203930: 0xfc880010  sd          $t0, 0x10($a0) (Delay Slot)
         WRITE64(ADD32(GPR_U32(ctx, 4), 16), GPR_U64(ctx, 8));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x20392Cu, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x203934u;
     // 0x203934: 0x0  nop
@@ -138,5 +152,4 @@ label_2038f8:
     // 0x20393c: 0x0  nop
     ctx->pc = 0x20393cu;
     // NOP
-    ctx->pc = 0x203940u;
 }

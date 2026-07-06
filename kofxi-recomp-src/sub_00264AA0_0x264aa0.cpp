@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -22,10 +23,7 @@ void sub_00264AA0_0x264aa0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         case 0x264ad0u: goto label_264ad0;
         case 0x264ad4u: goto label_264ad4;
         case 0x264b00u: goto label_264b00;
-        case 0x264b08u: goto label_264b08;
-        case 0x264b60u: goto label_264b60;
         case 0x264b9cu: goto label_264b9c;
-        case 0x264ba8u: goto label_264ba8;
         case 0x264be8u: goto label_264be8;
         case 0x264bf0u: goto label_264bf0;
         case 0x264c40u: goto label_264c40;
@@ -46,8 +44,9 @@ label_264aa0:
     {
         const bool branch_taken_0x264aa8 = (GPR_U64(ctx, 3) == GPR_U64(ctx, 0));
         ctx->pc = 0x264AACu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264AA8u;
-            // 0x264aac: 0x24840001  addiu       $a0, $a0, 0x1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264AA8u;
+        // 0x264aac: 0x24840001  addiu       $a0, $a0, 0x1 (Delay Slot)
         SET_GPR_S32(ctx, 4, (int32_t)ADD32(GPR_U32(ctx, 4), 1));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264aa8) {
@@ -74,8 +73,9 @@ label_264ac0:
     {
         const bool branch_taken_0x264ac0 = (GPR_U64(ctx, 3) == GPR_U64(ctx, 6));
         ctx->pc = 0x264AC4u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264AC0u;
-            // 0x264ac4: 0x24840001  addiu       $a0, $a0, 0x1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264AC0u;
+        // 0x264ac4: 0x24840001  addiu       $a0, $a0, 0x1 (Delay Slot)
         SET_GPR_S32(ctx, 4, (int32_t)ADD32(GPR_U32(ctx, 4), 1));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264ac0) {
@@ -107,8 +107,9 @@ label_264ad4:
     {
         const bool branch_taken_0x264ad8 = (GPR_U64(ctx, 2) != GPR_U64(ctx, 0));
         ctx->pc = 0x264ADCu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264AD8u;
-            // 0x264adc: 0x60102d  daddu       $v0, $v1, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264AD8u;
+        // 0x264adc: 0x60102d  daddu       $v0, $v1, $zero (Delay Slot)
         SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 3) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264ad8) {
@@ -128,8 +129,9 @@ label_264ad4:
     {
         const bool branch_taken_0x264ae8 = (GPR_U64(ctx, 2) != GPR_U64(ctx, 0));
         ctx->pc = 0x264AECu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264AE8u;
-            // 0x264aec: 0x60102d  daddu       $v0, $v1, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264AE8u;
+        // 0x264aec: 0x60102d  daddu       $v0, $v1, $zero (Delay Slot)
         SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 3) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264ae8) {
@@ -149,8 +151,9 @@ label_264ad4:
     {
         const bool branch_taken_0x264af8 = (GPR_U64(ctx, 2) != GPR_U64(ctx, 0));
         ctx->pc = 0x264AFCu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264AF8u;
-            // 0x264afc: 0x60102d  daddu       $v0, $v1, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264AF8u;
+        // 0x264afc: 0x60102d  daddu       $v0, $v1, $zero (Delay Slot)
         SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 3) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264af8) {
@@ -163,14 +166,21 @@ label_264b00:
     // 0x264b00: 0x3e00008  jr          $ra
     ctx->pc = 0x264B00u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x264B04u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264B00u;
-            // 0x264b04: 0x102d  daddu       $v0, $zero, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264B00u;
+        // 0x264b04: 0x102d  daddu       $v0, $zero, $zero (Delay Slot)
         SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x264B00u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x264B08u;
 label_264b08:
@@ -179,8 +189,9 @@ label_264b08:
     {
         const bool branch_taken_0x264b08 = (GPR_U64(ctx, 5) == GPR_U64(ctx, 6));
         ctx->pc = 0x264B0Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264B08u;
-            // 0x264b0c: 0x2462ffbf  addiu       $v0, $v1, -0x41 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264B08u;
+        // 0x264b0c: 0x2462ffbf  addiu       $v0, $v1, -0x41 (Delay Slot)
         SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 3), 4294967231));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264b08) {
@@ -197,8 +208,9 @@ label_264b08:
     {
         const bool branch_taken_0x264b10 = (GPR_U64(ctx, 5) == GPR_U64(ctx, 0));
         ctx->pc = 0x264B14u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264B10u;
-            // 0x264b14: 0x2c42001a  sltiu       $v0, $v0, 0x1A (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264B10u;
+        // 0x264b14: 0x2c42001a  sltiu       $v0, $v0, 0x1A (Delay Slot)
         SET_GPR_U64(ctx, 2, ((uint64_t)GPR_U64(ctx, 2) < (uint64_t)(int64_t)(int32_t)26) ? 1 : 0);
         ctx->in_delay_slot = false;
         if (branch_taken_0x264b10) {
@@ -215,8 +227,9 @@ label_264b08:
     {
         const bool branch_taken_0x264b18 = (GPR_U64(ctx, 2) != GPR_U64(ctx, 0));
         ctx->pc = 0x264B1Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264B18u;
-            // 0x264b1c: 0x60102d  daddu       $v0, $v1, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264B18u;
+        // 0x264b1c: 0x60102d  daddu       $v0, $v1, $zero (Delay Slot)
         SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 3) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264b18) {
@@ -236,8 +249,9 @@ label_264b08:
     {
         const bool branch_taken_0x264b28 = (GPR_U64(ctx, 2) != GPR_U64(ctx, 0));
         ctx->pc = 0x264B2Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264B28u;
-            // 0x264b2c: 0x60102d  daddu       $v0, $v1, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264B28u;
+        // 0x264b2c: 0x60102d  daddu       $v0, $v1, $zero (Delay Slot)
         SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 3) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264b28) {
@@ -257,8 +271,9 @@ label_264b08:
     {
         const bool branch_taken_0x264b38 = (GPR_U64(ctx, 2) != GPR_U64(ctx, 0));
         ctx->pc = 0x264B3Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264B38u;
-            // 0x264b3c: 0x60102d  daddu       $v0, $v1, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264B38u;
+        // 0x264b3c: 0x60102d  daddu       $v0, $v1, $zero (Delay Slot)
         SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 3) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264b38) {
@@ -294,10 +309,11 @@ label_264b4c:
         const bool branch_taken_0x264b50 = (GPR_U64(ctx, 3) != GPR_U64(ctx, 0));
         if (branch_taken_0x264b50) {
             ctx->pc = 0x264B54u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x264B50u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x264B50u;
             // 0x264b54: 0x80850000  lb          $a1, 0x0($a0) (Delay Slot)
-        SET_GPR_S32(ctx, 5, (int8_t)READ8(ADD32(GPR_U32(ctx, 4), 0)));
-        ctx->in_delay_slot = false;
+            SET_GPR_S32(ctx, 5, (int8_t)READ8(ADD32(GPR_U32(ctx, 4), 0)));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x264AC0u;
             if (runtime->shouldPreemptGuestExecution()) {
                 return;
@@ -310,17 +326,23 @@ label_264b58:
     // 0x264b58: 0x3e00008  jr          $ra
     ctx->pc = 0x264B58u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x264B5Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264B58u;
-            // 0x264b5c: 0x24020001  addiu       $v0, $zero, 0x1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264B58u;
+        // 0x264b5c: 0x24020001  addiu       $v0, $zero, 0x1 (Delay Slot)
         SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 1));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x264B58u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x264B60u;
-label_264b60:
     // 0x264b60: 0x27bdfff0  addiu       $sp, $sp, -0x10
     ctx->pc = 0x264b60u;
     SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 4294967280));
@@ -338,8 +360,9 @@ label_264b60:
     {
         const bool branch_taken_0x264b70 = (GPR_U64(ctx, 2) != GPR_U64(ctx, 3));
         ctx->pc = 0x264B74u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264B70u;
-            // 0x264b74: 0x2402002e  addiu       $v0, $zero, 0x2E (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264B70u;
+        // 0x264b74: 0x2402002e  addiu       $v0, $zero, 0x2E (Delay Slot)
         SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 46));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264b70) {
@@ -366,8 +389,9 @@ label_264b60:
     {
         const bool branch_taken_0x264b84 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x264B88u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264B84u;
-            // 0x264b88: 0x24840002  addiu       $a0, $a0, 0x2 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264B84u;
+        // 0x264b88: 0x24840002  addiu       $a0, $a0, 0x2 (Delay Slot)
         SET_GPR_S32(ctx, 4, (int32_t)ADD32(GPR_U32(ctx, 4), 2));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264b84) {
@@ -382,8 +406,9 @@ label_264b8c:
     {
         const bool branch_taken_0x264b8c = (GPR_U64(ctx, 3) == GPR_U64(ctx, 0));
         ctx->pc = 0x264B90u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264B8Cu;
-            // 0x264b90: 0x24020001  addiu       $v0, $zero, 0x1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264B8Cu;
+        // 0x264b90: 0x24020001  addiu       $v0, $zero, 0x1 (Delay Slot)
         SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 1));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264b8c) {
@@ -406,17 +431,23 @@ label_264b9c:
     // 0x264ba0: 0x3e00008  jr          $ra
     ctx->pc = 0x264BA0u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x264BA4u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264BA0u;
-            // 0x264ba4: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264BA0u;
+        // 0x264ba4: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
         SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x264BA0u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x264BA8u;
-label_264ba8:
     // 0x264ba8: 0x27bdfff0  addiu       $sp, $sp, -0x10
     ctx->pc = 0x264ba8u;
     SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 4294967280));
@@ -428,8 +459,9 @@ label_264ba8:
     {
         const bool branch_taken_0x264bb0 = (GPR_U64(ctx, 2) != GPR_U64(ctx, 0));
         ctx->pc = 0x264BB4u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264BB0u;
-            // 0x264bb4: 0xffbf0000  sd          $ra, 0x0($sp) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264BB0u;
+        // 0x264bb4: 0xffbf0000  sd          $ra, 0x0($sp) (Delay Slot)
         WRITE64(ADD32(GPR_U32(ctx, 29), 0), GPR_U64(ctx, 31));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264bb0) {
@@ -443,8 +475,9 @@ label_264ba8:
     {
         const bool branch_taken_0x264bb8 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x264BBCu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264BB8u;
-            // 0x264bbc: 0x24020001  addiu       $v0, $zero, 0x1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264BB8u;
+        // 0x264bbc: 0x24020001  addiu       $v0, $zero, 0x1 (Delay Slot)
         SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 1));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264bb8) {
@@ -474,8 +507,9 @@ label_264bc0:
     {
         const bool branch_taken_0x264bd4 = (GPR_U64(ctx, 2) == GPR_U64(ctx, 0));
         ctx->pc = 0x264BD8u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264BD4u;
-            // 0x264bd8: 0x24840001  addiu       $a0, $a0, 0x1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264BD4u;
+        // 0x264bd8: 0x24840001  addiu       $a0, $a0, 0x1 (Delay Slot)
         SET_GPR_S32(ctx, 4, (int32_t)ADD32(GPR_U32(ctx, 4), 1));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264bd4) {
@@ -503,8 +537,9 @@ label_264be8:
     {
         const bool branch_taken_0x264be8 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x264BECu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264BE8u;
-            // 0x264bec: 0x90830000  lbu         $v1, 0x0($a0) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264BE8u;
+        // 0x264bec: 0x90830000  lbu         $v1, 0x0($a0) (Delay Slot)
         SET_GPR_U32(ctx, 3, (uint8_t)READ8(ADD32(GPR_U32(ctx, 4), 0)));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264be8) {
@@ -535,8 +570,9 @@ label_264bfc:
     {
         const bool branch_taken_0x264c04 = (GPR_U64(ctx, 3) == GPR_U64(ctx, 0));
         ctx->pc = 0x264C08u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264C04u;
-            // 0x264c08: 0x24840001  addiu       $a0, $a0, 0x1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264C04u;
+        // 0x264c08: 0x24840001  addiu       $a0, $a0, 0x1 (Delay Slot)
         SET_GPR_S32(ctx, 4, (int32_t)ADD32(GPR_U32(ctx, 4), 1));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264c04) {
@@ -557,10 +593,11 @@ label_264bfc:
         const bool branch_taken_0x264c14 = (GPR_U64(ctx, 2) == GPR_U64(ctx, 0));
         if (branch_taken_0x264c14) {
             ctx->pc = 0x264C18u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x264C14u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x264C14u;
             // 0x264c18: 0x102d  daddu       $v0, $zero, $zero (Delay Slot)
-        SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
-        ctx->in_delay_slot = false;
+            SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x264C4Cu;
             goto label_264c4c;
         }
@@ -571,8 +608,9 @@ label_264bfc:
     {
         const bool branch_taken_0x264c1c = (GPR_U64(ctx, 5) != GPR_U64(ctx, 0));
         ctx->pc = 0x264C20u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264C1Cu;
-            // 0x264c20: 0x282d  daddu       $a1, $zero, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264C1Cu;
+        // 0x264c20: 0x282d  daddu       $a1, $zero, $zero (Delay Slot)
         SET_GPR_U64(ctx, 5, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264c1c) {
@@ -590,8 +628,9 @@ label_264c24:
     {
         const bool branch_taken_0x264c24 = (GPR_U64(ctx, 3) != GPR_U64(ctx, 6));
         ctx->pc = 0x264C28u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264C24u;
-            // 0x264c28: 0x3862005c  xori        $v0, $v1, 0x5C (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264C24u;
+        // 0x264c28: 0x3862005c  xori        $v0, $v1, 0x5C (Delay Slot)
         SET_GPR_U64(ctx, 2, GPR_U64(ctx, 3) ^ (uint64_t)(uint16_t)92);
         ctx->in_delay_slot = false;
         if (branch_taken_0x264c24) {
@@ -612,8 +651,9 @@ label_264c2c:
     {
         const bool branch_taken_0x264c30 = (GPR_U64(ctx, 3) != GPR_U64(ctx, 2));
         ctx->pc = 0x264C34u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264C30u;
-            // 0x264c34: 0x102d  daddu       $v0, $zero, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264C30u;
+        // 0x264c34: 0x102d  daddu       $v0, $zero, $zero (Delay Slot)
         SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264c30) {
@@ -634,8 +674,9 @@ label_264c40:
     {
         const bool branch_taken_0x264c40 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x264C44u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264C40u;
-            // 0x264c44: 0xdfbf0000  ld          $ra, 0x0($sp) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264C40u;
+        // 0x264c44: 0xdfbf0000  ld          $ra, 0x0($sp) (Delay Slot)
         SET_GPR_U64(ctx, 31, READ64(ADD32(GPR_U32(ctx, 29), 0)));
         ctx->in_delay_slot = false;
         if (branch_taken_0x264c40) {
@@ -656,15 +697,21 @@ label_264c50:
     // 0x264c50: 0x3e00008  jr          $ra
     ctx->pc = 0x264C50u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x264C54u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x264C50u;
-            // 0x264c54: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x264C50u;
+        // 0x264c54: 0x27bd0010  addiu       $sp, $sp, 0x10 (Delay Slot)
         SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 16));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x264C50u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x264C58u;
-    ctx->pc = 0x264c58u;
 }

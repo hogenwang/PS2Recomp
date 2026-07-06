@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -19,7 +20,6 @@ void kofxiDisableInterruptsAndReturnState_0x116ea0(uint8_t* rdram, R5900Context*
 
     switch (ctx->pc) {
         case 0x116eb8u: goto label_116eb8;
-        case 0x116ee4u: goto label_116ee4;
         default: break;
     }
 
@@ -39,8 +39,9 @@ void kofxiDisableInterruptsAndReturnState_0x116ea0(uint8_t* rdram, R5900Context*
     {
         const bool branch_taken_0x116eac = (GPR_U64(ctx, 3) == GPR_U64(ctx, 0));
         ctx->pc = 0x116EB0u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x116EACu;
-            // 0x116eb0: 0x3202b  sltu        $a0, $zero, $v1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x116EACu;
+        // 0x116eb0: 0x3202b  sltu        $a0, $zero, $v1 (Delay Slot)
         SET_GPR_U64(ctx, 4, ((uint64_t)GPR_U64(ctx, 0) < (uint64_t)GPR_U64(ctx, 3)) ? 1 : 0);
         ctx->in_delay_slot = false;
         if (branch_taken_0x116eac) {
@@ -55,7 +56,7 @@ void kofxiDisableInterruptsAndReturnState_0x116ea0(uint8_t* rdram, R5900Context*
 label_116eb8:
     // 0x116eb8: 0x42000039  di
     ctx->pc = 0x116eb8u;
-    ctx->cop0_status &= ~0x10000u; // Disable guest EIE interrupt state
+    ctx->cop0_status &= ~0x10000; // Disable interrupts
     // 0x116ebc: 0x40f  sync.p
     ctx->pc = 0x116ebcu;
     // SYNC instruction - memory barrier
@@ -91,14 +92,21 @@ label_116eb8:
     // 0x116edc: 0x3e00008  jr          $ra
     ctx->pc = 0x116EDCu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x116EE0u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x116EDCu;
-            // 0x116ee0: 0x80102d  daddu       $v0, $a0, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x116EDCu;
+        // 0x116ee0: 0x80102d  daddu       $v0, $a0, $zero (Delay Slot)
         SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 4) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x116EDCu, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x116EE4u;
 label_116ee4:
@@ -108,15 +116,21 @@ label_116ee4:
     // 0x116ee8: 0x3e00008  jr          $ra
     ctx->pc = 0x116EE8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x116EECu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x116EE8u;
-            // 0x116eec: 0x80102d  daddu       $v0, $a0, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x116EE8u;
+        // 0x116eec: 0x80102d  daddu       $v0, $a0, $zero (Delay Slot)
         SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 4) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x116EE8u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x116EF0u;
-    ctx->pc = 0x116ef0u;
 }

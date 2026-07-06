@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -56,9 +57,11 @@ label_155ff4:
     }
     ctx->pc = 0x155FF0u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 2);
+        const uint32_t jumpTarget = GPR_U32(ctx, 2);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x155FF0u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x155FF8u;
 label_155ff8:
@@ -69,5 +72,4 @@ label_155ffc:
     // 0x155ffc: 0x0  nop
     ctx->pc = 0x155ffcu;
     // NOP
-    ctx->pc = 0x156000u;
 }

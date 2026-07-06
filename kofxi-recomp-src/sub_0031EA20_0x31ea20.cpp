@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -48,8 +49,9 @@ label_31ea38:
     {
         const bool branch_taken_0x31ea38 = (GPR_U64(ctx, 4) != GPR_U64(ctx, 3));
         ctx->pc = 0x31EA3Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x31EA38u;
-            // 0x31ea3c: 0x24a50001  addiu       $a1, $a1, 0x1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x31EA38u;
+        // 0x31ea3c: 0x24a50001  addiu       $a1, $a1, 0x1 (Delay Slot)
         SET_GPR_S32(ctx, 5, (int32_t)ADD32(GPR_U32(ctx, 5), 1));
         ctx->in_delay_slot = false;
         if (branch_taken_0x31ea38) {
@@ -84,10 +86,11 @@ label_31ea48:
         const bool branch_taken_0x31ea54 = (GPR_U64(ctx, 3) != GPR_U64(ctx, 0));
         if (branch_taken_0x31ea54) {
             ctx->pc = 0x31EA58u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x31EA54u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x31EA54u;
             // 0x31ea58: 0x80a30000  lb          $v1, 0x0($a1) (Delay Slot)
-        SET_GPR_S32(ctx, 3, (int8_t)READ8(ADD32(GPR_U32(ctx, 5), 0)));
-        ctx->in_delay_slot = false;
+            SET_GPR_S32(ctx, 3, (int8_t)READ8(ADD32(GPR_U32(ctx, 5), 0)));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x31EA38u;
             if (runtime->shouldPreemptGuestExecution()) {
                 return;
@@ -103,9 +106,15 @@ label_31ea60:
     // 0x31ea60: 0x3e00008  jr          $ra
     ctx->pc = 0x31EA60u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x31EA60u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x31EA68u;
     // 0x31ea68: 0x0  nop
@@ -114,5 +123,4 @@ label_31ea60:
     // 0x31ea6c: 0x0  nop
     ctx->pc = 0x31ea6cu;
     // NOP
-    ctx->pc = 0x31ea70u;
 }

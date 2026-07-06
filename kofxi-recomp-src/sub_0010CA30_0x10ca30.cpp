@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -17,12 +18,6 @@ void sub_0010CA30_0x10ca30(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     PS_LOG_ENTRY("sub_0010CA30_0x10ca30");
 #endif
 
-    switch (ctx->pc) {
-        case 0x10ca40u: goto label_10ca40;
-        case 0x10ca50u: goto label_10ca50;
-        default: break;
-    }
-
     ctx->pc = 0x10ca30u;
 
     // 0x10ca30: 0x2403ffe3  addiu       $v1, $zero, -0x1D
@@ -34,12 +29,17 @@ void sub_0010CA30_0x10ca30(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x10ca38: 0x3e00008  jr          $ra
     ctx->pc = 0x10CA38u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x10CA38u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x10CA40u;
-label_10ca40:
     // 0x10ca40: 0x2403ff02  addiu       $v1, $zero, -0xFE
     ctx->pc = 0x10ca40u;
     SET_GPR_S32(ctx, 3, (int32_t)ADD32(GPR_U32(ctx, 0), 4294967042));
@@ -49,12 +49,17 @@ label_10ca40:
     // 0x10ca48: 0x3e00008  jr          $ra
     ctx->pc = 0x10CA48u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x10CA48u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x10CA50u;
-label_10ca50:
     // 0x10ca50: 0x2403ff01  addiu       $v1, $zero, -0xFF
     ctx->pc = 0x10ca50u;
     SET_GPR_S32(ctx, 3, (int32_t)ADD32(GPR_U32(ctx, 0), 4294967041));
@@ -64,10 +69,15 @@ label_10ca50:
     // 0x10ca58: 0x3e00008  jr          $ra
     ctx->pc = 0x10CA58u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x10CA58u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x10CA60u;
-    ctx->pc = 0x10ca60u;
 }

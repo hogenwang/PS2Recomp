@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -22,12 +23,7 @@ void sub_00164B80_0x164b80(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x164b80: 0x8055728  j           func_155CA0
     ctx->pc = 0x164B80u;
     ctx->pc = 0x155CA0u;
-    if (runtime->hasFunction(0x155CA0u)) {
-        auto targetFn = runtime->lookupFunction(0x155CA0u);
-        targetFn(rdram, ctx, runtime); return;
-    } else {
-        sub_00155CA0_0x155ca0(rdram, ctx, runtime); return;
-    }
+    sub_00155CA0_0x155ca0(rdram, ctx, runtime); return;
     ctx->pc = 0x164B88u;
     // 0x164b88: 0x0  nop
     ctx->pc = 0x164b88u;
@@ -35,5 +31,4 @@ void sub_00164B80_0x164b80(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x164b8c: 0x0  nop
     ctx->pc = 0x164b8cu;
     // NOP
-    ctx->pc = 0x164b90u;
 }

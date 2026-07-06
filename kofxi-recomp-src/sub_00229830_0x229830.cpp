@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -27,8 +28,9 @@ void sub_00229830_0x229830(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x229834 = (GPR_U64(ctx, 12) == GPR_U64(ctx, 0));
         ctx->pc = 0x229838u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x229834u;
-            // 0x229838: 0x3c0301c1  lui         $v1, 0x1C1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x229834u;
+        // 0x229838: 0x3c0301c1  lui         $v1, 0x1C1 (Delay Slot)
         SET_GPR_S32(ctx, 3, (int32_t)((uint32_t)449 << 16));
         ctx->in_delay_slot = false;
         if (branch_taken_0x229834) {
@@ -101,13 +103,18 @@ label_22988c:
     // 0x22988c: 0x3e00008  jr          $ra
     ctx->pc = 0x22988Cu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x22988Cu, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x229894u;
     // 0x229894: 0x0  nop
     ctx->pc = 0x229894u;
     // NOP
-    ctx->pc = 0x229898u;
 }

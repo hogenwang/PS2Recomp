@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -25,10 +26,11 @@ void sub_0013D510_0x13d510(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x13d510 = (GPR_S32(ctx, 5) <= 0);
         if (branch_taken_0x13d510) {
             ctx->pc = 0x13D514u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x13D510u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x13D510u;
             // 0x13d514: 0x308200ff  andi        $v0, $a0, 0xFF (Delay Slot)
-        SET_GPR_U64(ctx, 2, GPR_U64(ctx, 4) & (uint64_t)(uint16_t)255);
-        ctx->in_delay_slot = false;
+            SET_GPR_U64(ctx, 2, GPR_U64(ctx, 4) & (uint64_t)(uint16_t)255);
+            ctx->in_delay_slot = false;
             ctx->pc = 0x13D538u;
             goto label_13d538;
         }
@@ -62,10 +64,15 @@ label_13d538:
     // 0x13d538: 0x3e00008  jr          $ra
     ctx->pc = 0x13D538u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x13D538u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x13D540u;
-    ctx->pc = 0x13d540u;
 }

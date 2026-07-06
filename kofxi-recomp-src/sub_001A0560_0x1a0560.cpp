@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -51,5 +52,4 @@ label_1a0560:
     // 0x1a057c: 0x0  nop
     ctx->pc = 0x1a057cu;
     // NOP
-    ctx->pc = 0x1a0580u;
 }

@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -34,10 +35,11 @@ void sub_00178990_0x178990(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x17899c = (GPR_U64(ctx, 3) == GPR_U64(ctx, 2));
         if (branch_taken_0x17899c) {
             ctx->pc = 0x1789A0u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x17899Cu;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x17899Cu;
             // 0x1789a0: 0xaca40000  sw          $a0, 0x0($a1) (Delay Slot)
-        WRITE32(ADD32(GPR_U32(ctx, 5), 0), GPR_U32(ctx, 4));
-        ctx->in_delay_slot = false;
+            WRITE32(ADD32(GPR_U32(ctx, 5), 0), GPR_U32(ctx, 4));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x1789D0u;
             goto label_1789d0;
         }
@@ -54,8 +56,9 @@ void sub_00178990_0x178990(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x1789ac = (GPR_U64(ctx, 6) != GPR_U64(ctx, 0));
         ctx->pc = 0x1789B0u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x1789ACu;
-            // 0x1789b0: 0x46001a  div         $zero, $v0, $a2 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x1789ACu;
+        // 0x1789b0: 0x46001a  div         $zero, $v0, $a2 (Delay Slot)
         { int32_t divisor = GPR_S32(ctx, 6);    int32_t dividend = GPR_S32(ctx, 2);    if (divisor != 0) {        if (divisor == -1 && dividend == INT32_MIN) {            ctx->lo = (uint64_t)(int64_t)INT32_MIN; ctx->hi = 0;        } else {            ctx->lo = (uint64_t)(int64_t)(dividend / divisor);            ctx->hi = (uint64_t)(int64_t)(dividend % divisor);        }    } else {        ctx->lo = (dividend < 0) ? 1ull : 0xFFFFFFFFFFFFFFFFull; ctx->hi = (uint64_t)(int64_t)dividend;    } }
         ctx->in_delay_slot = false;
         if (branch_taken_0x1789ac) {
@@ -85,8 +88,9 @@ label_1789b8:
     {
         const bool branch_taken_0x1789c8 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x1789CCu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x1789C8u;
-            // 0x1789cc: 0xaca30000  sw          $v1, 0x0($a1) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x1789C8u;
+        // 0x1789cc: 0xaca30000  sw          $v1, 0x0($a1) (Delay Slot)
         WRITE32(ADD32(GPR_U32(ctx, 5), 0), GPR_U32(ctx, 3));
         ctx->in_delay_slot = false;
         if (branch_taken_0x1789c8) {
@@ -103,13 +107,18 @@ label_1789d4:
     // 0x1789d4: 0x3e00008  jr          $ra
     ctx->pc = 0x1789D4u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x1789D4u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x1789DCu;
     // 0x1789dc: 0x0  nop
     ctx->pc = 0x1789dcu;
     // NOP
-    ctx->pc = 0x1789e0u;
 }

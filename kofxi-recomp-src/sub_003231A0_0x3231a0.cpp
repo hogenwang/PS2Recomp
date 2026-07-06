@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -39,8 +40,9 @@ void sub_003231A0_0x3231a0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x3231ac = (GPR_U64(ctx, 1) != GPR_U64(ctx, 0));
         ctx->pc = 0x3231B0u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x3231ACu;
-            // 0x3231b0: 0x282d  daddu       $a1, $zero, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3231ACu;
+        // 0x3231b0: 0x282d  daddu       $a1, $zero, $zero (Delay Slot)
         SET_GPR_U64(ctx, 5, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x3231ac) {
@@ -63,8 +65,9 @@ void sub_003231A0_0x3231a0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x3231c0 = (GPR_U64(ctx, 1) != GPR_U64(ctx, 0));
         ctx->pc = 0x3231C4u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x3231C0u;
-            // 0x3231c4: 0x2483fff8  addiu       $v1, $a0, -0x8 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3231C0u;
+        // 0x3231c4: 0x2483fff8  addiu       $v1, $a0, -0x8 (Delay Slot)
         SET_GPR_S32(ctx, 3, (int32_t)ADD32(GPR_U32(ctx, 4), 4294967288));
         ctx->in_delay_slot = false;
         if (branch_taken_0x3231c0) {
@@ -93,8 +96,9 @@ void sub_003231A0_0x3231a0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x3231dc = (GPR_U64(ctx, 1) != GPR_U64(ctx, 0));
         ctx->pc = 0x3231E0u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x3231DCu;
-            // 0x3231e0: 0x382d  daddu       $a3, $zero, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3231DCu;
+        // 0x3231e0: 0x382d  daddu       $a3, $zero, $zero (Delay Slot)
         SET_GPR_U64(ctx, 7, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x3231dc) {
@@ -213,8 +217,9 @@ label_323234:
     {
         const bool branch_taken_0x32324c = (GPR_U64(ctx, 8) != GPR_U64(ctx, 7));
         ctx->pc = 0x323250u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x32324Cu;
-            // 0x323250: 0x240c0001  addiu       $t4, $zero, 0x1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x32324Cu;
+        // 0x323250: 0x240c0001  addiu       $t4, $zero, 0x1 (Delay Slot)
         SET_GPR_S32(ctx, 12, (int32_t)ADD32(GPR_U32(ctx, 0), 1));
         ctx->in_delay_slot = false;
         if (branch_taken_0x32324c) {
@@ -275,8 +280,9 @@ label_323270:
     {
         const bool branch_taken_0x323280 = (GPR_U64(ctx, 7) != GPR_U64(ctx, 0));
         ctx->pc = 0x323284u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x323280u;
-            // 0x323284: 0x24090001  addiu       $t1, $zero, 0x1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x323280u;
+        // 0x323284: 0x24090001  addiu       $t1, $zero, 0x1 (Delay Slot)
         SET_GPR_S32(ctx, 9, (int32_t)ADD32(GPR_U32(ctx, 0), 1));
         ctx->in_delay_slot = false;
         if (branch_taken_0x323280) {
@@ -437,61 +443,61 @@ label_3232c8:
     { int32_t tmp; std::memcpy(&tmp, &ctx->f[8], sizeof(tmp)); ctx->f[8] = FPU_CVT_S_W(tmp); }
     // 0x32333c: 0x460c3818  adda.s      $f7, $f12
     ctx->pc = 0x32333cu;
-    ctx->f[31] = FPU_ADD_S(ctx->f[7], ctx->f[12]);
+    FPU_SET_ACC(ctx, FPU_ADD_S(ctx->f[7], ctx->f[12]));
     // 0x323340: 0x46086a1c  madd.s      $f8, $f13, $f8
     ctx->pc = 0x323340u;
-    ctx->f[8] = FPU_ADD_S(ctx->f[31], FPU_MUL_S(ctx->f[13], ctx->f[8]));
+    ctx->f[8] = FPU_ADD_S(ctx->f_acc, FPU_MUL_S(ctx->f[13], ctx->f[8]));
     // 0x323344: 0x460c3818  adda.s      $f7, $f12
     ctx->pc = 0x323344u;
-    ctx->f[31] = FPU_ADD_S(ctx->f[7], ctx->f[12]);
+    FPU_SET_ACC(ctx, FPU_ADD_S(ctx->f[7], ctx->f[12]));
     // 0x323348: 0x4606699c  madd.s      $f6, $f13, $f6
     ctx->pc = 0x323348u;
-    ctx->f[6] = FPU_ADD_S(ctx->f[31], FPU_MUL_S(ctx->f[13], ctx->f[6]));
+    ctx->f[6] = FPU_ADD_S(ctx->f_acc, FPU_MUL_S(ctx->f[13], ctx->f[6]));
     // 0x32334c: 0x460c3818  adda.s      $f7, $f12
     ctx->pc = 0x32334cu;
-    ctx->f[31] = FPU_ADD_S(ctx->f[7], ctx->f[12]);
+    FPU_SET_ACC(ctx, FPU_ADD_S(ctx->f[7], ctx->f[12]));
     // 0x323350: 0x4605695c  madd.s      $f5, $f13, $f5
     ctx->pc = 0x323350u;
-    ctx->f[5] = FPU_ADD_S(ctx->f[31], FPU_MUL_S(ctx->f[13], ctx->f[5]));
+    ctx->f[5] = FPU_ADD_S(ctx->f_acc, FPU_MUL_S(ctx->f[13], ctx->f[5]));
     // 0x323354: 0x460c3818  adda.s      $f7, $f12
     ctx->pc = 0x323354u;
-    ctx->f[31] = FPU_ADD_S(ctx->f[7], ctx->f[12]);
+    FPU_SET_ACC(ctx, FPU_ADD_S(ctx->f[7], ctx->f[12]));
     // 0x323358: 0x4604691c  madd.s      $f4, $f13, $f4
     ctx->pc = 0x323358u;
-    ctx->f[4] = FPU_ADD_S(ctx->f[31], FPU_MUL_S(ctx->f[13], ctx->f[4]));
+    ctx->f[4] = FPU_ADD_S(ctx->f_acc, FPU_MUL_S(ctx->f[13], ctx->f[4]));
     // 0x32335c: 0x460c3818  adda.s      $f7, $f12
     ctx->pc = 0x32335cu;
-    ctx->f[31] = FPU_ADD_S(ctx->f[7], ctx->f[12]);
+    FPU_SET_ACC(ctx, FPU_ADD_S(ctx->f[7], ctx->f[12]));
     // 0x323360: 0xe5a80010  swc1        $f8, 0x10($t5)
     ctx->pc = 0x323360u;
     { float f = ctx->f[8]; uint32_t bits; std::memcpy(&bits, &f, sizeof(bits)); WRITE32(ADD32(GPR_U32(ctx, 13), 16), bits); }
     // 0x323364: 0x460368dc  madd.s      $f3, $f13, $f3
     ctx->pc = 0x323364u;
-    ctx->f[3] = FPU_ADD_S(ctx->f[31], FPU_MUL_S(ctx->f[13], ctx->f[3]));
+    ctx->f[3] = FPU_ADD_S(ctx->f_acc, FPU_MUL_S(ctx->f[13], ctx->f[3]));
     // 0x323368: 0xe5a60028  swc1        $f6, 0x28($t5)
     ctx->pc = 0x323368u;
     { float f = ctx->f[6]; uint32_t bits; std::memcpy(&bits, &f, sizeof(bits)); WRITE32(ADD32(GPR_U32(ctx, 13), 40), bits); }
     // 0x32336c: 0x460c3818  adda.s      $f7, $f12
     ctx->pc = 0x32336cu;
-    ctx->f[31] = FPU_ADD_S(ctx->f[7], ctx->f[12]);
+    FPU_SET_ACC(ctx, FPU_ADD_S(ctx->f[7], ctx->f[12]));
     // 0x323370: 0xe5a50040  swc1        $f5, 0x40($t5)
     ctx->pc = 0x323370u;
     { float f = ctx->f[5]; uint32_t bits; std::memcpy(&bits, &f, sizeof(bits)); WRITE32(ADD32(GPR_U32(ctx, 13), 64), bits); }
     // 0x323374: 0x4602689c  madd.s      $f2, $f13, $f2
     ctx->pc = 0x323374u;
-    ctx->f[2] = FPU_ADD_S(ctx->f[31], FPU_MUL_S(ctx->f[13], ctx->f[2]));
+    ctx->f[2] = FPU_ADD_S(ctx->f_acc, FPU_MUL_S(ctx->f[13], ctx->f[2]));
     // 0x323378: 0xe5a40058  swc1        $f4, 0x58($t5)
     ctx->pc = 0x323378u;
     { float f = ctx->f[4]; uint32_t bits; std::memcpy(&bits, &f, sizeof(bits)); WRITE32(ADD32(GPR_U32(ctx, 13), 88), bits); }
     // 0x32337c: 0x460c3818  adda.s      $f7, $f12
     ctx->pc = 0x32337cu;
-    ctx->f[31] = FPU_ADD_S(ctx->f[7], ctx->f[12]);
+    FPU_SET_ACC(ctx, FPU_ADD_S(ctx->f[7], ctx->f[12]));
     // 0x323380: 0xe5a30070  swc1        $f3, 0x70($t5)
     ctx->pc = 0x323380u;
     { float f = ctx->f[3]; uint32_t bits; std::memcpy(&bits, &f, sizeof(bits)); WRITE32(ADD32(GPR_U32(ctx, 13), 112), bits); }
     // 0x323384: 0x4601685c  madd.s      $f1, $f13, $f1
     ctx->pc = 0x323384u;
-    ctx->f[1] = FPU_ADD_S(ctx->f[31], FPU_MUL_S(ctx->f[13], ctx->f[1]));
+    ctx->f[1] = FPU_ADD_S(ctx->f_acc, FPU_MUL_S(ctx->f[13], ctx->f[1]));
     // 0x323388: 0xe5a20088  swc1        $f2, 0x88($t5)
     ctx->pc = 0x323388u;
     { float f = ctx->f[2]; uint32_t bits; std::memcpy(&bits, &f, sizeof(bits)); WRITE32(ADD32(GPR_U32(ctx, 13), 136), bits); }
@@ -500,13 +506,13 @@ label_3232c8:
     { int32_t tmp; std::memcpy(&tmp, &ctx->f[0], sizeof(tmp)); ctx->f[0] = FPU_CVT_S_W(tmp); }
     // 0x323390: 0x460c3818  adda.s      $f7, $f12
     ctx->pc = 0x323390u;
-    ctx->f[31] = FPU_ADD_S(ctx->f[7], ctx->f[12]);
+    FPU_SET_ACC(ctx, FPU_ADD_S(ctx->f[7], ctx->f[12]));
     // 0x323394: 0xe5a100a0  swc1        $f1, 0xA0($t5)
     ctx->pc = 0x323394u;
     { float f = ctx->f[1]; uint32_t bits; std::memcpy(&bits, &f, sizeof(bits)); WRITE32(ADD32(GPR_U32(ctx, 13), 160), bits); }
     // 0x323398: 0x4600681c  madd.s      $f0, $f13, $f0
     ctx->pc = 0x323398u;
-    ctx->f[0] = FPU_ADD_S(ctx->f[31], FPU_MUL_S(ctx->f[13], ctx->f[0]));
+    ctx->f[0] = FPU_ADD_S(ctx->f_acc, FPU_MUL_S(ctx->f[13], ctx->f[0]));
     // 0x32339c: 0xe5a000b8  swc1        $f0, 0xB8($t5)
     ctx->pc = 0x32339cu;
     { float f = ctx->f[0]; uint32_t bits; std::memcpy(&bits, &f, sizeof(bits)); WRITE32(ADD32(GPR_U32(ctx, 13), 184), bits); }
@@ -515,8 +521,9 @@ label_3232c8:
     {
         const bool branch_taken_0x3233a0 = (GPR_U64(ctx, 1) == GPR_U64(ctx, 0));
         ctx->pc = 0x3233A4u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x3233A0u;
-            // 0x3233a4: 0x25ad00c0  addiu       $t5, $t5, 0xC0 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3233A0u;
+        // 0x3233a4: 0x25ad00c0  addiu       $t5, $t5, 0xC0 (Delay Slot)
         SET_GPR_S32(ctx, 13, (int32_t)ADD32(GPR_U32(ctx, 13), 192));
         ctx->in_delay_slot = false;
         if (branch_taken_0x3233a0) {
@@ -565,7 +572,7 @@ label_3233a8:
     SET_GPR_S32(ctx, 3, (int32_t)ADD32(GPR_U32(ctx, 3), GPR_U32(ctx, 7)));
     // 0x3233d0: 0x460c0018  adda.s      $f0, $f12
     ctx->pc = 0x3233d0u;
-    ctx->f[31] = FPU_ADD_S(ctx->f[0], ctx->f[12]);
+    FPU_SET_ACC(ctx, FPU_ADD_S(ctx->f[0], ctx->f[12]));
 label_3233d4:
     // 0x3233d4: 0x44850000  mtc1        $a1, $f0
     ctx->pc = 0x3233d4u;
@@ -584,7 +591,7 @@ label_3233d4:
     SET_GPR_S32(ctx, 5, (int32_t)ADD32(GPR_U32(ctx, 5), 1));
     // 0x3233e8: 0x4600681c  madd.s      $f0, $f13, $f0
     ctx->pc = 0x3233e8u;
-    ctx->f[0] = FPU_ADD_S(ctx->f[31], FPU_MUL_S(ctx->f[13], ctx->f[0]));
+    ctx->f[0] = FPU_ADD_S(ctx->f_acc, FPU_MUL_S(ctx->f[13], ctx->f[0]));
     // 0x3233ec: 0xe4600010  swc1        $f0, 0x10($v1)
     ctx->pc = 0x3233ecu;
     { float f = ctx->f[0]; uint32_t bits; std::memcpy(&bits, &f, sizeof(bits)); WRITE32(ADD32(GPR_U32(ctx, 3), 16), bits); }
@@ -593,8 +600,9 @@ label_3233d4:
     {
         const bool branch_taken_0x3233f0 = (GPR_U64(ctx, 1) == GPR_U64(ctx, 0));
         ctx->pc = 0x3233F4u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x3233F0u;
-            // 0x3233f4: 0x24630018  addiu       $v1, $v1, 0x18 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3233F0u;
+        // 0x3233f4: 0x24630018  addiu       $v1, $v1, 0x18 (Delay Slot)
         SET_GPR_S32(ctx, 3, (int32_t)ADD32(GPR_U32(ctx, 3), 24));
         ctx->in_delay_slot = false;
         if (branch_taken_0x3233f0) {
@@ -781,14 +789,21 @@ label_3233f8:
     // 0x3234dc: 0x3e00008  jr          $ra
     ctx->pc = 0x3234DCu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x3234E0u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x3234DCu;
-            // 0x3234e0: 0xe4609768  swc1        $f0, -0x6898($v1) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3234DCu;
+        // 0x3234e0: 0xe4609768  swc1        $f0, -0x6898($v1) (Delay Slot)
         { float f = ctx->f[0]; uint32_t bits; std::memcpy(&bits, &f, sizeof(bits)); WRITE32(ADD32(GPR_U32(ctx, 3), 4294940520), bits); }
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x3234DCu, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x3234E4u;
     // 0x3234e4: 0x0  nop
@@ -800,5 +815,4 @@ label_3233f8:
     // 0x3234ec: 0x0  nop
     ctx->pc = 0x3234ecu;
     // NOP
-    ctx->pc = 0x3234f0u;
 }

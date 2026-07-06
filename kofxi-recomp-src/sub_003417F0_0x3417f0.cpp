@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -38,22 +39,14 @@ void sub_003417F0_0x3417f0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     ctx->pc = 0x3417FCu;
     SET_GPR_U32(ctx, 31, 0x341804u);
     ctx->pc = 0x341800u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x3417FCu;
-            // 0x341800: 0x80802d  daddu       $s0, $a0, $zero (Delay Slot)
-        SET_GPR_U64(ctx, 16, (uint64_t)GPR_U64(ctx, 4) + (uint64_t)GPR_U64(ctx, 0));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x3417FCu;
+    // 0x341800: 0x80802d  daddu       $s0, $a0, $zero (Delay Slot)
+    SET_GPR_U64(ctx, 16, (uint64_t)GPR_U64(ctx, 4) + (uint64_t)GPR_U64(ctx, 0));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x341720u;
-    if (runtime->hasFunction(0x341720u)) {
-        auto targetFn = runtime->lookupFunction(0x341720u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x341804u; }
-        if (ctx->pc != 0x341804u) { return; }
-    } else {
-        const uint32_t __entryPc = ctx->pc;
-        sub_00341720_0x341720(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x341804u; }
-        if (ctx->pc != 0x341804u) { return; }
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x341720u, 0x3417FCu, 0x341804u, PS2Runtime::GuestBranchKind::DirectCall, "JAL")) {
+        return;
     }
     ctx->pc = 0x341804u;
 label_341804:
@@ -106,22 +99,14 @@ label_341804:
     ctx->pc = 0x341840u;
     SET_GPR_U32(ctx, 31, 0x341848u);
     ctx->pc = 0x341844u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x341840u;
-            // 0x341844: 0xac43eaac  sw          $v1, -0x1554($v0) (Delay Slot)
-        WRITE32(ADD32(GPR_U32(ctx, 2), 4294961836), GPR_U32(ctx, 3));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x341840u;
+    // 0x341844: 0xac43eaac  sw          $v1, -0x1554($v0) (Delay Slot)
+    WRITE32(ADD32(GPR_U32(ctx, 2), 4294961836), GPR_U32(ctx, 3));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x3410B0u;
-    if (runtime->hasFunction(0x3410B0u)) {
-        auto targetFn = runtime->lookupFunction(0x3410B0u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x341848u; }
-        if (ctx->pc != 0x341848u) { return; }
-    } else {
-        const uint32_t __entryPc = ctx->pc;
-        sub_003410B0_0x3410b0(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x341848u; }
-        if (ctx->pc != 0x341848u) { return; }
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x3410B0u, 0x341840u, 0x341848u, PS2Runtime::GuestBranchKind::DirectCall, "JAL")) {
+        return;
     }
     ctx->pc = 0x341848u;
 label_341848:
@@ -134,14 +119,21 @@ label_341848:
     // 0x341850: 0x3e00008  jr          $ra
     ctx->pc = 0x341850u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x341854u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x341850u;
-            // 0x341854: 0x27bd0020  addiu       $sp, $sp, 0x20 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x341850u;
+        // 0x341854: 0x27bd0020  addiu       $sp, $sp, 0x20 (Delay Slot)
         SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 32));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x341850u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x341858u;
     // 0x341858: 0x0  nop
@@ -150,5 +142,4 @@ label_341848:
     // 0x34185c: 0x0  nop
     ctx->pc = 0x34185cu;
     // NOP
-    ctx->pc = 0x341860u;
 }

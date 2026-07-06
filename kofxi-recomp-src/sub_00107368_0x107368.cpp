@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -16,11 +17,6 @@ void sub_00107368_0x107368(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
 #ifdef PS2_FUNCTION_LOG_TRACKER
     PS_LOG_ENTRY("sub_00107368_0x107368");
 #endif
-
-    switch (ctx->pc) {
-        case 0x107394u: goto label_107394;
-        default: break;
-    }
 
     ctx->pc = 0x107368u;
 
@@ -58,10 +54,7 @@ void sub_00107368_0x107368(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x10738c: 0x8041b9c  j           func_106E70
     ctx->pc = 0x10738Cu;
     ctx->pc = 0x106E70u;
-    {
-        auto targetFn = runtime->lookupFunction(0x106E70u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x106E70u, 0x10738Cu, 0x0u, PS2Runtime::GuestBranchKind::DirectJump, "J")) {
         return;
     }
     ctx->pc = 0x107394u;
@@ -69,13 +62,18 @@ label_107394:
     // 0x107394: 0x3e00008  jr          $ra
     ctx->pc = 0x107394u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x107394u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x10739Cu;
     // 0x10739c: 0x0  nop
     ctx->pc = 0x10739cu;
     // NOP
-    ctx->pc = 0x1073a0u;
 }

@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -36,9 +37,15 @@ label_155dac:
     // 0x155dac: 0x3e00008  jr          $ra
     ctx->pc = 0x155DACu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x155DACu, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x155DB4u;
     // 0x155db4: 0x0  nop
@@ -50,5 +57,4 @@ label_155dac:
     // 0x155dbc: 0x0  nop
     ctx->pc = 0x155dbcu;
     // NOP
-    ctx->pc = 0x155dc0u;
 }

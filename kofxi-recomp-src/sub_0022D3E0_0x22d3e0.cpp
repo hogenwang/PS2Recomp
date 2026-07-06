@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -30,8 +31,9 @@ void sub_0022D3E0_0x22d3e0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x22d3e8 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x22D3ECu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x22D3E8u;
-            // 0x22d3ec: 0x100202d  daddu       $a0, $t0, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x22D3E8u;
+        // 0x22d3ec: 0x100202d  daddu       $a0, $t0, $zero (Delay Slot)
         SET_GPR_U64(ctx, 4, (uint64_t)GPR_U64(ctx, 8) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x22d3e8) {
@@ -40,5 +42,4 @@ void sub_0022D3E0_0x22d3e0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         }
     }
     ctx->pc = 0x22D3F0u;
-    ctx->pc = 0x22d3f0u;
 }

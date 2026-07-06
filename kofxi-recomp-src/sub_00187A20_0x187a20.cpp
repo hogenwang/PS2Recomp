@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -81,8 +82,9 @@ void sub_00187A20_0x187a20(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x187a6c = (GPR_U64(ctx, 3) != GPR_U64(ctx, 0));
         ctx->pc = 0x187A70u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x187A6Cu;
-            // 0x187a70: 0x24a8014c  addiu       $t0, $a1, 0x14C (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x187A6Cu;
+        // 0x187a70: 0x24a8014c  addiu       $t0, $a1, 0x14C (Delay Slot)
         SET_GPR_S32(ctx, 8, (int32_t)ADD32(GPR_U32(ctx, 5), 332));
         ctx->in_delay_slot = false;
         if (branch_taken_0x187a6c) {
@@ -131,10 +133,11 @@ void sub_00187A20_0x187a20(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x187a9c = (GPR_U64(ctx, 3) != GPR_U64(ctx, 5));
         if (branch_taken_0x187a9c) {
             ctx->pc = 0x187AA0u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x187A9Cu;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x187A9Cu;
             // 0x187aa0: 0x71c3c  dsll32      $v1, $a3, 16 (Delay Slot)
-        SET_GPR_U64(ctx, 3, GPR_U64(ctx, 7) << (32 + 16));
-        ctx->in_delay_slot = false;
+            SET_GPR_U64(ctx, 3, GPR_U64(ctx, 7) << (32 + 16));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x187AC0u;
             goto label_187ac0;
         }
@@ -278,9 +281,15 @@ label_187b40:
     // 0x187b40: 0x3e00008  jr          $ra
     ctx->pc = 0x187B40u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x187B40u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x187B48u;
     // 0x187b48: 0x0  nop
@@ -289,5 +298,4 @@ label_187b40:
     // 0x187b4c: 0x0  nop
     ctx->pc = 0x187b4cu;
     // NOP
-    ctx->pc = 0x187b50u;
 }

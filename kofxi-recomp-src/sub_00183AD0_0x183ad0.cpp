@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -31,10 +32,11 @@ void sub_00183AD0_0x183ad0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x183ad8 = (GPR_U64(ctx, 3) == GPR_U64(ctx, 2));
         if (branch_taken_0x183ad8) {
             ctx->pc = 0x183ADCu;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x183AD8u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x183AD8u;
             // 0x183adc: 0x24020004  addiu       $v0, $zero, 0x4 (Delay Slot)
-        SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 4));
-        ctx->in_delay_slot = false;
+            SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 4));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x183C38u;
             return;
         }
@@ -150,10 +152,11 @@ void sub_00183AD0_0x183ad0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x183b40 = (GPR_U64(ctx, 3) == GPR_U64(ctx, 4));
         if (branch_taken_0x183b40) {
             ctx->pc = 0x183B44u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x183B40u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x183B40u;
             // 0x183b44: 0x24020003  addiu       $v0, $zero, 0x3 (Delay Slot)
-        SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 3));
-        ctx->in_delay_slot = false;
+            SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 3));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x183C38u;
             return;
         }
@@ -207,10 +210,11 @@ void sub_00183AD0_0x183ad0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x183b70 = (GPR_U64(ctx, 3) == GPR_U64(ctx, 4));
         if (branch_taken_0x183b70) {
             ctx->pc = 0x183B74u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x183B70u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x183B70u;
             // 0x183b74: 0x24020002  addiu       $v0, $zero, 0x2 (Delay Slot)
-        SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 2));
-        ctx->in_delay_slot = false;
+            SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 2));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x183C38u;
             return;
         }
@@ -264,10 +268,11 @@ void sub_00183AD0_0x183ad0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x183ba0 = (GPR_U64(ctx, 3) == GPR_U64(ctx, 4));
         if (branch_taken_0x183ba0) {
             ctx->pc = 0x183BA4u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x183BA0u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x183BA0u;
             // 0x183ba4: 0x24020001  addiu       $v0, $zero, 0x1 (Delay Slot)
-        SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 1));
-        ctx->in_delay_slot = false;
+            SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 0), 1));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x183C38u;
             return;
         }
@@ -321,10 +326,11 @@ void sub_00183AD0_0x183ad0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x183bd0 = (GPR_U64(ctx, 3) == GPR_U64(ctx, 4));
         if (branch_taken_0x183bd0) {
             ctx->pc = 0x183BD4u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x183BD0u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x183BD0u;
             // 0x183bd4: 0x102d  daddu       $v0, $zero, $zero (Delay Slot)
-        SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
-        ctx->in_delay_slot = false;
+            SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x183C38u;
             return;
         }
@@ -379,5 +385,4 @@ void sub_00183AD0_0x183ad0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         }
     }
     ctx->pc = 0x183C04u;
-    ctx->pc = 0x183c00u;
 }

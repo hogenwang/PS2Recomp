@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -34,10 +35,11 @@ void sub_0019F1E0_0x19f1e0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x19f1ec = (GPR_U64(ctx, 3) != GPR_U64(ctx, 2));
         if (branch_taken_0x19f1ec) {
             ctx->pc = 0x19F1F0u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x19F1ECu;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x19F1ECu;
             // 0x19f1f0: 0x3183c  dsll32      $v1, $v1, 0 (Delay Slot)
-        SET_GPR_U64(ctx, 3, GPR_U64(ctx, 3) << (32 + 0));
-        ctx->in_delay_slot = false;
+            SET_GPR_U64(ctx, 3, GPR_U64(ctx, 3) << (32 + 0));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x19F200u;
             goto label_19f200;
         }
@@ -80,14 +82,21 @@ label_19f200:
     // 0x19f220: 0x3e00008  jr          $ra
     ctx->pc = 0x19F220u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x19F224u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x19F220u;
-            // 0x19f224: 0xc4400000  lwc1        $f0, 0x0($v0) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x19F220u;
+        // 0x19f224: 0xc4400000  lwc1        $f0, 0x0($v0) (Delay Slot)
         { uint32_t bits = READ32(ADD32(GPR_U32(ctx, 2), 0)); float f; std::memcpy(&f, &bits, sizeof(f)); ctx->f[0] = f; }
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x19F220u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x19F228u;
     // 0x19f228: 0x0  nop
@@ -96,5 +105,4 @@ label_19f200:
     // 0x19f22c: 0x0  nop
     ctx->pc = 0x19f22cu;
     // NOP
-    ctx->pc = 0x19f230u;
 }

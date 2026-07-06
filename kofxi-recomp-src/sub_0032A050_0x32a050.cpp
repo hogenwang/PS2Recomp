@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -48,8 +49,9 @@ void sub_0032A050_0x32a050(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x32a068 = (GPR_U64(ctx, 2) == GPR_U64(ctx, 0));
         ctx->pc = 0x32A06Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x32A068u;
-            // 0x32a06c: 0x26040124  addiu       $a0, $s0, 0x124 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x32A068u;
+        // 0x32a06c: 0x26040124  addiu       $a0, $s0, 0x124 (Delay Slot)
         SET_GPR_S32(ctx, 4, (int32_t)ADD32(GPR_U32(ctx, 16), 292));
         ctx->in_delay_slot = false;
         if (branch_taken_0x32a068) {
@@ -62,17 +64,8 @@ void sub_0032A050_0x32a050(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     ctx->pc = 0x32A070u;
     SET_GPR_U32(ctx, 31, 0x32A078u);
     ctx->pc = 0x32A0A0u;
-    if (runtime->hasFunction(0x32A0A0u)) {
-        auto targetFn = runtime->lookupFunction(0x32A0A0u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x32A078u; }
-        if (ctx->pc != 0x32A078u) { return; }
-    } else {
-        const uint32_t __entryPc = ctx->pc;
-        sub_0032A0A0_0x32a0a0(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x32A078u; }
-        if (ctx->pc != 0x32A078u) { return; }
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x32A0A0u, 0x32A070u, 0x32A078u, PS2Runtime::GuestBranchKind::DirectCall, "JAL")) {
+        return;
     }
     ctx->pc = 0x32A078u;
 label_32a078:
@@ -80,22 +73,14 @@ label_32a078:
     ctx->pc = 0x32A078u;
     SET_GPR_U32(ctx, 31, 0x32A080u);
     ctx->pc = 0x32A07Cu;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x32A078u;
-            // 0x32a07c: 0x200202d  daddu       $a0, $s0, $zero (Delay Slot)
-        SET_GPR_U64(ctx, 4, (uint64_t)GPR_U64(ctx, 16) + (uint64_t)GPR_U64(ctx, 0));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x32A078u;
+    // 0x32a07c: 0x200202d  daddu       $a0, $s0, $zero (Delay Slot)
+    SET_GPR_U64(ctx, 4, (uint64_t)GPR_U64(ctx, 16) + (uint64_t)GPR_U64(ctx, 0));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x32A110u;
-    if (runtime->hasFunction(0x32A110u)) {
-        auto targetFn = runtime->lookupFunction(0x32A110u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x32A080u; }
-        if (ctx->pc != 0x32A080u) { return; }
-    } else {
-        const uint32_t __entryPc = ctx->pc;
-        sub_0032A110_0x32a110(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x32A080u; }
-        if (ctx->pc != 0x32A080u) { return; }
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x32A110u, 0x32A078u, 0x32A080u, PS2Runtime::GuestBranchKind::DirectCall, "JAL")) {
+        return;
     }
     ctx->pc = 0x32A080u;
 label_32a080:
@@ -111,14 +96,21 @@ label_32a080:
     // 0x32a08c: 0x3e00008  jr          $ra
     ctx->pc = 0x32A08Cu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x32A090u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x32A08Cu;
-            // 0x32a090: 0x27bd0020  addiu       $sp, $sp, 0x20 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x32A08Cu;
+        // 0x32a090: 0x27bd0020  addiu       $sp, $sp, 0x20 (Delay Slot)
         SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 32));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x32A08Cu, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x32A094u;
     // 0x32a094: 0x0  nop
@@ -130,5 +122,4 @@ label_32a080:
     // 0x32a09c: 0x0  nop
     ctx->pc = 0x32a09cu;
     // NOP
-    ctx->pc = 0x32a0a0u;
 }

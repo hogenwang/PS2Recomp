@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -97,10 +98,11 @@ void sub_00344040_0x344040(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x3440a0 = (GPR_U64(ctx, 3) == GPR_U64(ctx, 0));
         if (branch_taken_0x3440a0) {
             ctx->pc = 0x3440A4u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x3440A0u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x3440A0u;
             // 0x3440a4: 0x94a30222  lhu         $v1, 0x222($a1) (Delay Slot)
-        SET_GPR_U32(ctx, 3, (uint16_t)READ16(ADD32(GPR_U32(ctx, 5), 546)));
-        ctx->in_delay_slot = false;
+            SET_GPR_U32(ctx, 3, (uint16_t)READ16(ADD32(GPR_U32(ctx, 5), 546)));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x3440B8u;
             goto label_3440b8;
         }
@@ -125,10 +127,11 @@ label_3440b8:
         const bool branch_taken_0x3440b8 = (GPR_U64(ctx, 3) != GPR_U64(ctx, 0));
         if (branch_taken_0x3440b8) {
             ctx->pc = 0x3440BCu;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x3440B8u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x3440B8u;
             // 0x3440bc: 0xa4a0000a  sh          $zero, 0xA($a1) (Delay Slot)
-        WRITE16(ADD32(GPR_U32(ctx, 5), 10), (uint16_t)GPR_U32(ctx, 0));
-        ctx->in_delay_slot = false;
+            WRITE16(ADD32(GPR_U32(ctx, 5), 10), (uint16_t)GPR_U32(ctx, 0));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x3440C8u;
             goto label_3440c8;
         }
@@ -144,10 +147,15 @@ label_3440c8:
     // 0x3440c8: 0x3e00008  jr          $ra
     ctx->pc = 0x3440C8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x3440C8u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x3440D0u;
-    ctx->pc = 0x3440d0u;
 }

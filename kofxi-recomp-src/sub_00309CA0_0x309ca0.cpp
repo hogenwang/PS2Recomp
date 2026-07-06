@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -78,13 +79,13 @@ label_309ce0:
     ctx->vu0_vf[8] = _mm_castsi128_ps(READ128(ADD32(GPR_U32(ctx, 9), 0)));
     // 0x309ce4: 0x4be821bc  vmulax.xyzw $ACC, $vf4, $vf8x
     ctx->pc = 0x309ce4u;
-    { __m128 res = PS2_VMUL(ctx->vu0_vf[4], _mm_shuffle_ps(ctx->vu0_vf[8], ctx->vu0_vf[8], _MM_SHUFFLE(0,0,0,0))); ctx->vu0_acc = res; }
+    { __m128 res = PS2_VMUL(ctx->vu0_vf[4], _mm_shuffle_ps(ctx->vu0_vf[8], ctx->vu0_vf[8], _MM_SHUFFLE(0,0,0,0))); ctx->vu0_acc = _mm_blendv_ps(ctx->vu0_acc, res, _mm_castsi128_ps(_mm_set_epi32(-1, -1, -1, -1))); }
     // 0x309ce8: 0x4be828bd  vmadday.xyzw $ACC, $vf5, $vf8y
     ctx->pc = 0x309ce8u;
-    { __m128 mul_res = PS2_VMUL(ctx->vu0_vf[5], _mm_shuffle_ps(ctx->vu0_vf[8], ctx->vu0_vf[8], _MM_SHUFFLE(1,1,1,1))); __m128 res = PS2_VADD(ctx->vu0_acc, mul_res); ctx->vu0_acc = res; }
+    { __m128 mul_res = PS2_VMUL(ctx->vu0_vf[5], _mm_shuffle_ps(ctx->vu0_vf[8], ctx->vu0_vf[8], _MM_SHUFFLE(1,1,1,1))); __m128 res = PS2_VADD(ctx->vu0_acc, mul_res); ctx->vu0_acc = _mm_blendv_ps(ctx->vu0_acc, res, _mm_castsi128_ps(_mm_set_epi32(-1, -1, -1, -1))); }
     // 0x309cec: 0x4be830be  vmaddaz.xyzw $ACC, $vf6, $vf8z
     ctx->pc = 0x309cecu;
-    { __m128 mul_res = PS2_VMUL(ctx->vu0_vf[6], _mm_shuffle_ps(ctx->vu0_vf[8], ctx->vu0_vf[8], _MM_SHUFFLE(2,2,2,2))); __m128 res = PS2_VADD(ctx->vu0_acc, mul_res); ctx->vu0_acc = res; }
+    { __m128 mul_res = PS2_VMUL(ctx->vu0_vf[6], _mm_shuffle_ps(ctx->vu0_vf[8], ctx->vu0_vf[8], _MM_SHUFFLE(2,2,2,2))); __m128 res = PS2_VADD(ctx->vu0_acc, mul_res); ctx->vu0_acc = _mm_blendv_ps(ctx->vu0_acc, res, _mm_castsi128_ps(_mm_set_epi32(-1, -1, -1, -1))); }
     // 0x309cf0: 0x4be83a4b  vmaddw.xyzw $vf9, $vf7, $vf8w
     ctx->pc = 0x309cf0u;
     { __m128 mul_res = PS2_VMUL(ctx->vu0_vf[7], _mm_shuffle_ps(ctx->vu0_vf[8], ctx->vu0_vf[8], _MM_SHUFFLE(3,3,3,3))); __m128 res = PS2_VADD(ctx->vu0_acc, mul_res); __m128i mask = _mm_set_epi32(-1, -1, -1, -1); ctx->vu0_vf[9] = _mm_blendv_ps(ctx->vu0_vf[9], res, _mm_castsi128_ps(mask)); ctx->vu0_acc = res; }
@@ -96,7 +97,7 @@ label_309ce0:
     // VWAITQ (Q already resolved in this runtime)
     // 0x309cfc: 0x4bc04a5c  vmulq.xyz   $vf9, $vf9, $Q
     ctx->pc = 0x309cfcu;
-    { __m128 res = PS2_VMUL(ctx->vu0_vf[9], _mm_set1_ps(ctx->vu0_q)); __m128i mask = _mm_set_epi32(-1, -1, -1, 0); ctx->vu0_vf[9] = _mm_blendv_ps(ctx->vu0_vf[9], res, _mm_castsi128_ps(mask)); }
+    { __m128 res = PS2_VMUL(ctx->vu0_vf[9], _mm_set1_ps(ctx->vu0_q)); __m128i mask = _mm_set_epi32(0, -1, -1, -1); ctx->vu0_vf[9] = _mm_blendv_ps(ctx->vu0_vf[9], res, _mm_castsi128_ps(mask)); }
     // 0x309d00: 0x4a0002ff  vnop
     ctx->pc = 0x309d00u;
     // NOP operation, no action needed for VU0
@@ -105,10 +106,10 @@ label_309ce0:
     ctx->vu0_vpu_stat4 = GPR_U32(ctx, 0);
     // 0x309d08: 0x4bab4b2c  vsub.xyw    $vf12, $vf9, $vf11
     ctx->pc = 0x309d08u;
-    { __m128 res = PS2_VSUB(ctx->vu0_vf[9], ctx->vu0_vf[11]); __m128i mask = _mm_set_epi32(-1, -1, 0, -1); ctx->vu0_vf[12] = PS2_VBLEND(ctx->vu0_vf[12], res, _mm_castsi128_ps(mask)); }
+    { __m128 res = PS2_VSUB(ctx->vu0_vf[9], ctx->vu0_vf[11]); __m128i mask = _mm_set_epi32(-1, 0, -1, -1); ctx->vu0_vf[12] = PS2_VBLEND(ctx->vu0_vf[12], res, _mm_castsi128_ps(mask)); }
     // 0x309d0c: 0x4b896b2c  vsub.xy     $vf12, $vf13, $vf9
     ctx->pc = 0x309d0cu;
-    { __m128 res = PS2_VSUB(ctx->vu0_vf[13], ctx->vu0_vf[9]); __m128i mask = _mm_set_epi32(-1, -1, 0, 0); ctx->vu0_vf[12] = PS2_VBLEND(ctx->vu0_vf[12], res, _mm_castsi128_ps(mask)); }
+    { __m128 res = PS2_VSUB(ctx->vu0_vf[13], ctx->vu0_vf[9]); __m128i mask = _mm_set_epi32(0, 0, -1, -1); ctx->vu0_vf[12] = PS2_VBLEND(ctx->vu0_vf[12], res, _mm_castsi128_ps(mask)); }
     // 0x309d10: 0x4a0002ff  vnop
     ctx->pc = 0x309d10u;
     // NOP operation, no action needed for VU0
@@ -139,7 +140,7 @@ label_309ce0:
     ctx->pc = 0x309D30u;
     // 0x309d30: 0x4a2903fd  vmfir.w     $vf9, $vi0
     ctx->pc = 0x309d30u;
-    { uint32_t tmp = (uint32_t)(int32_t)(int16_t)ctx->vi[0]; float val; std::memcpy(&val, &tmp, sizeof(val)); __m128 res = _mm_set1_ps(val); __m128i mask = _mm_set_epi32(0, 0, 0, -1); ctx->vu0_vf[9] = _mm_blendv_ps(ctx->vu0_vf[9], res, _mm_castsi128_ps(mask)); }
+    { uint32_t tmp = (uint32_t)(int32_t)(int16_t)ctx->vi[0]; float val; std::memcpy(&val, &tmp, sizeof(val)); __m128 res = _mm_set1_ps(val); __m128i mask = _mm_set_epi32(-1, 0, 0, 0); ctx->vu0_vf[9] = _mm_blendv_ps(ctx->vu0_vf[9], res, _mm_castsi128_ps(mask)); }
     // 0x309d34: 0x4bea497d  vftoi4.xyzw $vf10, $vf9
     ctx->pc = 0x309d34u;
     { __m128 src = ctx->vu0_vf[9]; src = _mm_mul_ps(src, _mm_set1_ps(16.0f)); __m128i res_i = _mm_cvttps_epi32(src); __m128 res = _mm_castsi128_ps(res_i); __m128i mask = _mm_set_epi32(-1, -1, -1, -1); ctx->vu0_vf[10] = _mm_blendv_ps(ctx->vu0_vf[10], res, _mm_castsi128_ps(mask)); }
@@ -157,8 +158,9 @@ label_309ce0:
     {
         const bool branch_taken_0x309d44 = (GPR_U64(ctx, 0) != GPR_U64(ctx, 8));
         ctx->pc = 0x309D48u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x309D44u;
-            // 0x309d48: 0x20840010  addi        $a0, $a0, 0x10 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x309D44u;
+        // 0x309d48: 0x20840010  addi        $a0, $a0, 0x10 (Delay Slot)
         { uint32_t tmp; bool ov; ADD32_OV(GPR_U32(ctx, 4), (int32_t)16, tmp, ov); if (ov) runtime->SignalException(ctx, EXCEPTION_INTEGER_OVERFLOW); else SET_GPR_S32(ctx, 4, (int32_t)tmp); }
         ctx->in_delay_slot = false;
         if (branch_taken_0x309d44) {
@@ -190,8 +192,9 @@ label_309d54:
     {
         const bool branch_taken_0x309d60 = (GPR_U64(ctx, 0) != GPR_U64(ctx, 8));
         ctx->pc = 0x309D64u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x309D60u;
-            // 0x309d64: 0x20840010  addi        $a0, $a0, 0x10 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x309D60u;
+        // 0x309d64: 0x20840010  addi        $a0, $a0, 0x10 (Delay Slot)
         { uint32_t tmp; bool ov; ADD32_OV(GPR_U32(ctx, 4), (int32_t)16, tmp, ov); if (ov) runtime->SignalException(ctx, EXCEPTION_INTEGER_OVERFLOW); else SET_GPR_S32(ctx, 4, (int32_t)tmp); }
         ctx->in_delay_slot = false;
         if (branch_taken_0x309d60) {
@@ -207,10 +210,15 @@ label_309d68:
     // 0x309d68: 0x3e00008  jr          $ra
     ctx->pc = 0x309D68u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x309D68u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x309D70u;
-    ctx->pc = 0x309d70u;
 }

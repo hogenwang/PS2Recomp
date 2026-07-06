@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -39,14 +40,21 @@ void sub_001FD9F0_0x1fd9f0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1fda00: 0x3e00008  jr          $ra
     ctx->pc = 0x1FDA00u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x1FDA04u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x1FDA00u;
-            // 0x1fda04: 0x8c821f88  lw          $v0, 0x1F88($a0) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x1FDA00u;
+        // 0x1fda04: 0x8c821f88  lw          $v0, 0x1F88($a0) (Delay Slot)
         SET_GPR_S32(ctx, 2, (int32_t)READ32(ADD32(GPR_U32(ctx, 4), 8072)));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x1FDA00u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x1FDA08u;
 label_1fda08:
@@ -65,15 +73,21 @@ label_1fda08:
     // 0x1fda18: 0x3e00008  jr          $ra
     ctx->pc = 0x1FDA18u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x1FDA1Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x1FDA18u;
-            // 0x1fda1c: 0xac861f8c  sw          $a2, 0x1F8C($a0) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x1FDA18u;
+        // 0x1fda1c: 0xac861f8c  sw          $a2, 0x1F8C($a0) (Delay Slot)
         WRITE32(ADD32(GPR_U32(ctx, 4), 8076), GPR_U32(ctx, 6));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x1FDA18u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x1FDA20u;
-    ctx->pc = 0x1fda20u;
 }

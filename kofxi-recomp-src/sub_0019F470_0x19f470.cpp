@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -34,10 +35,11 @@ void sub_0019F470_0x19f470(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x19f47c = ((ctx->fcr31 & 0x800000));
         if (branch_taken_0x19f47c) {
             ctx->pc = 0x19F480u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x19F47Cu;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x19F47Cu;
             // 0x19f480: 0x46006024  .word       0x46006024                   # cvt.w.s     $f0, $f12 # 00000000 <InstrIdType: CPU_COP1_FPUS> (Delay Slot)
-        { int32_t tmp = FPU_CVT_W_S(ctx->f[12]); std::memcpy(&ctx->f[0], &tmp, sizeof(tmp)); }
-        ctx->in_delay_slot = false;
+            { int32_t tmp = FPU_CVT_W_S(ctx->f[12]); std::memcpy(&ctx->f[0], &tmp, sizeof(tmp)); }
+            ctx->in_delay_slot = false;
             ctx->pc = 0x19F4A4u;
             goto label_19f4a4;
         }
@@ -70,8 +72,9 @@ void sub_0019F470_0x19f470(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x19f49c = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x19F4A0u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x19F49Cu;
-            // 0x19f4a0: 0x24420001  addiu       $v0, $v0, 0x1 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x19F49Cu;
+        // 0x19f4a0: 0x24420001  addiu       $v0, $v0, 0x1 (Delay Slot)
         SET_GPR_S32(ctx, 2, (int32_t)ADD32(GPR_U32(ctx, 2), 1));
         ctx->in_delay_slot = false;
         if (branch_taken_0x19f49c) {
@@ -110,14 +113,21 @@ label_19f4bc:
     // 0x19f4c0: 0x3e00008  jr          $ra
     ctx->pc = 0x19F4C0u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x19F4C4u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x19F4C0u;
-            // 0x19f4c4: 0x46800020  cvt.s.w     $f0, $f0 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x19F4C0u;
+        // 0x19f4c4: 0x46800020  cvt.s.w     $f0, $f0 (Delay Slot)
         { int32_t tmp; std::memcpy(&tmp, &ctx->f[0], sizeof(tmp)); ctx->f[0] = FPU_CVT_S_W(tmp); }
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x19F4C0u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x19F4C8u;
     // 0x19f4c8: 0x0  nop
@@ -126,5 +136,4 @@ label_19f4bc:
     // 0x19f4cc: 0x0  nop
     ctx->pc = 0x19f4ccu;
     // NOP
-    ctx->pc = 0x19f4d0u;
 }

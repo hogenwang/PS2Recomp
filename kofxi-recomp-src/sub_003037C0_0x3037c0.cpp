@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -34,10 +35,11 @@ void sub_003037C0_0x3037c0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
         const bool branch_taken_0x3037cc = (GPR_U64(ctx, 1) == GPR_U64(ctx, 0));
         if (branch_taken_0x3037cc) {
             ctx->pc = 0x3037D0u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x3037CCu;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x3037CCu;
             // 0x3037d0: 0x102d  daddu       $v0, $zero, $zero (Delay Slot)
-        SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
-        ctx->in_delay_slot = false;
+            SET_GPR_U64(ctx, 2, (uint64_t)GPR_U64(ctx, 0) + (uint64_t)GPR_U64(ctx, 0));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x303828u;
             goto label_303828;
         }
@@ -106,8 +108,9 @@ void sub_003037C0_0x3037c0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x30381c = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x303820u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x30381Cu;
-            // 0x303820: 0xa4661530  sh          $a2, 0x1530($v1) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x30381Cu;
+        // 0x303820: 0xa4661530  sh          $a2, 0x1530($v1) (Delay Slot)
         WRITE16(ADD32(GPR_U32(ctx, 3), 5424), (uint16_t)GPR_U32(ctx, 6));
         ctx->in_delay_slot = false;
         if (branch_taken_0x30381c) {
@@ -124,10 +127,15 @@ label_303828:
     // 0x303828: 0x3e00008  jr          $ra
     ctx->pc = 0x303828u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x303828u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
-    ctx->pc = 0x303830u;
     ctx->pc = 0x303830u;
 }

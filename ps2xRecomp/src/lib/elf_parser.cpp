@@ -1,4 +1,5 @@
 #include "ps2recomp/elf_parser.h"
+#include "ps2recomp/recompiler_reporter.h"
 #include "ps2recomp/types.h"
 #include <iostream>
 #include <stdexcept>
@@ -950,6 +951,11 @@ namespace ps2recomp
         return static_cast<uint32_t>(m_elf->get_entry());
     }
 
+    void ElfParser::setReporter(RecompilerReporter *reporter)
+    {
+        m_reporter = reporter;
+    }
+
     bool ElfParser::loadGhidraFunctionMap(const std::string &mapPath, bool pruneFallbackAutoStarts)
     {
         if (mapPath.empty())
@@ -963,7 +969,10 @@ namespace ps2recomp
         std::ifstream file(mapPath);
         if (!file.is_open())
         {
-            std::cerr << "Warning: Could not open Ghidra function map: " << mapPath << std::endl;
+            if (m_reporter)
+            {
+                m_reporter->warning("ghidra-map", "Could not open Ghidra function map: " + mapPath);
+            }
             return false;
         }
 
@@ -1034,16 +1043,23 @@ namespace ps2recomp
         {
             m_hasLoadedGhidraMap = true;
             m_ghidraMapStarts = mapStarts;
-            std::cout << "Loaded " << count << " functions from Ghidra map" << std::endl;
+            if (m_reporter)
+            {
+                m_reporter->info("ghidra-map", "Loaded " + std::to_string(count) + " functions from Ghidra map");
+            }
             if (skippedNonExecutable > 0)
             {
-                std::cout << "Ignored " << skippedNonExecutable
-                          << " Ghidra function(s) outside executable sections." << std::endl;
+                if (m_reporter)
+                {
+                    m_reporter->warning("ghidra-map", "Ignored " + std::to_string(skippedNonExecutable) + " Ghidra function(s) outside executable sections.");
+                }
             }
             if (skippedInvalidRange > 0)
             {
-                std::cout << "Ignored " << skippedInvalidRange
-                          << " Ghidra function(s) with invalid ranges after section clamping." << std::endl;
+                if (m_reporter)
+                {
+                    m_reporter->warning("ghidra-map", "Ignored " + std::to_string(skippedInvalidRange) + " Ghidra function(s) with invalid ranges after section clamping.");
+                }
             }
 
             if (pruneFallbackAutoStarts)
@@ -1098,9 +1114,12 @@ namespace ps2recomp
 
         if (skippedNonExecutable > 0 || skippedInvalidRange > 0)
         {
-            std::cout << "Loaded 0 functions from Ghidra map after filtering ("
-                      << skippedNonExecutable << " non-executable, "
-                      << skippedInvalidRange << " invalid range)." << std::endl;
+            if (m_reporter)
+            {
+                m_reporter->warning("ghidra-map", "Loaded 0 functions from Ghidra map after filtering (" +
+                                                   std::to_string(skippedNonExecutable) + " non-executable, " +
+                                                   std::to_string(skippedInvalidRange) + " invalid range).");
+            }
         }
 
         return false;
@@ -1112,14 +1131,20 @@ namespace ps2recomp
     {
         if (!m_elf->load(m_filePath))
         {
-            std::cerr << "Error: Could not load ELF file: " << m_filePath << std::endl;
+            if (m_reporter)
+            {
+                m_reporter->error("elf", "Could not load ELF file: " + m_filePath);
+            }
             return false;
         }
 
         // Check if this is a PS2 ELF (MIPS R5900)
         if (m_elf->get_machine() != ELFIO::EM_MIPS)
         {
-            std::cerr << "Error: Not a MIPS ELF file" << std::endl;
+            if (m_reporter)
+            {
+                m_reporter->error("elf", "Not a MIPS ELF file");
+            }
             return false;
         }
 
@@ -1168,8 +1193,11 @@ namespace ps2recomp
             AppendLoadSegmentsAsSections(*m_elf, m_sections);
             if (!m_sections.empty())
             {
-                std::cout << "Info: ELF has no section headers; using loadable segments as sections ("
-                          << m_sections.size() << " entries)." << std::endl;
+                if (m_reporter)
+                {
+                    m_reporter->info("elf", "ELF has no section headers; using loadable segments as sections (" +
+                                          std::to_string(m_sections.size()) + " entries).");
+                }
             }
         }
     }
@@ -1186,7 +1214,10 @@ namespace ps2recomp
             {
                 if (psec->get_link() >= m_elf->sections.size())
                 {
-                    std::cerr << "Warning: Symbol section link out of bounds: " << psec->get_link() << std::endl;
+                    if (m_reporter)
+                    {
+                        m_reporter->warning("elf", "Symbol section link out of bounds: " + std::to_string(psec->get_link()));
+                    }
                     continue;
                 }
 
@@ -1241,7 +1272,10 @@ namespace ps2recomp
             {
                 if (psec->get_link() >= m_elf->sections.size())
                 {
-                    std::cout << "Warning: Relocation section link out of bounds: " << psec->get_link() << std::endl;
+                    if (m_reporter)
+                    {
+                        m_reporter->warning("elf", "Relocation section link out of bounds: " + std::to_string(psec->get_link()));
+                    }
                     continue;
                 }
 
@@ -1251,7 +1285,10 @@ namespace ps2recomp
 
                 if (symSec->get_link() >= m_elf->sections.size())
                 {
-                    std::cout << "Warning: Symbol section link out of bounds (in relocation): " << symSec->get_link() << std::endl;
+                    if (m_reporter)
+                    {
+                        m_reporter->warning("elf", "Symbol section link out of bounds (in relocation): " + std::to_string(symSec->get_link()));
+                    }
                     continue;
                 }
 

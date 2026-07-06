@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -25754,7 +25755,7 @@ label_36bfa4:
 label_36bfa8:
     // 0x36bfa8: 0x52801  .word       0x00052801                   # INVALID     $zero, $a1, 0x2801 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36bfa8u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36BFA8 raw=0x00052801");
 label_36bfac:
     // 0x36bfac: 0x0  nop
     ctx->pc = 0x36bfacu;
@@ -25803,7 +25804,7 @@ label_36bfd4:
 label_36bfd8:
     // 0x36bfd8: 0x5e  .word       0x0000005E                   # ddiv        $zero, $zero, $zero # 00000040 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36bfd8u;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x36BFD8 raw=0x0000005E");
 label_36bfdc:
     // 0x36bfdc: 0x0  nop
     ctx->pc = 0x36bfdcu;
@@ -25921,9 +25922,11 @@ label_36c04c:
     }
     ctx->pc = 0x36C048u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36C048u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36C050u;
 label_36c050:
@@ -25935,15 +25938,17 @@ label_36c054:
     }
     ctx->pc = 0x36C050u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36C050u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36C058u;
 label_36c058:
     // 0x36c058: 0x1  .word       0x00000001                   # INVALID     $zero, $zero, 0x1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c058u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36C058 raw=0x00000001");
 label_36c05c:
     // 0x36c05c: 0x0  nop
     ctx->pc = 0x36c05cu;
@@ -25965,26 +25970,18 @@ label_36c06c:
     }
     ctx->pc = 0x36C068u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         SET_GPR_U32(ctx, 5, 0x36C070u);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36C070u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36C070u; }
-            if (ctx->pc != 0x36C070u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36C068u, 0x36C070u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36C070u;
 label_36c070:
     // 0x36c070: 0x52a15  .word       0x00052A15                   # INVALID     $zero, $a1, 0x2A15 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c070u;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x36C070 raw=0x00052A15");
 label_36c074:
     // 0x36c074: 0x0  nop
     ctx->pc = 0x36c074u;
@@ -26024,7 +26021,7 @@ label_36c094:
 label_36c098:
     // 0x36c098: 0x5f  .word       0x0000005F                   # ddivu       $zero, $zero, $zero # 00000040 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c098u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x36C098 raw=0x0000005F");
 label_36c09c:
     // 0x36c09c: 0x0  nop
     ctx->pc = 0x36c09cu;
@@ -26040,7 +26037,7 @@ label_36c0a4:
 label_36c0a8:
     // 0x36c0a8: 0x52a75  .word       0x00052A75                   # INVALID     $zero, $a1, 0x2A75 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c0a8u;
-    // Unhandled SPECIAL instruction: 0x35
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x35 at 0x36C0A8 raw=0x00052A75");
 label_36c0ac:
     // 0x36c0ac: 0x0  nop
     ctx->pc = 0x36c0acu;
@@ -26088,7 +26085,7 @@ label_36c0d4:
 label_36c0d8:
     // 0x36c0d8: 0x5f  .word       0x0000005F                   # ddivu       $zero, $zero, $zero # 00000040 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c0d8u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x36C0D8 raw=0x0000005F");
 label_36c0dc:
     // 0x36c0dc: 0x0  nop
     ctx->pc = 0x36c0dcu;
@@ -26104,7 +26101,7 @@ label_36c0e4:
 label_36c0e8:
     // 0x36c0e8: 0x52b45  .word       0x00052B45                   # INVALID     $zero, $a1, 0x2B45 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c0e8u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36C0E8 raw=0x00052B45");
 label_36c0ec:
     // 0x36c0ec: 0x0  nop
     ctx->pc = 0x36c0ecu;
@@ -26112,7 +26109,7 @@ label_36c0ec:
 label_36c0f0:
     // 0x36c0f0: 0x52b8e  .word       0x00052B8E                   # INVALID     $zero, $a1, 0x2B8E # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c0f0u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36C0F0 raw=0x00052B8E");
 label_36c0f4:
     // 0x36c0f4: 0x0  nop
     ctx->pc = 0x36c0f4u;
@@ -26169,7 +26166,7 @@ label_36c124:
 label_36c128:
     // 0x36c128: 0x52bf7  .word       0x00052BF7                   # INVALID     $zero, $a1, 0x2BF7 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c128u;
-    // Unhandled SPECIAL instruction: 0x37
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x37 at 0x36C128 raw=0x00052BF7");
 label_36c12c:
     // 0x36c12c: 0x0  nop
     ctx->pc = 0x36c12cu;
@@ -26233,7 +26230,7 @@ label_36c164:
 label_36c168:
     // 0x36c168: 0x52cc1  .word       0x00052CC1                   # INVALID     $zero, $a1, 0x2CC1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c168u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36C168 raw=0x00052CC1");
 label_36c16c:
     // 0x36c16c: 0x0  nop
     ctx->pc = 0x36c16cu;
@@ -26369,7 +26366,7 @@ label_36c1ec:
 label_36c1f0:
     // 0x36c1f0: 0x52edc  .word       0x00052EDC                   # dmult       $zero, $a1 # 00002EC0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c1f0u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36C1F0 raw=0x00052EDC");
 label_36c1f4:
     // 0x36c1f4: 0x0  nop
     ctx->pc = 0x36c1f4u;
@@ -26393,7 +26390,7 @@ label_36c204:
 label_36c208:
     // 0x36c208: 0x52edd  .word       0x00052EDD                   # dmultu      $zero, $a1 # 00002EC0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c208u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x36C208 raw=0x00052EDD");
 label_36c20c:
     // 0x36c20c: 0x0  nop
     ctx->pc = 0x36c20cu;
@@ -26409,7 +26406,7 @@ label_36c214:
 label_36c218:
     // 0x36c218: 0x7d  .word       0x0000007D                   # INVALID     $zero, $zero, 0x7D # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c218u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36C218 raw=0x0000007D");
 label_36c21c:
     // 0x36c21c: 0x0  nop
     ctx->pc = 0x36c21cu;
@@ -26457,7 +26454,7 @@ label_36c244:
 label_36c248:
     // 0x36c248: 0x52fc5  .word       0x00052FC5                   # INVALID     $zero, $a1, 0x2FC5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c248u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36C248 raw=0x00052FC5");
 label_36c24c:
     // 0x36c24c: 0x0  nop
     ctx->pc = 0x36c24cu;
@@ -26489,7 +26486,7 @@ label_36c264:
 label_36c268:
     // 0x36c268: 0x53079  .word       0x00053079                   # INVALID     $zero, $a1, 0x3079 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c268u;
-    // Unhandled SPECIAL instruction: 0x39
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x39 at 0x36C268 raw=0x00053079");
 label_36c26c:
     // 0x36c26c: 0x0  nop
     ctx->pc = 0x36c26cu;
@@ -26529,7 +26526,7 @@ label_36c28c:
 label_36c290:
     // 0x36c290: 0x53145  .word       0x00053145                   # INVALID     $zero, $a1, 0x3145 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c290u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36C290 raw=0x00053145");
 label_36c294:
     // 0x36c294: 0x0  nop
     ctx->pc = 0x36c294u;
@@ -26657,7 +26654,7 @@ label_36c30c:
 label_36c310:
     // 0x36c310: 0x5321e  .word       0x0005321E                   # ddiv        $a2, $zero, $a1 # 00000200 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c310u;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x36C310 raw=0x0005321E");
 label_36c314:
     // 0x36c314: 0x0  nop
     ctx->pc = 0x36c314u;
@@ -26681,7 +26678,7 @@ label_36c324:
 label_36c328:
     // 0x36c328: 0x5321f  .word       0x0005321F                   # ddivu       $a2, $zero, $a1 # 00000200 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c328u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x36C328 raw=0x0005321F");
 label_36c32c:
     // 0x36c32c: 0x0  nop
     ctx->pc = 0x36c32cu;
@@ -26727,19 +26724,11 @@ label_36c354:
     }
     ctx->pc = 0x36C350u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         SET_GPR_U32(ctx, 6, 0x36C358u);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36C358u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36C358u; }
-            if (ctx->pc != 0x36C358u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36C350u, 0x36C358u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36C358u;
@@ -26794,7 +26783,7 @@ label_36c384:
 label_36c388:
     // 0x36c388: 0x532d5  .word       0x000532D5                   # INVALID     $zero, $a1, 0x32D5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c388u;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x36C388 raw=0x000532D5");
 label_36c38c:
     // 0x36c38c: 0x0  nop
     ctx->pc = 0x36c38cu;
@@ -26890,7 +26879,7 @@ label_36c3e4:
 label_36c3e8:
     // 0x36c3e8: 0x53385  .word       0x00053385                   # INVALID     $zero, $a1, 0x3385 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c3e8u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36C3E8 raw=0x00053385");
 label_36c3ec:
     // 0x36c3ec: 0x0  nop
     ctx->pc = 0x36c3ecu;
@@ -26938,7 +26927,7 @@ label_36c414:
 label_36c418:
     // 0x36c418: 0x37  .word       0x00000037                   # INVALID     $zero, $zero, 0x37 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c418u;
-    // Unhandled SPECIAL instruction: 0x37
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x37 at 0x36C418 raw=0x00000037");
 label_36c41c:
     // 0x36c41c: 0x0  nop
     ctx->pc = 0x36c41cu;
@@ -27034,7 +27023,7 @@ label_36c474:
 label_36c478:
     // 0x36c478: 0x41  .word       0x00000041                   # INVALID     $zero, $zero, 0x41 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c478u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36C478 raw=0x00000041");
 label_36c47c:
     // 0x36c47c: 0x0  nop
     ctx->pc = 0x36c47cu;
@@ -27050,7 +27039,7 @@ label_36c484:
 label_36c488:
     // 0x36c488: 0x534c5  .word       0x000534C5                   # INVALID     $zero, $a1, 0x34C5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c488u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36C488 raw=0x000534C5");
 label_36c48c:
     // 0x36c48c: 0x0  nop
     ctx->pc = 0x36c48cu;
@@ -27090,7 +27079,7 @@ label_36c4ac:
 label_36c4b0:
     // 0x36c4b0: 0x53539  .word       0x00053539                   # INVALID     $zero, $a1, 0x3539 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c4b0u;
-    // Unhandled SPECIAL instruction: 0x39
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x39 at 0x36C4B0 raw=0x00053539");
 label_36c4b4:
     // 0x36c4b4: 0x0  nop
     ctx->pc = 0x36c4b4u;
@@ -27130,7 +27119,7 @@ label_36c4d4:
 label_36c4d8:
     // 0x36c4d8: 0x39  .word       0x00000039                   # INVALID     $zero, $zero, 0x39 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c4d8u;
-    // Unhandled SPECIAL instruction: 0x39
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x39 at 0x36C4D8 raw=0x00000039");
 label_36c4dc:
     // 0x36c4dc: 0x0  nop
     ctx->pc = 0x36c4dcu;
@@ -27186,7 +27175,7 @@ label_36c50c:
 label_36c510:
     // 0x36c510: 0x535dd  .word       0x000535DD                   # dmultu      $zero, $a1 # 000035C0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c510u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x36C510 raw=0x000535DD");
 label_36c514:
     // 0x36c514: 0x0  nop
     ctx->pc = 0x36c514u;
@@ -27210,7 +27199,7 @@ label_36c524:
 label_36c528:
     // 0x36c528: 0x535de  .word       0x000535DE                   # ddiv        $a2, $zero, $a1 # 000005C0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c528u;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x36C528 raw=0x000535DE");
 label_36c52c:
     // 0x36c52c: 0x0  nop
     ctx->pc = 0x36c52cu;
@@ -27410,7 +27399,7 @@ label_36c5ec:
 label_36c5f0:
     // 0x36c5f0: 0x5375c  .word       0x0005375C                   # dmult       $zero, $a1 # 00003740 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c5f0u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36C5F0 raw=0x0005375C");
 label_36c5f4:
     // 0x36c5f4: 0x0  nop
     ctx->pc = 0x36c5f4u;
@@ -27434,7 +27423,7 @@ label_36c604:
 label_36c608:
     // 0x36c608: 0x5375d  .word       0x0005375D                   # dmultu      $zero, $a1 # 00003740 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c608u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x36C608 raw=0x0005375D");
 label_36c60c:
     // 0x36c60c: 0x0  nop
     ctx->pc = 0x36c60cu;
@@ -27498,7 +27487,7 @@ label_36c644:
 label_36c648:
     // 0x36c648: 0x537d5  .word       0x000537D5                   # INVALID     $zero, $a1, 0x37D5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c648u;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x36C648 raw=0x000537D5");
 label_36c64c:
     // 0x36c64c: 0x0  nop
     ctx->pc = 0x36c64cu;
@@ -27544,9 +27533,11 @@ label_36c674:
     }
     ctx->pc = 0x36C670u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36C670u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36C678u;
 label_36c678:
@@ -27574,19 +27565,11 @@ label_36c68c:
     }
     ctx->pc = 0x36C688u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         SET_GPR_U32(ctx, 7, 0x36C690u);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36C690u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36C690u; }
-            if (ctx->pc != 0x36C690u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36C688u, 0x36C690u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36C690u;
@@ -27625,7 +27608,7 @@ label_36c6ac:
 label_36c6b0:
     // 0x36c6b0: 0x538bd  .word       0x000538BD                   # INVALID     $zero, $a1, 0x38BD # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c6b0u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36C6B0 raw=0x000538BD");
 label_36c6b4:
     // 0x36c6b4: 0x0  nop
     ctx->pc = 0x36c6b4u;
@@ -27681,7 +27664,7 @@ label_36c6e4:
 label_36c6e8:
     // 0x36c6e8: 0x53901  .word       0x00053901                   # INVALID     $zero, $a1, 0x3901 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c6e8u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36C6E8 raw=0x00053901");
 label_36c6ec:
     // 0x36c6ec: 0x0  nop
     ctx->pc = 0x36c6ecu;
@@ -27713,7 +27696,7 @@ label_36c704:
 label_36c708:
     // 0x36c708: 0x5394e  .word       0x0005394E                   # INVALID     $zero, $a1, 0x394E # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c708u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36C708 raw=0x0005394E");
 label_36c70c:
     // 0x36c70c: 0x0  nop
     ctx->pc = 0x36c70cu;
@@ -27785,7 +27768,7 @@ label_36c74c:
 label_36c750:
     // 0x36c750: 0x53a41  .word       0x00053A41                   # INVALID     $zero, $a1, 0x3A41 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c750u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36C750 raw=0x00053A41");
 label_36c754:
     // 0x36c754: 0x0  nop
     ctx->pc = 0x36c754u;
@@ -27826,7 +27809,7 @@ label_36c774:
 label_36c778:
     // 0x36c778: 0x4e  .word       0x0000004E                   # INVALID     $zero, $zero, 0x4E # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c778u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36C778 raw=0x0000004E");
 label_36c77c:
     // 0x36c77c: 0x0  nop
     ctx->pc = 0x36c77cu;
@@ -27850,7 +27833,7 @@ label_36c78c:
 label_36c790:
     // 0x36c790: 0x53ace  .word       0x00053ACE                   # INVALID     $zero, $a1, 0x3ACE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c790u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36C790 raw=0x00053ACE");
 label_36c794:
     // 0x36c794: 0x0  nop
     ctx->pc = 0x36c794u;
@@ -27907,7 +27890,7 @@ label_36c7c4:
 label_36c7c8:
     // 0x36c7c8: 0x53b0e  .word       0x00053B0E                   # INVALID     $zero, $a1, 0x3B0E # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c7c8u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36C7C8 raw=0x00053B0E");
 label_36c7cc:
     // 0x36c7cc: 0x0  nop
     ctx->pc = 0x36c7ccu;
@@ -27915,7 +27898,7 @@ label_36c7cc:
 label_36c7d0:
     // 0x36c7d0: 0x53b4e  .word       0x00053B4E                   # INVALID     $zero, $a1, 0x3B4E # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c7d0u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36C7D0 raw=0x00053B4E");
 label_36c7d4:
     // 0x36c7d4: 0x0  nop
     ctx->pc = 0x36c7d4u;
@@ -27923,7 +27906,7 @@ label_36c7d4:
 label_36c7d8:
     // 0x36c7d8: 0x41  .word       0x00000041                   # INVALID     $zero, $zero, 0x41 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c7d8u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36C7D8 raw=0x00000041");
 label_36c7dc:
     // 0x36c7dc: 0x0  nop
     ctx->pc = 0x36c7dcu;
@@ -28012,7 +27995,7 @@ label_36c82c:
 label_36c830:
     // 0x36c830: 0x53c1f  .word       0x00053C1F                   # ddivu       $a3, $zero, $a1 # 00000400 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c830u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x36C830 raw=0x00053C1F");
 label_36c834:
     // 0x36c834: 0x0  nop
     ctx->pc = 0x36c834u;
@@ -28020,7 +28003,7 @@ label_36c834:
 label_36c838:
     // 0x36c838: 0x3d  .word       0x0000003D                   # INVALID     $zero, $zero, 0x3D # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c838u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36C838 raw=0x0000003D");
 label_36c83c:
     // 0x36c83c: 0x0  nop
     ctx->pc = 0x36c83cu;
@@ -28084,7 +28067,7 @@ label_36c874:
 label_36c878:
     // 0x36c878: 0x3d  .word       0x0000003D                   # INVALID     $zero, $zero, 0x3D # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c878u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36C878 raw=0x0000003D");
 label_36c87c:
     // 0x36c87c: 0x0  nop
     ctx->pc = 0x36c87cu;
@@ -28100,7 +28083,7 @@ label_36c884:
 label_36c888:
     // 0x36c888: 0x53c8e  .word       0x00053C8E                   # INVALID     $zero, $a1, 0x3C8E # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c888u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36C888 raw=0x00053C8E");
 label_36c88c:
     // 0x36c88c: 0x0  nop
     ctx->pc = 0x36c88cu;
@@ -28148,7 +28131,7 @@ label_36c8b4:
 label_36c8b8:
     // 0x36c8b8: 0x15  .word       0x00000015                   # INVALID     $zero, $zero, 0x15 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c8b8u;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x36C8B8 raw=0x00000015");
 label_36c8bc:
     // 0x36c8bc: 0x0  nop
     ctx->pc = 0x36c8bcu;
@@ -28180,7 +28163,7 @@ label_36c8d4:
 label_36c8d8:
     // 0x36c8d8: 0x1c  dmult       $zero, $zero
     ctx->pc = 0x36c8d8u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36C8D8 raw=0x0000001C");
 label_36c8dc:
     // 0x36c8dc: 0x0  nop
     ctx->pc = 0x36c8dcu;
@@ -28244,7 +28227,7 @@ label_36c914:
 label_36c918:
     // 0x36c918: 0x1d  dmultu      $zero, $zero
     ctx->pc = 0x36c918u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x36C918 raw=0x0000001D");
 label_36c91c:
     // 0x36c91c: 0x0  nop
     ctx->pc = 0x36c91cu;
@@ -28324,7 +28307,7 @@ label_36c964:
 label_36c968:
     // 0x36c968: 0x53d3d  .word       0x00053D3D                   # INVALID     $zero, $a1, 0x3D3D # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c968u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36C968 raw=0x00053D3D");
 label_36c96c:
     // 0x36c96c: 0x0  nop
     ctx->pc = 0x36c96cu;
@@ -28332,7 +28315,7 @@ label_36c96c:
 label_36c970:
     // 0x36c970: 0x53d5c  .word       0x00053D5C                   # dmult       $zero, $a1 # 00003D40 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c970u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36C970 raw=0x00053D5C");
 label_36c974:
     // 0x36c974: 0x0  nop
     ctx->pc = 0x36c974u;
@@ -28356,7 +28339,7 @@ label_36c984:
 label_36c988:
     // 0x36c988: 0x53d5d  .word       0x00053D5D                   # dmultu      $zero, $a1 # 00003D40 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c988u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x36C988 raw=0x00053D5D");
 label_36c98c:
     // 0x36c98c: 0x0  nop
     ctx->pc = 0x36c98cu;
@@ -28372,7 +28355,7 @@ label_36c994:
 label_36c998:
     // 0x36c998: 0x1e  ddiv        $zero, $zero, $zero
     ctx->pc = 0x36c998u;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x36C998 raw=0x0000001E");
 label_36c99c:
     // 0x36c99c: 0x0  nop
     ctx->pc = 0x36c99cu;
@@ -28436,7 +28419,7 @@ label_36c9d4:
 label_36c9d8:
     // 0x36c9d8: 0x15  .word       0x00000015                   # INVALID     $zero, $zero, 0x15 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36c9d8u;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x36C9D8 raw=0x00000015");
 label_36c9dc:
     // 0x36c9dc: 0x0  nop
     ctx->pc = 0x36c9dcu;
@@ -28484,7 +28467,7 @@ label_36ca04:
 label_36ca08:
     // 0x36ca08: 0x53dbd  .word       0x00053DBD                   # INVALID     $zero, $a1, 0x3DBD # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36ca08u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36CA08 raw=0x00053DBD");
 label_36ca0c:
     // 0x36ca0c: 0x0  nop
     ctx->pc = 0x36ca0cu;
@@ -28532,7 +28515,7 @@ label_36ca34:
 label_36ca38:
     // 0x36ca38: 0x1f  ddivu       $zero, $zero, $zero
     ctx->pc = 0x36ca38u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x36CA38 raw=0x0000001F");
 label_36ca3c:
     // 0x36ca3c: 0x0  nop
     ctx->pc = 0x36ca3cu;
@@ -28596,7 +28579,7 @@ label_36ca74:
 label_36ca78:
     // 0x36ca78: 0x1c  dmult       $zero, $zero
     ctx->pc = 0x36ca78u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36CA78 raw=0x0000001C");
 label_36ca7c:
     // 0x36ca7c: 0x0  nop
     ctx->pc = 0x36ca7cu;
@@ -28612,7 +28595,7 @@ label_36ca84:
 label_36ca88:
     // 0x36ca88: 0x53e37  .word       0x00053E37                   # INVALID     $zero, $a1, 0x3E37 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36ca88u;
-    // Unhandled SPECIAL instruction: 0x37
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x37 at 0x36CA88 raw=0x00053E37");
 label_36ca8c:
     // 0x36ca8c: 0x0  nop
     ctx->pc = 0x36ca8cu;
@@ -28684,7 +28667,7 @@ label_36cacc:
 label_36cad0:
     // 0x36cad0: 0x53e81  .word       0x00053E81                   # INVALID     $zero, $a1, 0x3E81 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36cad0u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36CAD0 raw=0x00053E81");
 label_36cad4:
     // 0x36cad4: 0x0  nop
     ctx->pc = 0x36cad4u;
@@ -28740,7 +28723,7 @@ label_36cb04:
 label_36cb08:
     // 0x36cb08: 0x53e9c  .word       0x00053E9C                   # dmult       $zero, $a1 # 00003E80 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36cb08u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36CB08 raw=0x00053E9C");
 label_36cb0c:
     // 0x36cb0c: 0x0  nop
     ctx->pc = 0x36cb0cu;
@@ -28804,7 +28787,7 @@ label_36cb44:
 label_36cb48:
     // 0x36cb48: 0x53ec5  .word       0x00053EC5                   # INVALID     $zero, $a1, 0x3EC5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36cb48u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36CB48 raw=0x00053EC5");
 label_36cb4c:
     // 0x36cb4c: 0x0  nop
     ctx->pc = 0x36cb4cu;
@@ -28882,19 +28865,11 @@ label_36cb94:
     }
     ctx->pc = 0x36CB90u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         SET_GPR_U32(ctx, 7, 0x36CB98u);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36CB98u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36CB98u; }
-            if (ctx->pc != 0x36CB98u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36CB90u, 0x36CB98u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36CB98u;
@@ -28925,7 +28900,7 @@ label_36cbac:
 label_36cbb0:
     // 0x36cbb0: 0x53f1f  .word       0x00053F1F                   # ddivu       $a3, $zero, $a1 # 00000700 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36cbb0u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x36CBB0 raw=0x00053F1F");
 label_36cbb4:
     // 0x36cbb4: 0x0  nop
     ctx->pc = 0x36cbb4u;
@@ -28997,7 +28972,7 @@ label_36cbf4:
 label_36cbf8:
     // 0x36cbf8: 0x1f  ddivu       $zero, $zero, $zero
     ctx->pc = 0x36cbf8u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x36CBF8 raw=0x0000001F");
 label_36cbfc:
     // 0x36cbfc: 0x0  nop
     ctx->pc = 0x36cbfcu;
@@ -29093,7 +29068,7 @@ label_36cc54:
 label_36cc58:
     // 0x36cc58: 0x15  .word       0x00000015                   # INVALID     $zero, $zero, 0x15 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36cc58u;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x36CC58 raw=0x00000015");
 label_36cc5c:
     // 0x36cc5c: 0x0  nop
     ctx->pc = 0x36cc5cu;
@@ -29125,7 +29100,7 @@ label_36cc74:
 label_36cc78:
     // 0x36cc78: 0x1c  dmult       $zero, $zero
     ctx->pc = 0x36cc78u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36CC78 raw=0x0000001C");
 label_36cc7c:
     // 0x36cc7c: 0x0  nop
     ctx->pc = 0x36cc7cu;
@@ -29141,7 +29116,7 @@ label_36cc84:
 label_36cc88:
     // 0x36cc88: 0x53fbd  .word       0x00053FBD                   # INVALID     $zero, $a1, 0x3FBD # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36cc88u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36CC88 raw=0x00053FBD");
 label_36cc8c:
     // 0x36cc8c: 0x0  nop
     ctx->pc = 0x36cc8cu;
@@ -29341,7 +29316,7 @@ label_36cd4c:
 label_36cd50:
     // 0x36cd50: 0x5409f  .word       0x0005409F                   # ddivu       $t0, $zero, $a1 # 00000080 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36cd50u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x36CD50 raw=0x0005409F");
 label_36cd54:
     // 0x36cd54: 0x0  nop
     ctx->pc = 0x36cd54u;
@@ -29349,7 +29324,7 @@ label_36cd54:
 label_36cd58:
     // 0x36cd58: 0x1d  dmultu      $zero, $zero
     ctx->pc = 0x36cd58u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x36CD58 raw=0x0000001D");
 label_36cd5c:
     // 0x36cd5c: 0x0  nop
     ctx->pc = 0x36cd5cu;
@@ -29397,7 +29372,7 @@ label_36cd84:
 label_36cd88:
     // 0x36cd88: 0x540c5  .word       0x000540C5                   # INVALID     $zero, $a1, 0x40C5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36cd88u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36CD88 raw=0x000540C5");
 label_36cd8c:
     // 0x36cd8c: 0x0  nop
     ctx->pc = 0x36cd8cu;
@@ -29413,7 +29388,7 @@ label_36cd94:
 label_36cd98:
     // 0x36cd98: 0x1d  dmultu      $zero, $zero
     ctx->pc = 0x36cd98u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x36CD98 raw=0x0000001D");
 label_36cd9c:
     // 0x36cd9c: 0x0  nop
     ctx->pc = 0x36cd9cu;
@@ -29445,7 +29420,7 @@ label_36cdb4:
 label_36cdb8:
     // 0x36cdb8: 0x1d  dmultu      $zero, $zero
     ctx->pc = 0x36cdb8u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x36CDB8 raw=0x0000001D");
 label_36cdbc:
     // 0x36cdbc: 0x0  nop
     ctx->pc = 0x36cdbcu;
@@ -29477,7 +29452,7 @@ label_36cdd4:
 label_36cdd8:
     // 0x36cdd8: 0x1c  dmult       $zero, $zero
     ctx->pc = 0x36cdd8u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36CDD8 raw=0x0000001C");
 label_36cddc:
     // 0x36cddc: 0x0  nop
     ctx->pc = 0x36cddcu;
@@ -29501,7 +29476,7 @@ label_36cdec:
 label_36cdf0:
     // 0x36cdf0: 0x54137  .word       0x00054137                   # INVALID     $zero, $a1, 0x4137 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36cdf0u;
-    // Unhandled SPECIAL instruction: 0x37
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x37 at 0x36CDF0 raw=0x00054137");
 label_36cdf4:
     // 0x36cdf4: 0x0  nop
     ctx->pc = 0x36cdf4u;
@@ -29509,7 +29484,7 @@ label_36cdf4:
 label_36cdf8:
     // 0x36cdf8: 0x1d  dmultu      $zero, $zero
     ctx->pc = 0x36cdf8u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x36CDF8 raw=0x0000001D");
 label_36cdfc:
     // 0x36cdfc: 0x0  nop
     ctx->pc = 0x36cdfcu;
@@ -29533,7 +29508,7 @@ label_36ce0c:
 label_36ce10:
     // 0x36ce10: 0x54155  .word       0x00054155                   # INVALID     $zero, $a1, 0x4155 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36ce10u;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x36CE10 raw=0x00054155");
 label_36ce14:
     // 0x36ce14: 0x0  nop
     ctx->pc = 0x36ce14u;
@@ -29541,7 +29516,7 @@ label_36ce14:
 label_36ce18:
     // 0x36ce18: 0x1e  ddiv        $zero, $zero, $zero
     ctx->pc = 0x36ce18u;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x36CE18 raw=0x0000001E");
 label_36ce1c:
     // 0x36ce1c: 0x0  nop
     ctx->pc = 0x36ce1cu;
@@ -29573,7 +29548,7 @@ label_36ce34:
 label_36ce38:
     // 0x36ce38: 0x1c  dmult       $zero, $zero
     ctx->pc = 0x36ce38u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36CE38 raw=0x0000001C");
 label_36ce3c:
     // 0x36ce3c: 0x0  nop
     ctx->pc = 0x36ce3cu;
@@ -29603,9 +29578,11 @@ label_36ce54:
     }
     ctx->pc = 0x36CE50u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36CE50u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36CE58u;
 label_36ce58:
@@ -29633,19 +29610,11 @@ label_36ce6c:
     }
     ctx->pc = 0x36CE68u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         SET_GPR_U32(ctx, 8, 0x36CE70u);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36CE70u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36CE70u; }
-            if (ctx->pc != 0x36CE70u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36CE68u, 0x36CE70u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36CE70u;
@@ -29692,7 +29661,7 @@ label_36ce94:
 label_36ce98:
     // 0x36ce98: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36ce98u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36CE98 raw=0x0000000E");
 label_36ce9c:
     // 0x36ce9c: 0x0  nop
     ctx->pc = 0x36ce9cu;
@@ -29716,7 +29685,7 @@ label_36ceac:
 label_36ceb0:
     // 0x36ceb0: 0x541bd  .word       0x000541BD                   # INVALID     $zero, $a1, 0x41BD # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36ceb0u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36CEB0 raw=0x000541BD");
 label_36ceb4:
     // 0x36ceb4: 0x0  nop
     ctx->pc = 0x36ceb4u;
@@ -29754,19 +29723,11 @@ label_36ced4:
     }
     ctx->pc = 0x36CED0u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         SET_GPR_U32(ctx, 8, 0x36CED8u);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36CED8u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36CED8u; }
-            if (ctx->pc != 0x36CED8u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36CED0u, 0x36CED8u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36CED8u;
@@ -29805,7 +29766,7 @@ label_36cef4:
 label_36cef8:
     // 0x36cef8: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36cef8u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36CEF8 raw=0x0000000E");
 label_36cefc:
     // 0x36cefc: 0x0  nop
     ctx->pc = 0x36cefcu;
@@ -29837,7 +29798,7 @@ label_36cf14:
 label_36cf18:
     // 0x36cf18: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36cf18u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36CF18 raw=0x0000000E");
 label_36cf1c:
     // 0x36cf1c: 0x0  nop
     ctx->pc = 0x36cf1cu;
@@ -30091,26 +30052,18 @@ label_36d014:
     }
     ctx->pc = 0x36D010u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         SET_GPR_U32(ctx, 8, 0x36D018u);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36D018u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36D018u; }
-            if (ctx->pc != 0x36D018u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36D010u, 0x36D018u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36D018u;
 label_36d018:
     // 0x36d018: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d018u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36D018 raw=0x0000000E");
 label_36d01c:
     // 0x36d01c: 0x0  nop
     ctx->pc = 0x36d01cu;
@@ -30223,7 +30176,7 @@ label_36d084:
 label_36d088:
     // 0x36d088: 0x5427d  .word       0x0005427D                   # INVALID     $zero, $a1, 0x427D # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d088u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36D088 raw=0x0005427D");
 label_36d08c:
     // 0x36d08c: 0x0  nop
     ctx->pc = 0x36d08cu;
@@ -30239,7 +30192,7 @@ label_36d094:
 label_36d098:
     // 0x36d098: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d098u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36D098 raw=0x0000000E");
 label_36d09c:
     // 0x36d09c: 0x0  nop
     ctx->pc = 0x36d09cu;
@@ -30271,7 +30224,7 @@ label_36d0b4:
 label_36d0b8:
     // 0x36d0b8: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d0b8u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36D0B8 raw=0x0000000E");
 label_36d0bc:
     // 0x36d0bc: 0x0  nop
     ctx->pc = 0x36d0bcu;
@@ -30303,7 +30256,7 @@ label_36d0d4:
 label_36d0d8:
     // 0x36d0d8: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d0d8u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36D0D8 raw=0x0000000E");
 label_36d0dc:
     // 0x36d0dc: 0x0  nop
     ctx->pc = 0x36d0dcu;
@@ -30383,7 +30336,7 @@ label_36d124:
 label_36d128:
     // 0x36d128: 0x542bd  .word       0x000542BD                   # INVALID     $zero, $a1, 0x42BD # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d128u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36D128 raw=0x000542BD");
 label_36d12c:
     // 0x36d12c: 0x0  nop
     ctx->pc = 0x36d12cu;
@@ -30391,7 +30344,7 @@ label_36d12c:
 label_36d130:
     // 0x36d130: 0x542c5  .word       0x000542C5                   # INVALID     $zero, $a1, 0x42C5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d130u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36D130 raw=0x000542C5");
 label_36d134:
     // 0x36d134: 0x0  nop
     ctx->pc = 0x36d134u;
@@ -30405,18 +30358,10 @@ label_36d13c:
     }
     ctx->pc = 0x36D138u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36D140u;
-        } else {
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36D140u; }
-            if (ctx->pc != 0x36D140u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36D138u, 0x36D140u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36D140u;
@@ -30472,7 +30417,7 @@ label_36d16c:
 label_36d170:
     // 0x36d170: 0x542dd  .word       0x000542DD                   # dmultu      $zero, $a1 # 000042C0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d170u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x36D170 raw=0x000542DD");
 label_36d174:
     // 0x36d174: 0x0  nop
     ctx->pc = 0x36d174u;
@@ -30480,7 +30425,7 @@ label_36d174:
 label_36d178:
     // 0x36d178: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d178u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36D178 raw=0x0000000E");
 label_36d17c:
     // 0x36d17c: 0x0  nop
     ctx->pc = 0x36d17cu;
@@ -30496,7 +30441,7 @@ label_36d184:
 label_36d188:
     // 0x36d188: 0x542de  .word       0x000542DE                   # ddiv        $t0, $zero, $a1 # 000002C0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d188u;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x36D188 raw=0x000542DE");
 label_36d18c:
     // 0x36d18c: 0x0  nop
     ctx->pc = 0x36d18cu;
@@ -30536,7 +30481,7 @@ label_36d1ac:
 label_36d1b0:
     // 0x36d1b0: 0x542f5  .word       0x000542F5                   # INVALID     $zero, $a1, 0x42F5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d1b0u;
-    // Unhandled SPECIAL instruction: 0x35
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x35 at 0x36D1B0 raw=0x000542F5");
 label_36d1b4:
     // 0x36d1b4: 0x0  nop
     ctx->pc = 0x36d1b4u;
@@ -30568,7 +30513,7 @@ label_36d1cc:
 label_36d1d0:
     // 0x36d1d0: 0x54305  .word       0x00054305                   # INVALID     $zero, $a1, 0x4305 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d1d0u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36D1D0 raw=0x00054305");
 label_36d1d4:
     // 0x36d1d4: 0x0  nop
     ctx->pc = 0x36d1d4u;
@@ -30625,7 +30570,7 @@ label_36d204:
 label_36d208:
     // 0x36d208: 0x54315  .word       0x00054315                   # INVALID     $zero, $a1, 0x4315 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d208u;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x36D208 raw=0x00054315");
 label_36d20c:
     // 0x36d20c: 0x0  nop
     ctx->pc = 0x36d20cu;
@@ -30641,7 +30586,7 @@ label_36d214:
 label_36d218:
     // 0x36d218: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d218u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36D218 raw=0x0000000E");
 label_36d21c:
     // 0x36d21c: 0x0  nop
     ctx->pc = 0x36d21cu;
@@ -30673,7 +30618,7 @@ label_36d234:
 label_36d238:
     // 0x36d238: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d238u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36D238 raw=0x0000000E");
 label_36d23c:
     // 0x36d23c: 0x0  nop
     ctx->pc = 0x36d23cu;
@@ -30697,7 +30642,7 @@ label_36d24c:
 label_36d250:
     // 0x36d250: 0x5433d  .word       0x0005433D                   # INVALID     $zero, $a1, 0x433D # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d250u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36D250 raw=0x0005433D");
 label_36d254:
     // 0x36d254: 0x0  nop
     ctx->pc = 0x36d254u;
@@ -30770,7 +30715,7 @@ label_36d294:
 label_36d298:
     // 0x36d298: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d298u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36D298 raw=0x0000000E");
 label_36d29c:
     // 0x36d29c: 0x0  nop
     ctx->pc = 0x36d29cu;
@@ -30802,7 +30747,7 @@ label_36d2b4:
 label_36d2b8:
     // 0x36d2b8: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d2b8u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36D2B8 raw=0x0000000E");
 label_36d2bc:
     // 0x36d2bc: 0x0  nop
     ctx->pc = 0x36d2bcu;
@@ -30850,7 +30795,7 @@ label_36d2e4:
 label_36d2e8:
     // 0x36d2e8: 0x54379  .word       0x00054379                   # INVALID     $zero, $a1, 0x4379 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d2e8u;
-    // Unhandled SPECIAL instruction: 0x39
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x39 at 0x36D2E8 raw=0x00054379");
 label_36d2ec:
     // 0x36d2ec: 0x0  nop
     ctx->pc = 0x36d2ecu;
@@ -30864,19 +30809,11 @@ label_36d2f4:
     }
     ctx->pc = 0x36D2F0u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         SET_GPR_U32(ctx, 8, 0x36D2F8u);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36D2F8u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36D2F8u; }
-            if (ctx->pc != 0x36D2F8u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36D2F0u, 0x36D2F8u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36D2F8u;
@@ -30995,7 +30932,7 @@ label_36d364:
 label_36d368:
     // 0x36d368: 0x543bd  .word       0x000543BD                   # INVALID     $zero, $a1, 0x43BD # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d368u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36D368 raw=0x000543BD");
 label_36d36c:
     // 0x36d36c: 0x0  nop
     ctx->pc = 0x36d36cu;
@@ -31003,7 +30940,7 @@ label_36d36c:
 label_36d370:
     // 0x36d370: 0x543ce  .word       0x000543CE                   # INVALID     $zero, $a1, 0x43CE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d370u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36D370 raw=0x000543CE");
 label_36d374:
     // 0x36d374: 0x0  nop
     ctx->pc = 0x36d374u;
@@ -31036,7 +30973,7 @@ label_36d38c:
 label_36d390:
     // 0x36d390: 0x543de  .word       0x000543DE                   # ddiv        $t0, $zero, $a1 # 000003C0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d390u;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x36D390 raw=0x000543DE");
 label_36d394:
     // 0x36d394: 0x0  nop
     ctx->pc = 0x36d394u;
@@ -31060,7 +30997,7 @@ label_36d3a4:
 label_36d3a8:
     // 0x36d3a8: 0x543df  .word       0x000543DF                   # ddivu       $t0, $zero, $a1 # 000003C0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d3a8u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x36D3A8 raw=0x000543DF");
 label_36d3ac:
     // 0x36d3ac: 0x0  nop
     ctx->pc = 0x36d3acu;
@@ -31100,7 +31037,7 @@ label_36d3cc:
 label_36d3d0:
     // 0x36d3d0: 0x543fd  .word       0x000543FD                   # INVALID     $zero, $a1, 0x43FD # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d3d0u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36D3D0 raw=0x000543FD");
 label_36d3d4:
     // 0x36d3d4: 0x0  nop
     ctx->pc = 0x36d3d4u;
@@ -31166,7 +31103,7 @@ label_36d40c:
 label_36d410:
     // 0x36d410: 0x5441f  .word       0x0005441F                   # ddivu       $t0, $zero, $a1 # 00000400 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d410u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x36D410 raw=0x0005441F");
 label_36d414:
     // 0x36d414: 0x0  nop
     ctx->pc = 0x36d414u;
@@ -31304,7 +31241,7 @@ label_36d494:
 label_36d498:
     // 0x36d498: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d498u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36D498 raw=0x0000000E");
 label_36d49c:
     // 0x36d49c: 0x0  nop
     ctx->pc = 0x36d49cu;
@@ -31368,7 +31305,7 @@ label_36d4d4:
 label_36d4d8:
     // 0x36d4d8: 0x1  .word       0x00000001                   # INVALID     $zero, $zero, 0x1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d4d8u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36D4D8 raw=0x00000001");
 label_36d4dc:
     // 0x36d4dc: 0x0  nop
     ctx->pc = 0x36d4dcu;
@@ -31534,9 +31471,11 @@ label_36d57c:
     }
     ctx->pc = 0x36D578u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36D578u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36D580u;
 label_36d580:
@@ -31558,7 +31497,7 @@ label_36d58c:
 label_36d590:
     // 0x36d590: 0x92981  .word       0x00092981                   # INVALID     $zero, $t1, 0x2981 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d590u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36D590 raw=0x00092981");
 label_36d594:
     // 0x36d594: 0x0  nop
     ctx->pc = 0x36d594u;
@@ -31726,7 +31665,7 @@ label_36d634:
 label_36d638:
     // 0x36d638: 0x1e  ddiv        $zero, $zero, $zero
     ctx->pc = 0x36d638u;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x36D638 raw=0x0000001E");
 label_36d63c:
     // 0x36d63c: 0x0  nop
     ctx->pc = 0x36d63cu;
@@ -31774,7 +31713,7 @@ label_36d664:
 label_36d668:
     // 0x36d668: 0x92a75  .word       0x00092A75                   # INVALID     $zero, $t1, 0x2A75 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d668u;
-    // Unhandled SPECIAL instruction: 0x35
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x35 at 0x36D668 raw=0x00092A75");
 label_36d66c:
     // 0x36d66c: 0x0  nop
     ctx->pc = 0x36d66cu;
@@ -31790,7 +31729,7 @@ label_36d674:
 label_36d678:
     // 0x36d678: 0x1d  dmultu      $zero, $zero
     ctx->pc = 0x36d678u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x36D678 raw=0x0000001D");
 label_36d67c:
     // 0x36d67c: 0x0  nop
     ctx->pc = 0x36d67cu;
@@ -31892,9 +31831,11 @@ label_36d6dc:
     }
     ctx->pc = 0x36D6D8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36D6D8u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36D6E0u;
 label_36d6e0:
@@ -31941,7 +31882,7 @@ label_36d704:
 label_36d708:
     // 0x36d708: 0x92b7d  .word       0x00092B7D                   # INVALID     $zero, $t1, 0x2B7D # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d708u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36D708 raw=0x00092B7D");
 label_36d70c:
     // 0x36d70c: 0x0  nop
     ctx->pc = 0x36d70cu;
@@ -32021,7 +31962,7 @@ label_36d754:
 label_36d758:
     // 0x36d758: 0x1f  ddivu       $zero, $zero, $zero
     ctx->pc = 0x36d758u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x36D758 raw=0x0000001F");
 label_36d75c:
     // 0x36d75c: 0x0  nop
     ctx->pc = 0x36d75cu;
@@ -32045,7 +31986,7 @@ label_36d76c:
 label_36d770:
     // 0x36d770: 0x92bdd  .word       0x00092BDD                   # dmultu      $zero, $t1 # 00002BC0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d770u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x36D770 raw=0x00092BDD");
 label_36d774:
     // 0x36d774: 0x0  nop
     ctx->pc = 0x36d774u;
@@ -32069,7 +32010,7 @@ label_36d784:
 label_36d788:
     // 0x36d788: 0x92bde  .word       0x00092BDE                   # ddiv        $a1, $zero, $t1 # 000003C0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d788u;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x36D788 raw=0x00092BDE");
 label_36d78c:
     // 0x36d78c: 0x0  nop
     ctx->pc = 0x36d78cu;
@@ -32123,9 +32064,11 @@ label_36d7bc:
     }
     ctx->pc = 0x36D7B8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36D7B8u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36D7C0u;
 label_36d7c0:
@@ -32257,18 +32200,10 @@ label_36d83c:
     }
     ctx->pc = 0x36D838u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36D840u;
-        } else {
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36D840u; }
-            if (ctx->pc != 0x36D840u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36D838u, 0x36D840u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36D840u;
@@ -32299,7 +32234,7 @@ label_36d854:
 label_36d858:
     // 0x36d858: 0x5  .word       0x00000005                   # INVALID     $zero, $zero, 0x5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d858u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36D858 raw=0x00000005");
 label_36d85c:
     // 0x36d85c: 0x0  nop
     ctx->pc = 0x36d85cu;
@@ -32347,7 +32282,7 @@ label_36d884:
 label_36d888:
     // 0x36d888: 0x92c75  .word       0x00092C75                   # INVALID     $zero, $t1, 0x2C75 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d888u;
-    // Unhandled SPECIAL instruction: 0x35
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x35 at 0x36D888 raw=0x00092C75");
 label_36d88c:
     // 0x36d88c: 0x0  nop
     ctx->pc = 0x36d88cu;
@@ -32355,7 +32290,7 @@ label_36d88c:
 label_36d890:
     // 0x36d890: 0x92c77  .word       0x00092C77                   # INVALID     $zero, $t1, 0x2C77 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d890u;
-    // Unhandled SPECIAL instruction: 0x37
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x37 at 0x36D890 raw=0x00092C77");
 label_36d894:
     // 0x36d894: 0x0  nop
     ctx->pc = 0x36d894u;
@@ -32401,18 +32336,10 @@ label_36d8bc:
     }
     ctx->pc = 0x36D8B8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36D8C0u;
-        } else {
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36D8C0u; }
-            if (ctx->pc != 0x36D8C0u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36D8B8u, 0x36D8C0u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36D8C0u;
@@ -32427,7 +32354,7 @@ label_36d8c4:
 label_36d8c8:
     // 0x36d8c8: 0x92c81  .word       0x00092C81                   # INVALID     $zero, $t1, 0x2C81 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d8c8u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36D8C8 raw=0x00092C81");
 label_36d8cc:
     // 0x36d8cc: 0x0  nop
     ctx->pc = 0x36d8ccu;
@@ -32491,7 +32418,7 @@ label_36d904:
 label_36d908:
     // 0x36d908: 0x92c95  .word       0x00092C95                   # INVALID     $zero, $t1, 0x2C95 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d908u;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x36D908 raw=0x00092C95");
 label_36d90c:
     // 0x36d90c: 0x0  nop
     ctx->pc = 0x36d90cu;
@@ -32523,7 +32450,7 @@ label_36d924:
 label_36d928:
     // 0x36d928: 0x92c9c  .word       0x00092C9C                   # dmult       $zero, $t1 # 00002C80 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d928u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36D928 raw=0x00092C9C");
 label_36d92c:
     // 0x36d92c: 0x0  nop
     ctx->pc = 0x36d92cu;
@@ -32545,9 +32472,11 @@ label_36d93c:
     }
     ctx->pc = 0x36D938u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36D938u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36D940u;
 label_36d940:
@@ -32577,7 +32506,7 @@ label_36d954:
 label_36d958:
     // 0x36d958: 0x1  .word       0x00000001                   # INVALID     $zero, $zero, 0x1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d958u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36D958 raw=0x00000001");
 label_36d95c:
     // 0x36d95c: 0x0  nop
     ctx->pc = 0x36d95cu;
@@ -32601,7 +32530,7 @@ label_36d96c:
 label_36d970:
     // 0x36d970: 0x92cc5  .word       0x00092CC5                   # INVALID     $zero, $t1, 0x2CC5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d970u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36D970 raw=0x00092CC5");
 label_36d974:
     // 0x36d974: 0x0  nop
     ctx->pc = 0x36d974u;
@@ -32641,7 +32570,7 @@ label_36d994:
 label_36d998:
     // 0x36d998: 0x81  .word       0x00000081                   # INVALID     $zero, $zero, 0x81 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36d998u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36D998 raw=0x00000081");
 label_36d99c:
     // 0x36d99c: 0x0  nop
     ctx->pc = 0x36d99cu;
@@ -32751,9 +32680,11 @@ label_36da04:
     }
     ctx->pc = 0x36DA00u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 1);
+        const uint32_t jumpTarget = GPR_U32(ctx, 1);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36DA00u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36DA08u;
 label_36da08:
@@ -32791,7 +32722,7 @@ label_36da24:
 label_36da28:
     // 0x36da28: 0x92d77  .word       0x00092D77                   # INVALID     $zero, $t1, 0x2D77 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36da28u;
-    // Unhandled SPECIAL instruction: 0x37
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x37 at 0x36DA28 raw=0x00092D77");
 label_36da2c:
     // 0x36da2c: 0x0  nop
     ctx->pc = 0x36da2cu;
@@ -32799,7 +32730,7 @@ label_36da2c:
 label_36da30:
     // 0x36da30: 0x92d77  .word       0x00092D77                   # INVALID     $zero, $t1, 0x2D77 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36da30u;
-    // Unhandled SPECIAL instruction: 0x37
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x37 at 0x36DA30 raw=0x00092D77");
 label_36da34:
     // 0x36da34: 0x0  nop
     ctx->pc = 0x36da34u;
@@ -32807,7 +32738,7 @@ label_36da34:
 label_36da38:
     // 0x36da38: 0x1  .word       0x00000001                   # INVALID     $zero, $zero, 0x1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36da38u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36DA38 raw=0x00000001");
 label_36da3c:
     // 0x36da3c: 0x0  nop
     ctx->pc = 0x36da3cu;
@@ -32887,7 +32818,7 @@ label_36da84:
 label_36da88:
     // 0x36da88: 0x92d9c  .word       0x00092D9C                   # dmult       $zero, $t1 # 00002D80 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36da88u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36DA88 raw=0x00092D9C");
 label_36da8c:
     // 0x36da8c: 0x0  nop
     ctx->pc = 0x36da8cu;
@@ -32919,7 +32850,7 @@ label_36daa4:
 label_36daa8:
     // 0x36daa8: 0x92dbd  .word       0x00092DBD                   # INVALID     $zero, $t1, 0x2DBD # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36daa8u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36DAA8 raw=0x00092DBD");
 label_36daac:
     // 0x36daac: 0x0  nop
     ctx->pc = 0x36daacu;
@@ -32927,7 +32858,7 @@ label_36daac:
 label_36dab0:
     // 0x36dab0: 0x92ebd  .word       0x00092EBD                   # INVALID     $zero, $t1, 0x2EBD # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36dab0u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36DAB0 raw=0x00092EBD");
 label_36dab4:
     // 0x36dab4: 0x0  nop
     ctx->pc = 0x36dab4u;
@@ -32935,7 +32866,7 @@ label_36dab4:
 label_36dab8:
     // 0x36dab8: 0x101  .word       0x00000101                   # INVALID     $zero, $zero, 0x101 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36dab8u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36DAB8 raw=0x00000101");
 label_36dabc:
     // 0x36dabc: 0x0  nop
     ctx->pc = 0x36dabcu;
@@ -32967,7 +32898,7 @@ label_36dad4:
 label_36dad8:
     // 0x36dad8: 0x5  .word       0x00000005                   # INVALID     $zero, $zero, 0x5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36dad8u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36DAD8 raw=0x00000005");
 label_36dadc:
     // 0x36dadc: 0x0  nop
     ctx->pc = 0x36dadcu;
@@ -33143,7 +33074,7 @@ label_36db84:
 label_36db88:
     // 0x36db88: 0x92f9c  .word       0x00092F9C                   # dmult       $zero, $t1 # 00002F80 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36db88u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36DB88 raw=0x00092F9C");
 label_36db8c:
     // 0x36db8c: 0x0  nop
     ctx->pc = 0x36db8cu;
@@ -33230,18 +33161,10 @@ label_36dbdc:
     }
     ctx->pc = 0x36DBD8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36DBE0u;
-        } else {
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36DBE0u; }
-            if (ctx->pc != 0x36DBE0u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36DBD8u, 0x36DBE0u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36DBE0u;
@@ -33288,7 +33211,7 @@ label_36dc04:
 label_36dc08:
     // 0x36dc08: 0x9307d  .word       0x0009307D                   # INVALID     $zero, $t1, 0x307D # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36dc08u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36DC08 raw=0x0009307D");
 label_36dc0c:
     // 0x36dc0c: 0x0  nop
     ctx->pc = 0x36dc0cu;
@@ -33369,7 +33292,7 @@ label_36dc54:
 label_36dc58:
     // 0x36dc58: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36dc58u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x36DC58 raw=0x0000000E");
 label_36dc5c:
     // 0x36dc5c: 0x0  nop
     ctx->pc = 0x36dc5cu;
@@ -33393,7 +33316,7 @@ label_36dc6c:
 label_36dc70:
     // 0x36dc70: 0x930df  .word       0x000930DF                   # ddivu       $a2, $zero, $t1 # 000000C0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36dc70u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x36DC70 raw=0x000930DF");
 label_36dc74:
     // 0x36dc74: 0x0  nop
     ctx->pc = 0x36dc74u;
@@ -33481,7 +33404,7 @@ label_36dcc4:
 label_36dcc8:
     // 0x36dcc8: 0x93105  .word       0x00093105                   # INVALID     $zero, $t1, 0x3105 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36dcc8u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36DCC8 raw=0x00093105");
 label_36dccc:
     // 0x36dccc: 0x0  nop
     ctx->pc = 0x36dcccu;
@@ -33503,9 +33426,11 @@ label_36dcdc:
     }
     ctx->pc = 0x36DCD8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36DCD8u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36DCE0u;
 label_36dce0:
@@ -33583,7 +33508,7 @@ label_36dd24:
 label_36dd28:
     // 0x36dd28: 0x9313d  .word       0x0009313D                   # INVALID     $zero, $t1, 0x313D # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36dd28u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x36DD28 raw=0x0009313D");
 label_36dd2c:
     // 0x36dd2c: 0x0  nop
     ctx->pc = 0x36dd2cu;
@@ -33615,7 +33540,7 @@ label_36dd44:
 label_36dd48:
     // 0x36dd48: 0x93141  .word       0x00093141                   # INVALID     $zero, $t1, 0x3141 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36dd48u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36DD48 raw=0x00093141");
 label_36dd4c:
     // 0x36dd4c: 0x0  nop
     ctx->pc = 0x36dd4cu;
@@ -33629,19 +33554,11 @@ label_36dd54:
     }
     ctx->pc = 0x36DD50u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         SET_GPR_U32(ctx, 6, 0x36DD58u);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36DD58u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36DD58u; }
-            if (ctx->pc != 0x36DD58u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36DD50u, 0x36DD58u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36DD58u;
@@ -33654,18 +33571,10 @@ label_36dd5c:
     }
     ctx->pc = 0x36DD58u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36DD60u;
-        } else {
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36DD60u; }
-            if (ctx->pc != 0x36DD60u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36DD58u, 0x36DD60u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36DD60u;
@@ -33712,7 +33621,7 @@ label_36dd84:
 label_36dd88:
     // 0x36dd88: 0x9315c  .word       0x0009315C                   # dmult       $zero, $t1 # 00003140 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36dd88u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36DD88 raw=0x0009315C");
 label_36dd8c:
     // 0x36dd8c: 0x0  nop
     ctx->pc = 0x36dd8cu;
@@ -33766,18 +33675,10 @@ label_36ddbc:
     }
     ctx->pc = 0x36DDB8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36DDC0u;
-        } else {
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36DDC0u; }
-            if (ctx->pc != 0x36DDC0u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36DDB8u, 0x36DDC0u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36DDC0u;
@@ -33814,9 +33715,11 @@ label_36dddc:
     }
     ctx->pc = 0x36DDD8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36DDD8u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36DDE0u;
 label_36dde0:
@@ -33838,7 +33741,7 @@ label_36ddec:
 label_36ddf0:
     // 0x36ddf0: 0x93177  .word       0x00093177                   # INVALID     $zero, $t1, 0x3177 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36ddf0u;
-    // Unhandled SPECIAL instruction: 0x37
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x37 at 0x36DDF0 raw=0x00093177");
 label_36ddf4:
     // 0x36ddf4: 0x0  nop
     ctx->pc = 0x36ddf4u;
@@ -33878,7 +33781,7 @@ label_36de14:
 label_36de18:
     // 0x36de18: 0x1f  ddivu       $zero, $zero, $zero
     ctx->pc = 0x36de18u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x36DE18 raw=0x0000001F");
 label_36de1c:
     // 0x36de1c: 0x0  nop
     ctx->pc = 0x36de1cu;
@@ -33910,7 +33813,7 @@ label_36de34:
 label_36de38:
     // 0x36de38: 0x5  .word       0x00000005                   # INVALID     $zero, $zero, 0x5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36de38u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x36DE38 raw=0x00000005");
 label_36de3c:
     // 0x36de3c: 0x0  nop
     ctx->pc = 0x36de3cu;
@@ -33926,7 +33829,7 @@ label_36de44:
 label_36de48:
     // 0x36de48: 0x9319c  .word       0x0009319C                   # dmult       $zero, $t1 # 00003180 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36de48u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36DE48 raw=0x0009319C");
 label_36de4c:
     // 0x36de4c: 0x0  nop
     ctx->pc = 0x36de4cu;
@@ -33966,7 +33869,7 @@ label_36de6c:
 label_36de70:
     // 0x36de70: 0x931b9  .word       0x000931B9                   # INVALID     $zero, $t1, 0x31B9 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36de70u;
-    // Unhandled SPECIAL instruction: 0x39
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x39 at 0x36DE70 raw=0x000931B9");
 label_36de74:
     // 0x36de74: 0x0  nop
     ctx->pc = 0x36de74u;
@@ -34006,7 +33909,7 @@ label_36de94:
 label_36de98:
     // 0x36de98: 0x1  .word       0x00000001                   # INVALID     $zero, $zero, 0x1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36de98u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36DE98 raw=0x00000001");
 label_36de9c:
     // 0x36de9c: 0x0  nop
     ctx->pc = 0x36de9cu;
@@ -34044,18 +33947,10 @@ label_36debc:
     }
     ctx->pc = 0x36DEB8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36DEC0u;
-        } else {
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36DEC0u; }
-            if (ctx->pc != 0x36DEC0u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36DEB8u, 0x36DEC0u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36DEC0u;
@@ -34102,7 +33997,7 @@ label_36dee4:
 label_36dee8:
     // 0x36dee8: 0x931d5  .word       0x000931D5                   # INVALID     $zero, $t1, 0x31D5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36dee8u;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x36DEE8 raw=0x000931D5");
 label_36deec:
     // 0x36deec: 0x0  nop
     ctx->pc = 0x36deecu;
@@ -34134,7 +34029,7 @@ label_36df04:
 label_36df08:
     // 0x36df08: 0x93379  .word       0x00093379                   # INVALID     $zero, $t1, 0x3379 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36df08u;
-    // Unhandled SPECIAL instruction: 0x39
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x39 at 0x36DF08 raw=0x00093379");
 label_36df0c:
     // 0x36df0c: 0x0  nop
     ctx->pc = 0x36df0cu;
@@ -34180,9 +34075,11 @@ label_36df34:
     }
     ctx->pc = 0x36DF30u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36DF30u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36DF38u;
 label_36df38:
@@ -34210,19 +34107,11 @@ label_36df4c:
     }
     ctx->pc = 0x36DF48u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         SET_GPR_U32(ctx, 6, 0x36DF50u);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36DF50u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36DF50u; }
-            if (ctx->pc != 0x36DF50u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36DF48u, 0x36DF50u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36DF50u;
@@ -34253,7 +34142,7 @@ label_36df64:
 label_36df68:
     // 0x36df68: 0x938c1  .word       0x000938C1                   # INVALID     $zero, $t1, 0x38C1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36df68u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36DF68 raw=0x000938C1");
 label_36df6c:
     // 0x36df6c: 0x0  nop
     ctx->pc = 0x36df6cu;
@@ -34285,7 +34174,7 @@ label_36df84:
 label_36df88:
     // 0x36df88: 0x939f9  .word       0x000939F9                   # INVALID     $zero, $t1, 0x39F9 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36df88u;
-    // Unhandled SPECIAL instruction: 0x39
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x39 at 0x36DF88 raw=0x000939F9");
 label_36df8c:
     // 0x36df8c: 0x0  nop
     ctx->pc = 0x36df8cu;
@@ -34395,15 +34284,17 @@ label_36dff4:
     }
     ctx->pc = 0x36DFF0u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36DFF0u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36DFF8u;
 label_36dff8:
     // 0x36dff8: 0x81c  .word       0x0000081C                   # dmult       $zero, $zero # 00000800 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36dff8u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36DFF8 raw=0x0000081C");
 label_36dffc:
     // 0x36dffc: 0x0  nop
     ctx->pc = 0x36dffcu;
@@ -34425,19 +34316,11 @@ label_36e00c:
     }
     ctx->pc = 0x36E008u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         SET_GPR_U32(ctx, 9, 0x36E010u);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36E010u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36E010u; }
-            if (ctx->pc != 0x36E010u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36E008u, 0x36E010u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36E010u;
@@ -34450,9 +34333,11 @@ label_36e014:
     }
     ctx->pc = 0x36E010u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36E010u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36E018u;
 label_36e018:
@@ -34480,19 +34365,11 @@ label_36e02c:
     }
     ctx->pc = 0x36E028u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         SET_GPR_U32(ctx, 9, 0x36E030u);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36E030u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36E030u; }
-            if (ctx->pc != 0x36E030u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36E028u, 0x36E030u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36E030u;
@@ -34505,26 +34382,18 @@ label_36e034:
     }
     ctx->pc = 0x36E030u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         SET_GPR_U32(ctx, 9, 0x36E038u);
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x36E038u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x36E038u; }
-            if (ctx->pc != 0x36E038u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36E030u, 0x36E038u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x36E038u;
 label_36e038:
     // 0x36e038: 0x1  .word       0x00000001                   # INVALID     $zero, $zero, 0x1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36e038u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36E038 raw=0x00000001");
 label_36e03c:
     // 0x36e03c: 0x0  nop
     ctx->pc = 0x36e03cu;
@@ -34612,7 +34481,7 @@ label_36e08c:
 label_36e090:
     // 0x36e090: 0x12b841  .word       0x0012B841                   # INVALID     $zero, $s2, -0x47BF # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36e090u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36E090 raw=0x0012B841");
 label_36e094:
     // 0x36e094: 0x0  nop
     ctx->pc = 0x36e094u;
@@ -34620,7 +34489,7 @@ label_36e094:
 label_36e098:
     // 0x36e098: 0x937  .word       0x00000937                   # INVALID     $zero, $zero, 0x937 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36e098u;
-    // Unhandled SPECIAL instruction: 0x37
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x37 at 0x36E098 raw=0x00000937");
 label_36e09c:
     // 0x36e09c: 0x0  nop
     ctx->pc = 0x36e09cu;
@@ -34668,7 +34537,7 @@ label_36e0c4:
 label_36e0c8:
     // 0x36e0c8: 0x12bf01  .word       0x0012BF01                   # INVALID     $zero, $s2, -0x40FF # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36e0c8u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36E0C8 raw=0x0012BF01");
 label_36e0cc:
     // 0x36e0cc: 0x0  nop
     ctx->pc = 0x36e0ccu;
@@ -34716,7 +34585,7 @@ label_36e0f4:
 label_36e0f8:
     // 0x36e0f8: 0x1  .word       0x00000001                   # INVALID     $zero, $zero, 0x1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36e0f8u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36E0F8 raw=0x00000001");
 label_36e0fc:
     // 0x36e0fc: 0x0  nop
     ctx->pc = 0x36e0fcu;
@@ -34732,15 +34601,15 @@ label_36e104:
 label_36e108:
     // 0x36e108: 0x49497350  .word       0x49497350                   # INVALID     $t2, $t1, 0x7350 # 00000000 <InstrIdType: R5900_COP2_NOHIGHBIT>
     ctx->pc = 0x36e108u;
-    // Unhandled COP2 format: 0xA
+    throw std::runtime_error("Unhandled COP2 format: 0xA at 0x36E108 raw=0x49497350");
 label_36e10c:
     // 0x36e10c: 0x7462696c  .word       0x7462696C                   # INVALID     $v1, $v0, 0x696C # 00000000 <InstrIdType: CPU_NORMAL>
     ctx->pc = 0x36e10cu;
-    // Unhandled opcode: 0x1D
+    throw std::runtime_error("Unhandled opcode: 0x1D at 0x36E10C raw=0x7462696C");
 label_36e110:
     // 0x36e110: 0x72656d69  .word       0x72656D69                   # INVALID     $s3, $a1, 0x6D69 # 00000000 <InstrIdType: R5900_MMI_3>
     ctx->pc = 0x36e110u;
-    // Unhandled MMI3 instruction: function 0x15
+    throw std::runtime_error("Unhandled MMI3 instruction: function 0x15 at 0x36E110 raw=0x72656D69");
 label_36e114:
     // 0x36e114: 0x30303133  andi        $s0, $at, 0x3133
     ctx->pc = 0x36e114u;
@@ -34760,7 +34629,7 @@ label_36e120:
 label_36e124:
     // 0x36e124: 0x1  .word       0x00000001                   # INVALID     $zero, $zero, 0x1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36e124u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x36E124 raw=0x00000001");
 label_36e128:
     // 0x36e128: 0x0  nop
     ctx->pc = 0x36e128u;
@@ -34780,7 +34649,7 @@ label_36e134:
 label_36e138:
     // 0x36e138: 0x49497350  .word       0x49497350                   # INVALID     $t2, $t1, 0x7350 # 00000000 <InstrIdType: R5900_COP2_NOHIGHBIT>
     ctx->pc = 0x36e138u;
-    // Unhandled COP2 format: 0xA
+    throw std::runtime_error("Unhandled COP2 format: 0xA at 0x36E138 raw=0x49497350");
 label_36e13c:
     // 0x36e13c: 0x6374656e  daddi       $s4, $k1, 0x656E
     ctx->pc = 0x36e13cu;
@@ -35660,7 +35529,7 @@ label_36e4a4:
 label_36e4a8:
     // 0x36e4a8: 0xcb84c984  lwc2        $4, -0x367C($gp)
     ctx->pc = 0x36e4a8u;
-    // Unhandled opcode: 0x32
+    throw std::runtime_error("Unhandled opcode: 0x32 at 0x36E4A8 raw=0xCB84C984");
 label_36e4ac:
     // 0x36e4ac: 0xcf84cd84  pref        0x04, -0x327C($gp)
     ctx->pc = 0x36e4acu;
@@ -35668,11 +35537,11 @@ label_36e4ac:
 label_36e4b0:
     // 0x36e4b0: 0xd384d184  lld         $a0, -0x2E7C($gp)
     ctx->pc = 0x36e4b0u;
-    // Unhandled opcode: 0x34
+    throw std::runtime_error("Unhandled opcode: 0x34 at 0x36E4B0 raw=0xD384D184");
 label_36e4b4:
     // 0x36e4b4: 0xd784d584  ldc1        $f4, -0x2A7C($gp)
     ctx->pc = 0x36e4b4u;
-    // Unhandled opcode: 0x35
+    throw std::runtime_error("Unhandled opcode: 0x35 at 0x36E4B4 raw=0xD784D584");
 label_36e4b8:
     // 0x36e4b8: 0xdb84d984  lqc2        $vf4, -0x267C($gp)
     ctx->pc = 0x36e4b8u;
@@ -35696,51 +35565,51 @@ label_36e4c8:
 label_36e4cc:
     // 0x36e4cc: 0xe804e704  swc2        $4, -0x18FC($zero)
     ctx->pc = 0x36e4ccu;
-    // Unhandled opcode: 0x3A
+    throw std::runtime_error("Unhandled opcode: 0x3A at 0x36E4CC raw=0xE804E704");
 label_36e4d0:
     // 0x36e4d0: 0xea04e904  swc2        $4, -0x16FC($s0)
     ctx->pc = 0x36e4d0u;
-    // Unhandled opcode: 0x3A
+    throw std::runtime_error("Unhandled opcode: 0x3A at 0x36E4D0 raw=0xEA04E904");
 label_36e4d4:
     // 0x36e4d4: 0xec04eb04  .word       0xEC04EB04                   # INVALID     $zero, $a0, -0x14FC # 00000000 <InstrIdType: CPU_NORMAL>
     ctx->pc = 0x36e4d4u;
-    // Unhandled opcode: 0x3B
+    throw std::runtime_error("Unhandled opcode: 0x3B at 0x36E4D4 raw=0xEC04EB04");
 label_36e4d8:
     // 0x36e4d8: 0xee04ed04  .word       0xEE04ED04                   # INVALID     $s0, $a0, -0x12FC # 00000000 <InstrIdType: CPU_NORMAL>
     ctx->pc = 0x36e4d8u;
-    // Unhandled opcode: 0x3B
+    throw std::runtime_error("Unhandled opcode: 0x3B at 0x36E4D8 raw=0xEE04ED04");
 label_36e4dc:
     // 0x36e4dc: 0xf004ef04  scd         $a0, -0x10FC($zero)
     ctx->pc = 0x36e4dcu;
-    // Unhandled opcode: 0x3C
+    throw std::runtime_error("Unhandled opcode: 0x3C at 0x36E4DC raw=0xF004EF04");
 label_36e4e0:
     // 0x36e4e0: 0xf144f0c4  scd         $a0, -0xF3C($t2)
     ctx->pc = 0x36e4e0u;
-    // Unhandled opcode: 0x3C
+    throw std::runtime_error("Unhandled opcode: 0x3C at 0x36E4E0 raw=0xF144F0C4");
 label_36e4e4:
     // 0x36e4e4: 0xf244f1c4  scd         $a0, -0xE3C($s2)
     ctx->pc = 0x36e4e4u;
-    // Unhandled opcode: 0x3C
+    throw std::runtime_error("Unhandled opcode: 0x3C at 0x36E4E4 raw=0xF244F1C4");
 label_36e4e8:
     // 0x36e4e8: 0xf344f2c4  scd         $a0, -0xD3C($k0)
     ctx->pc = 0x36e4e8u;
-    // Unhandled opcode: 0x3C
+    throw std::runtime_error("Unhandled opcode: 0x3C at 0x36E4E8 raw=0xF344F2C4");
 label_36e4ec:
     // 0x36e4ec: 0xf444f3c4  sdc1        $f4, -0xC3C($v0)
     ctx->pc = 0x36e4ecu;
-    // Unhandled opcode: 0x3D
+    throw std::runtime_error("Unhandled opcode: 0x3D at 0x36E4EC raw=0xF444F3C4");
 label_36e4f0:
     // 0x36e4f0: 0xf544f4c4  sdc1        $f4, -0xB3C($t2)
     ctx->pc = 0x36e4f0u;
-    // Unhandled opcode: 0x3D
+    throw std::runtime_error("Unhandled opcode: 0x3D at 0x36E4F0 raw=0xF544F4C4");
 label_36e4f4:
     // 0x36e4f4: 0xf644f5c4  sdc1        $f4, -0xA3C($s2)
     ctx->pc = 0x36e4f4u;
-    // Unhandled opcode: 0x3D
+    throw std::runtime_error("Unhandled opcode: 0x3D at 0x36E4F4 raw=0xF644F5C4");
 label_36e4f8:
     // 0x36e4f8: 0xf744f6c4  sdc1        $f4, -0x93C($k0)
     ctx->pc = 0x36e4f8u;
-    // Unhandled opcode: 0x3D
+    throw std::runtime_error("Unhandled opcode: 0x3D at 0x36E4F8 raw=0xF744F6C4");
 label_36e4fc:
     // 0x36e4fc: 0xf844f7c4  sqc2        $vf4, -0x83C($v0)
     ctx->pc = 0x36e4fcu;
@@ -35894,8 +35763,11 @@ label_36e590:
 label_36e594:
     if (ctx->pc == 0x36E594u) {
         ctx->pc = 0x36E594u;
-            // 0x36e594: 0x517c557c  beql        $t3, $gp, . + 4 + (0x557C << 2) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E590u;
+        // 0x36e594: 0x517c557c  beql        $t3, $gp, . + 4 + (0x557C << 2) (Delay Slot)
         // Likely branch instruction at 0x36E594 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x36E598u;
         goto label_36e598;
     }
@@ -35904,10 +35776,11 @@ label_36e594:
         const bool branch_taken_0x36e590 = (GPR_S32(ctx, 11) <= 0);
         if (branch_taken_0x36e590) {
             ctx->pc = 0x36E594u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x36E590u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x36E590u;
             // 0x36e594: 0x517c557c  beql        $t3, $gp, . + 4 + (0x557C << 2) (Delay Slot)
-        // Likely branch instruction at 0x36E594 - Handled by branch logic
-        ctx->in_delay_slot = false;
+            // Likely branch instruction at 0x36E594 - Handled by branch logic
+            ctx->in_delay_slot = false;
             ctx->pc = 0x385B84u;
             return;
         }
@@ -35916,11 +35789,11 @@ label_36e594:
 label_36e598:
     // 0x36e598: 0x497c4d7c  .word       0x497C4D7C                   # INVALID     $t3, $gp, 0x4D7C # 00000000 <InstrIdType: R5900_COP2_NOHIGHBIT>
     ctx->pc = 0x36e598u;
-    // Unhandled COP2 format: 0xB
+    throw std::runtime_error("Unhandled COP2 format: 0xB at 0x36E598 raw=0x497C4D7C");
 label_36e59c:
     // 0x36e59c: 0x417c457c  .word       0x417C457C                   # INVALID     $t3, $gp, 0x457C # 00000000 <InstrIdType: R5900_COP0>
     ctx->pc = 0x36e59cu;
-    // Unhandled COP0 instruction format: 0xB
+    throw std::runtime_error("Unhandled COP0 instruction format: 0xB at 0x36E59C raw=0x417C457C");
 label_36e5a0:
     // 0x36e5a0: 0x3c7c3e7c  .word       0x3C7C3E7C                   # lui         $gp, 0x3E7C # 00600000 <InstrIdType: CPU_NORMAL>
     ctx->pc = 0x36e5a0u;
@@ -35958,8 +35831,11 @@ label_36e5c0:
 label_36e5c4:
     if (ctx->pc == 0x36E5C4u) {
         ctx->pc = 0x36E5C4u;
-            // 0x36e5c4: 0x1bfc1cfc  .word       0x1BFC1CFC                   # blez        $ra, . + 4 + (0x1CFC << 2) # 001C0000 <InstrIdType: CPU_NORMAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E5C0u;
+        // 0x36e5c4: 0x1bfc1cfc  .word       0x1BFC1CFC                   # blez        $ra, . + 4 + (0x1CFC << 2) # 001C0000 <InstrIdType: CPU_NORMAL> (Delay Slot)
         // Likely branch instruction at 0x36E5C4 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x36E5C8u;
         goto label_36e5c8;
     }
@@ -35967,8 +35843,9 @@ label_36e5c4:
     {
         const bool branch_taken_0x36e5c0 = (GPR_S32(ctx, 15) > 0);
         ctx->pc = 0x36E5C4u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x36E5C0u;
-            // 0x36e5c4: 0x1bfc1cfc  .word       0x1BFC1CFC                   # blez        $ra, . + 4 + (0x1CFC << 2) # 001C0000 <InstrIdType: CPU_NORMAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E5C0u;
+        // 0x36e5c4: 0x1bfc1cfc  .word       0x1BFC1CFC                   # blez        $ra, . + 4 + (0x1CFC << 2) # 001C0000 <InstrIdType: CPU_NORMAL> (Delay Slot)
         // Likely branch instruction at 0x36E5C4 - Handled by branch logic
         ctx->in_delay_slot = false;
         if (branch_taken_0x36e5c0) {
@@ -35982,8 +35859,11 @@ label_36e5c8:
 label_36e5cc:
     if (ctx->pc == 0x36E5CCu) {
         ctx->pc = 0x36E5CCu;
-            // 0x36e5cc: 0x17fc18fc  bne         $ra, $gp, . + 4 + (0x18FC << 2) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E5C8u;
+        // 0x36e5cc: 0x17fc18fc  bne         $ra, $gp, . + 4 + (0x18FC << 2) (Delay Slot)
         // Likely branch instruction at 0x36E5CC - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x36E5D0u;
         goto label_36e5d0;
     }
@@ -35991,8 +35871,9 @@ label_36e5cc:
     {
         const bool branch_taken_0x36e5c8 = (GPR_S32(ctx, 15) <= 0);
         ctx->pc = 0x36E5CCu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x36E5C8u;
-            // 0x36e5cc: 0x17fc18fc  bne         $ra, $gp, . + 4 + (0x18FC << 2) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E5C8u;
+        // 0x36e5cc: 0x17fc18fc  bne         $ra, $gp, . + 4 + (0x18FC << 2) (Delay Slot)
         // Likely branch instruction at 0x36E5CC - Handled by branch logic
         ctx->in_delay_slot = false;
         if (branch_taken_0x36e5c8) {
@@ -36006,8 +35887,11 @@ label_36e5d0:
 label_36e5d4:
     if (ctx->pc == 0x36E5D4u) {
         ctx->pc = 0x36E5D4u;
-            // 0x36e5d4: 0x13fc14fc  beq         $ra, $gp, . + 4 + (0x14FC << 2) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E5D0u;
+        // 0x36e5d4: 0x13fc14fc  beq         $ra, $gp, . + 4 + (0x14FC << 2) (Delay Slot)
         // Likely branch instruction at 0x36E5D4 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x36E5D8u;
         goto label_36e5d8;
     }
@@ -36015,8 +35899,9 @@ label_36e5d4:
     {
         const bool branch_taken_0x36e5d0 = (GPR_U64(ctx, 15) != GPR_U64(ctx, 28));
         ctx->pc = 0x36E5D4u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x36E5D0u;
-            // 0x36e5d4: 0x13fc14fc  beq         $ra, $gp, . + 4 + (0x14FC << 2) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E5D0u;
+        // 0x36e5d4: 0x13fc14fc  beq         $ra, $gp, . + 4 + (0x14FC << 2) (Delay Slot)
         // Likely branch instruction at 0x36E5D4 - Handled by branch logic
         ctx->in_delay_slot = false;
         if (branch_taken_0x36e5d0) {
@@ -36030,8 +35915,11 @@ label_36e5d8:
 label_36e5dc:
     if (ctx->pc == 0x36E5DCu) {
         ctx->pc = 0x36E5DCu;
-            // 0x36e5dc: 0xffc10fc  jal         func_FF043F0 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E5D8u;
+        // 0x36e5dc: 0xffc10fc  jal         func_FF043F0 (Delay Slot)
         // JAL 0xFF043F0 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x36E5E0u;
         goto label_36e5e0;
     }
@@ -36039,8 +35927,9 @@ label_36e5dc:
     {
         const bool branch_taken_0x36e5d8 = (GPR_U64(ctx, 15) == GPR_U64(ctx, 28));
         ctx->pc = 0x36E5DCu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x36E5D8u;
-            // 0x36e5dc: 0xffc10fc  jal         func_FF043F0 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E5D8u;
+        // 0x36e5dc: 0xffc10fc  jal         func_FF043F0 (Delay Slot)
         // JAL 0xFF043F0 - Handled by branch logic
         ctx->in_delay_slot = false;
         if (branch_taken_0x36e5d8) {
@@ -36054,25 +35943,25 @@ label_36e5e0:
 label_36e5e4:
     if (ctx->pc == 0x36E5E4u) {
         ctx->pc = 0x36E5E4u;
-            // 0x36e5e4: 0xdbc0e3c  jal         func_6F038F0 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E5E0u;
+        // 0x36e5e4: 0xdbc0e3c  jal         func_6F038F0 (Delay Slot)
         // JAL 0x6F038F0 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x36E5E8u;
         goto label_36e5e8;
     }
     ctx->pc = 0x36E5E0u;
     SET_GPR_U32(ctx, 31, 0x36E5E8u);
     ctx->pc = 0x36E5E4u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x36E5E0u;
-            // 0x36e5e4: 0xdbc0e3c  jal         func_6F038F0 (Delay Slot)
-        // JAL 0x6F038F0 - Handled by branch logic
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x36E5E0u;
+    // 0x36e5e4: 0xdbc0e3c  jal         func_6F038F0 (Delay Slot)
+    // JAL 0x6F038F0 - Handled by branch logic
+    ctx->in_delay_slot = false;
     ctx->pc = 0xAF03CF0u;
-    {
-        auto targetFn = runtime->lookupFunction(0xAF03CF0u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x36E5E8u; }
-        if (ctx->pc != 0x36E5E8u) { return; }
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0xAF03CF0u, 0x36E5E0u, 0x36E5E8u, PS2Runtime::GuestBranchKind::DirectCall, "JAL")) {
+        return;
     }
     ctx->pc = 0x36E5E8u;
 label_36e5e8:
@@ -36080,25 +35969,25 @@ label_36e5e8:
 label_36e5ec:
     if (ctx->pc == 0x36E5ECu) {
         ctx->pc = 0x36E5ECu;
-            // 0x36e5ec: 0xbbc0c3c  j           func_EF030F0 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E5E8u;
+        // 0x36e5ec: 0xbbc0c3c  j           func_EF030F0 (Delay Slot)
         // J 0xEF030F0 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x36E5F0u;
         goto label_36e5f0;
     }
     ctx->pc = 0x36E5E8u;
     SET_GPR_U32(ctx, 31, 0x36E5F0u);
     ctx->pc = 0x36E5ECu;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x36E5E8u;
-            // 0x36e5ec: 0xbbc0c3c  j           func_EF030F0 (Delay Slot)
-        // J 0xEF030F0 - Handled by branch logic
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x36E5E8u;
+    // 0x36e5ec: 0xbbc0c3c  j           func_EF030F0 (Delay Slot)
+    // J 0xEF030F0 - Handled by branch logic
+    ctx->in_delay_slot = false;
     ctx->pc = 0x2F034F0u;
-    {
-        auto targetFn = runtime->lookupFunction(0x2F034F0u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x36E5F0u; }
-        if (ctx->pc != 0x36E5F0u) { return; }
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x2F034F0u, 0x36E5E8u, 0x36E5F0u, PS2Runtime::GuestBranchKind::DirectCall, "JAL")) {
+        return;
     }
     ctx->pc = 0x36E5F0u;
 label_36e5f0:
@@ -36106,22 +35995,23 @@ label_36e5f0:
 label_36e5f4:
     if (ctx->pc == 0x36E5F4u) {
         ctx->pc = 0x36E5F4u;
-            // 0x36e5f4: 0x9bc0a3c  j           func_6F028F0 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E5F0u;
+        // 0x36e5f4: 0x9bc0a3c  j           func_6F028F0 (Delay Slot)
         // J 0x6F028F0 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x36E5F8u;
         goto label_36e5f8;
     }
     ctx->pc = 0x36E5F0u;
     ctx->pc = 0x36E5F4u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x36E5F0u;
-            // 0x36e5f4: 0x9bc0a3c  j           func_6F028F0 (Delay Slot)
-        // J 0x6F028F0 - Handled by branch logic
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x36E5F0u;
+    // 0x36e5f4: 0x9bc0a3c  j           func_6F028F0 (Delay Slot)
+    // J 0x6F028F0 - Handled by branch logic
+    ctx->in_delay_slot = false;
     ctx->pc = 0xAF02CF0u;
-    {
-        auto targetFn = runtime->lookupFunction(0xAF02CF0u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0xAF02CF0u, 0x36E5F0u, 0x0u, PS2Runtime::GuestBranchKind::DirectJump, "J")) {
         return;
     }
     ctx->pc = 0x36E5F8u;
@@ -36130,57 +36020,58 @@ label_36e5f8:
 label_36e5fc:
     if (ctx->pc == 0x36E5FCu) {
         ctx->pc = 0x36E5FCu;
-            // 0x36e5fc: 0x7bc083c  .word       0x07BC083C                   # INVALID     $sp, $gp, 0x83C # 00000000 <InstrIdType: CPU_REGIMM> (Delay Slot)
-        // Unhandled REGIMM instruction: 0x1C
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E5F8u;
+        // 0x36e5fc: 0x7bc083c  .word       0x07BC083C                   # INVALID     $sp, $gp, 0x83C # 00000000 <InstrIdType: CPU_REGIMM> (Delay Slot)
+        throw std::runtime_error("Unhandled REGIMM instruction: 0x1C at 0x36E5FC raw=0x07BC083C");
+        ctx->in_delay_slot = false;
         ctx->pc = 0x36E600u;
         goto label_36e600;
     }
     ctx->pc = 0x36E5F8u;
     ctx->pc = 0x36E5FCu;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x36E5F8u;
-            // 0x36e5fc: 0x7bc083c  .word       0x07BC083C                   # INVALID     $sp, $gp, 0x83C # 00000000 <InstrIdType: CPU_REGIMM> (Delay Slot)
-        // Unhandled REGIMM instruction: 0x1C
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x36E5F8u;
+    // 0x36e5fc: 0x7bc083c  .word       0x07BC083C                   # INVALID     $sp, $gp, 0x83C # 00000000 <InstrIdType: CPU_REGIMM> (Delay Slot)
+    throw std::runtime_error("Unhandled REGIMM instruction: 0x1C at 0x36E5FC raw=0x07BC083C");
+    ctx->in_delay_slot = false;
     ctx->pc = 0x2F024F0u;
-    {
-        auto targetFn = runtime->lookupFunction(0x2F024F0u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x2F024F0u, 0x36E5F8u, 0x0u, PS2Runtime::GuestBranchKind::DirectJump, "J")) {
         return;
     }
     ctx->pc = 0x36E600u;
 label_36e600:
     // 0x36e600: 0x71c075c  .word       0x071C075C                   # INVALID     $t8, $gp, 0x75C # 00000000 <InstrIdType: CPU_REGIMM>
     ctx->pc = 0x36e600u;
-    // Unhandled REGIMM instruction: 0x1C
+    throw std::runtime_error("Unhandled REGIMM instruction: 0x1C at 0x36E600 raw=0x071C075C");
 label_36e604:
     // 0x36e604: 0x69c06dc  .word       0x069C06DC                   # INVALID     $s4, $gp, 0x6DC # 00000000 <InstrIdType: CPU_REGIMM>
     ctx->pc = 0x36e604u;
-    // Unhandled REGIMM instruction: 0x1C
+    throw std::runtime_error("Unhandled REGIMM instruction: 0x1C at 0x36E604 raw=0x069C06DC");
 label_36e608:
     // 0x36e608: 0x61c065c  .word       0x061C065C                   # INVALID     $s0, $gp, 0x65C # 00000000 <InstrIdType: CPU_REGIMM>
     ctx->pc = 0x36e608u;
-    // Unhandled REGIMM instruction: 0x1C
+    throw std::runtime_error("Unhandled REGIMM instruction: 0x1C at 0x36E608 raw=0x061C065C");
 label_36e60c:
     // 0x36e60c: 0x59c05dc  .word       0x059C05DC                   # INVALID     $t4, $gp, 0x5DC # 00000000 <InstrIdType: CPU_REGIMM>
     ctx->pc = 0x36e60cu;
-    // Unhandled REGIMM instruction: 0x1C
+    throw std::runtime_error("Unhandled REGIMM instruction: 0x1C at 0x36E60C raw=0x059C05DC");
 label_36e610:
     // 0x36e610: 0x51c055c  .word       0x051C055C                   # INVALID     $t0, $gp, 0x55C # 00000000 <InstrIdType: CPU_REGIMM>
     ctx->pc = 0x36e610u;
-    // Unhandled REGIMM instruction: 0x1C
+    throw std::runtime_error("Unhandled REGIMM instruction: 0x1C at 0x36E610 raw=0x051C055C");
 label_36e614:
     // 0x36e614: 0x49c04dc  .word       0x049C04DC                   # INVALID     $a0, $gp, 0x4DC # 00000000 <InstrIdType: CPU_REGIMM>
     ctx->pc = 0x36e614u;
-    // Unhandled REGIMM instruction: 0x1C
+    throw std::runtime_error("Unhandled REGIMM instruction: 0x1C at 0x36E614 raw=0x049C04DC");
 label_36e618:
     // 0x36e618: 0x41c045c  .word       0x041C045C                   # INVALID     $zero, $gp, 0x45C # 00000000 <InstrIdType: CPU_REGIMM>
     ctx->pc = 0x36e618u;
-    // Unhandled REGIMM instruction: 0x1C
+    throw std::runtime_error("Unhandled REGIMM instruction: 0x1C at 0x36E618 raw=0x041C045C");
 label_36e61c:
     // 0x36e61c: 0x39c03dc  .word       0x039C03DC                   # dmult       $gp, $gp # 000003C0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36e61cu;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x36E61C raw=0x039C03DC");
 label_36e620:
     // 0x36e620: 0x34c036c  .word       0x034C036C                   # dadd        $zero, $k0, $t4 # 00000340 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x36e620u;
@@ -36262,21 +36153,27 @@ label_36e66c:
 label_36e670:
     if (ctx->pc == 0x36E670u) {
         ctx->pc = 0x36E670u;
-            // 0x36e670: 0x300038  .word       0x00300038                   # dsll        $zero, $s0, 0 # 00200000 <InstrIdType: CPU_SPECIAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E66Cu;
+        // 0x36e670: 0x300038  .word       0x00300038                   # dsll        $zero, $s0, 0 # 00200000 <InstrIdType: CPU_SPECIAL> (Delay Slot)
         SET_GPR_U64(ctx, 0, GPR_U64(ctx, 16) << 0);
+        ctx->in_delay_slot = false;
         ctx->pc = 0x36E674u;
         goto label_36e674;
     }
     ctx->pc = 0x36E66Cu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 2);
+        const uint32_t jumpTarget = GPR_U32(ctx, 2);
         ctx->pc = 0x36E670u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x36E66Cu;
-            // 0x36e670: 0x300038  .word       0x00300038                   # dsll        $zero, $s0, 0 # 00200000 <InstrIdType: CPU_SPECIAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E66Cu;
+        // 0x36e670: 0x300038  .word       0x00300038                   # dsll        $zero, $s0, 0 # 00200000 <InstrIdType: CPU_SPECIAL> (Delay Slot)
         SET_GPR_U64(ctx, 0, GPR_U64(ctx, 16) << 0);
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36E66Cu, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36E674u;
 label_36e674:
@@ -36292,21 +36189,27 @@ label_36e67c:
 label_36e680:
     if (ctx->pc == 0x36E680u) {
         ctx->pc = 0x36E680u;
-            // 0x36e680: 0x3e6a58  .word       0x003E6A58                   # mult        $t5, $at, $fp # 00000240 <InstrIdType: R5900_SPECIAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E67Cu;
+        // 0x36e680: 0x3e6a58  .word       0x003E6A58                   # mult        $t5, $at, $fp # 00000240 <InstrIdType: R5900_SPECIAL> (Delay Slot)
         { int64_t result = (int64_t)GPR_S32(ctx, 1) * (int64_t)GPR_S32(ctx, 30); ctx->lo = (uint64_t)(int64_t)(int32_t)result; ctx->hi = (uint64_t)(int64_t)(int32_t)(result >> 32); SET_GPR_S32(ctx, 13, (int32_t)result); }
+        ctx->in_delay_slot = false;
         ctx->pc = 0x36E684u;
         goto label_36e684;
     }
     ctx->pc = 0x36E67Cu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x36E680u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x36E67Cu;
-            // 0x36e680: 0x3e6a58  .word       0x003E6A58                   # mult        $t5, $at, $fp # 00000240 <InstrIdType: R5900_SPECIAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x36E67Cu;
+        // 0x36e680: 0x3e6a58  .word       0x003E6A58                   # mult        $t5, $at, $fp # 00000240 <InstrIdType: R5900_SPECIAL> (Delay Slot)
         { int64_t result = (int64_t)GPR_S32(ctx, 1) * (int64_t)GPR_S32(ctx, 30); ctx->lo = (uint64_t)(int64_t)(int32_t)result; ctx->hi = (uint64_t)(int64_t)(int32_t)(result >> 32); SET_GPR_S32(ctx, 13, (int32_t)result); }
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x36E67Cu, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x36E684u;
 label_36e684:
@@ -51852,7 +51755,7 @@ label_372334:
 label_372338:
     // 0x372338: 0x4b52414d  vmsuby.xz   $vf5, $vf8, $vf18y
     ctx->pc = 0x372338u;
-    { __m128 mul_res = PS2_VMUL(ctx->vu0_vf[8], _mm_shuffle_ps(ctx->vu0_vf[18], ctx->vu0_vf[18], _MM_SHUFFLE(1,1,1,1))); __m128 res = PS2_VSUB(ctx->vu0_acc, mul_res); __m128i mask = _mm_set_epi32(-1, 0, -1, 0); ctx->vu0_vf[5] = _mm_blendv_ps(ctx->vu0_vf[5], res, _mm_castsi128_ps(mask)); ctx->vu0_acc = res; }
+    { __m128 mul_res = PS2_VMUL(ctx->vu0_vf[8], _mm_shuffle_ps(ctx->vu0_vf[18], ctx->vu0_vf[18], _MM_SHUFFLE(1,1,1,1))); __m128 res = PS2_VSUB(ctx->vu0_acc, mul_res); __m128i mask = _mm_set_epi32(0, -1, 0, -1); ctx->vu0_vf[5] = _mm_blendv_ps(ctx->vu0_vf[5], res, _mm_castsi128_ps(mask)); ctx->vu0_acc = res; }
 label_37233c:
     // 0x37233c: 0x7864613a  lq          $a0, 0x613A($v1)
     ctx->pc = 0x37233cu;
@@ -51880,7 +51783,7 @@ label_372350:
 label_372354:
     // 0x372354: 0x1  .word       0x00000001                   # INVALID     $zero, $zero, 0x1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x372354u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x372354 raw=0x00000001");
 label_372358:
     // 0x372358: 0x0  nop
     ctx->pc = 0x372358u;
@@ -92798,8 +92701,11 @@ label_37c328:
 label_37c32c:
     if (ctx->pc == 0x37C32Cu) {
         ctx->pc = 0x37C32Cu;
-            // 0x37c32c: 0x20205452  addi        $zero, $at, 0x5452 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x37C328u;
+        // 0x37c32c: 0x20205452  addi        $zero, $at, 0x5452 (Delay Slot)
         // NOP (addi to $zero)
+        ctx->in_delay_slot = false;
         ctx->pc = 0x37C330u;
         goto label_37c330;
     }
@@ -92808,10 +92714,11 @@ label_37c32c:
         const bool branch_taken_0x37c328 = (GPR_S32(ctx, 2) <= 0);
         if (branch_taken_0x37c328) {
             ctx->pc = 0x37C32Cu;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x37C328u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x37C328u;
             // 0x37c32c: 0x20205452  addi        $zero, $at, 0x5452 (Delay Slot)
-        // NOP (addi to $zero)
-        ctx->in_delay_slot = false;
+            // NOP (addi to $zero)
+            ctx->in_delay_slot = false;
             ctx->pc = 0x38C754u;
             return;
         }
@@ -92832,7 +92739,7 @@ label_37c338:
 label_37c33c:
     // 0x37c33c: 0x443a646c  .word       0x443A646C                   # dmfc1       $k0, $f12 # 0000046C <InstrIdType: R5900_COP1>
     ctx->pc = 0x37c33cu;
-    // Unhandled FPU instruction: format 0x1, function 0x2C
+    throw std::runtime_error("Unhandled FPU instruction: format 0x1, function 0x2C at 0x37C33C raw=0x443A646C");
 label_37c340:
     // 0x37c340: 0x31206365  andi        $zero, $t1, 0x6365
     ctx->pc = 0x37c340u;
@@ -92858,10 +92765,7 @@ label_37c354:
     }
     ctx->pc = 0x37C350u;
     ctx->pc = 0x8CCCCE8u;
-    {
-        auto targetFn = runtime->lookupFunction(0x8CCCCE8u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x8CCCCE8u, 0x37C350u, 0x0u, PS2Runtime::GuestBranchKind::DirectJump, "J")) {
         return;
     }
     ctx->pc = 0x37C358u;
@@ -92916,7 +92820,7 @@ label_37c384:
 label_37c388:
     // 0x37c388: 0x1  .word       0x00000001                   # INVALID     $zero, $zero, 0x1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x37c388u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x37C388 raw=0x00000001");
 label_37c38c:
     // 0x37c38c: 0x0  nop
     ctx->pc = 0x37c38cu;
@@ -93948,14 +93852,17 @@ label_37c78c:
 label_37c790:
     // 0x37c790: 0x4656430a  .word       0x4656430A                   # INVALID     $s2, $s6, 0x430A # 00000000 <InstrIdType: R5900_COP1>
     ctx->pc = 0x37c790u;
-    // Unhandled FPU instruction: format 0x12, function 0xA
+    throw std::runtime_error("Unhandled FPU instruction: format 0x12, function 0xA at 0x37C790 raw=0x4656430A");
 label_37c794:
     // 0x37c794: 0x53502f53  beql        $k0, $s0, . + 4 + (0x2F53 << 2)
 label_37c798:
     if (ctx->pc == 0x37C798u) {
         ctx->pc = 0x37C798u;
-            // 0x37c798: 0x20454532  addi        $a1, $v0, 0x4532 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x37C794u;
+        // 0x37c798: 0x20454532  addi        $a1, $v0, 0x4532 (Delay Slot)
         { uint32_t tmp; bool ov; ADD32_OV(GPR_U32(ctx, 2), (int32_t)17714, tmp, ov); if (ov) runtime->SignalException(ctx, EXCEPTION_INTEGER_OVERFLOW); else SET_GPR_S32(ctx, 5, (int32_t)tmp); }
+        ctx->in_delay_slot = false;
         ctx->pc = 0x37C79Cu;
         goto label_37c79c;
     }
@@ -93964,10 +93871,11 @@ label_37c798:
         const bool branch_taken_0x37c794 = (GPR_U64(ctx, 26) == GPR_U64(ctx, 16));
         if (branch_taken_0x37c794) {
             ctx->pc = 0x37C798u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x37C794u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x37C794u;
             // 0x37c798: 0x20454532  addi        $a1, $v0, 0x4532 (Delay Slot)
-        { uint32_t tmp; bool ov; ADD32_OV(GPR_U32(ctx, 2), (int32_t)17714, tmp, ov); if (ov) runtime->SignalException(ctx, EXCEPTION_INTEGER_OVERFLOW); else SET_GPR_S32(ctx, 5, (int32_t)tmp); }
-        ctx->in_delay_slot = false;
+            { uint32_t tmp; bool ov; ADD32_OV(GPR_U32(ctx, 2), (int32_t)17714, tmp, ov); if (ov) runtime->SignalException(ctx, EXCEPTION_INTEGER_OVERFLOW); else SET_GPR_S32(ctx, 5, (int32_t)tmp); }
+            ctx->in_delay_slot = false;
             ctx->pc = 0x3884E4u;
             return;
         }
@@ -93988,7 +93896,7 @@ label_37c7a4:
 label_37c7a8:
     // 0x37c7a8: 0x443a646c  .word       0x443A646C                   # dmfc1       $k0, $f12 # 0000046C <InstrIdType: R5900_COP1>
     ctx->pc = 0x37c7a8u;
-    // Unhandled FPU instruction: format 0x1, function 0x2C
+    throw std::runtime_error("Unhandled FPU instruction: format 0x1, function 0x2C at 0x37C7A8 raw=0x443A646C");
 label_37c7ac:
     // 0x37c7ac: 0x31206365  andi        $zero, $t1, 0x6365
     ctx->pc = 0x37c7acu;
@@ -94014,10 +93922,7 @@ label_37c7c0:
     }
     ctx->pc = 0x37C7BCu;
     ctx->pc = 0x8C4D0E8u;
-    {
-        auto targetFn = runtime->lookupFunction(0x8C4D0E8u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x8C4D0E8u, 0x37C7BCu, 0x0u, PS2Runtime::GuestBranchKind::DirectJump, "J")) {
         return;
     }
     ctx->pc = 0x37C7C4u;
@@ -94112,7 +94017,7 @@ label_37c818:
 label_37c81c:
     // 0x37c81c: 0x1  .word       0x00000001                   # INVALID     $zero, $zero, 0x1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x37c81cu;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x37C81C raw=0x00000001");
 label_37c820:
     // 0x37c820: 0x0  nop
     ctx->pc = 0x37c820u;
@@ -96256,7 +96161,7 @@ label_37d078:
 label_37d07c:
     // 0x37d07c: 0x1  .word       0x00000001                   # INVALID     $zero, $zero, 0x1 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x37d07cu;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x37D07C raw=0x00000001");
 label_37d080:
     // 0x37d080: 0x0  nop
     ctx->pc = 0x37d080u;
@@ -99434,21 +99339,27 @@ label_37dce4:
 label_37dce8:
     if (ctx->pc == 0x37DCE8u) {
         ctx->pc = 0x37DCE8u;
-            // 0x37dce8: 0x1c3100  sll         $a2, $gp, 4 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x37DCE4u;
+        // 0x37dce8: 0x1c3100  sll         $a2, $gp, 4 (Delay Slot)
         SET_GPR_S32(ctx, 6, (int32_t)SLL32(GPR_U32(ctx, 28), 4));
+        ctx->in_delay_slot = false;
         ctx->pc = 0x37DCECu;
         goto label_37dcec;
     }
     ctx->pc = 0x37DCE4u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x37DCE8u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x37DCE4u;
-            // 0x37dce8: 0x1c3100  sll         $a2, $gp, 4 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x37DCE4u;
+        // 0x37dce8: 0x1c3100  sll         $a2, $gp, 4 (Delay Slot)
         SET_GPR_S32(ctx, 6, (int32_t)SLL32(GPR_U32(ctx, 28), 4));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x37DCE4u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x37DCECu;
 label_37dcec:
@@ -99464,9 +99375,11 @@ label_37dcf4:
     }
     ctx->pc = 0x37DCF0u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x37DCF0u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x37DCF8u;
 label_37dcf8:
@@ -103166,21 +103079,27 @@ label_37eb64:
 label_37eb68:
     if (ctx->pc == 0x37EB68u) {
         ctx->pc = 0x37EB68u;
-            // 0x37eb68: 0x1c4ac0  sll         $t1, $gp, 11 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x37EB64u;
+        // 0x37eb68: 0x1c4ac0  sll         $t1, $gp, 11 (Delay Slot)
         SET_GPR_S32(ctx, 9, (int32_t)SLL32(GPR_U32(ctx, 28), 11));
+        ctx->in_delay_slot = false;
         ctx->pc = 0x37EB6Cu;
         goto label_37eb6c;
     }
     ctx->pc = 0x37EB64u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x37EB68u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x37EB64u;
-            // 0x37eb68: 0x1c4ac0  sll         $t1, $gp, 11 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x37EB64u;
+        // 0x37eb68: 0x1c4ac0  sll         $t1, $gp, 11 (Delay Slot)
         SET_GPR_S32(ctx, 9, (int32_t)SLL32(GPR_U32(ctx, 28), 11));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x37EB64u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x37EB6Cu;
 label_37eb6c:
@@ -103196,21 +103115,27 @@ label_37eb74:
 label_37eb78:
     if (ctx->pc == 0x37EB78u) {
         ctx->pc = 0x37EB78u;
-            // 0x37eb78: 0x1c4d80  sll         $t1, $gp, 22 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x37EB74u;
+        // 0x37eb78: 0x1c4d80  sll         $t1, $gp, 22 (Delay Slot)
         SET_GPR_S32(ctx, 9, (int32_t)SLL32(GPR_U32(ctx, 28), 22));
+        ctx->in_delay_slot = false;
         ctx->pc = 0x37EB7Cu;
         goto label_37eb7c;
     }
     ctx->pc = 0x37EB74u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x37EB78u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x37EB74u;
-            // 0x37eb78: 0x1c4d80  sll         $t1, $gp, 22 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x37EB74u;
+        // 0x37eb78: 0x1c4d80  sll         $t1, $gp, 22 (Delay Slot)
         SET_GPR_S32(ctx, 9, (int32_t)SLL32(GPR_U32(ctx, 28), 22));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x37EB74u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x37EB7Cu;
 label_37eb7c:
@@ -103226,9 +103151,11 @@ label_37eb84:
     }
     ctx->pc = 0x37EB80u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x37EB80u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x37EB88u;
 label_37eb88:
@@ -104218,7 +104145,7 @@ label_37ef5c:
 label_37ef60:
     // 0x37ef60: 0x8001  .word       0x00008001                   # INVALID     $zero, $zero, -0x7FFF # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x37ef60u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x37EF60 raw=0x00008001");
 label_37ef64:
     // 0x37ef64: 0x0  nop
     ctx->pc = 0x37ef64u;
@@ -104818,7 +104745,7 @@ label_37f1b4:
 label_37f1b8:
     // 0x37f1b8: 0x4b52414d  vmsuby.xz   $vf5, $vf8, $vf18y
     ctx->pc = 0x37f1b8u;
-    { __m128 mul_res = PS2_VMUL(ctx->vu0_vf[8], _mm_shuffle_ps(ctx->vu0_vf[18], ctx->vu0_vf[18], _MM_SHUFFLE(1,1,1,1))); __m128 res = PS2_VSUB(ctx->vu0_acc, mul_res); __m128i mask = _mm_set_epi32(-1, 0, -1, 0); ctx->vu0_vf[5] = _mm_blendv_ps(ctx->vu0_vf[5], res, _mm_castsi128_ps(mask)); ctx->vu0_acc = res; }
+    { __m128 mul_res = PS2_VMUL(ctx->vu0_vf[8], _mm_shuffle_ps(ctx->vu0_vf[18], ctx->vu0_vf[18], _MM_SHUFFLE(1,1,1,1))); __m128 res = PS2_VSUB(ctx->vu0_acc, mul_res); __m128i mask = _mm_set_epi32(0, -1, 0, -1); ctx->vu0_vf[5] = _mm_blendv_ps(ctx->vu0_vf[5], res, _mm_castsi128_ps(mask)); ctx->vu0_acc = res; }
 label_37f1bc:
     // 0x37f1bc: 0x63736c3a  daddi       $s3, $k1, 0x6C3A
     ctx->pc = 0x37f1bcu;
@@ -125702,7 +125629,7 @@ label_384348:
 label_38434c:
     // 0x38434c: 0x443a646c  .word       0x443A646C                   # dmfc1       $k0, $f12 # 0000046C <InstrIdType: R5900_COP1>
     ctx->pc = 0x38434cu;
-    // Unhandled FPU instruction: format 0x1, function 0x2C
+    throw std::runtime_error("Unhandled FPU instruction: format 0x1, function 0x2C at 0x38434C raw=0x443A646C");
 label_384350:
     // 0x384350: 0x31206365  andi        $zero, $t1, 0x6365
     ctx->pc = 0x384350u;
@@ -125728,10 +125655,7 @@ label_384364:
     }
     ctx->pc = 0x384360u;
     ctx->pc = 0x8DCC4E8u;
-    {
-        auto targetFn = runtime->lookupFunction(0x8DCC4E8u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x8DCC4E8u, 0x384360u, 0x0u, PS2Runtime::GuestBranchKind::DirectJump, "J")) {
         return;
     }
     ctx->pc = 0x384368u;
@@ -125766,7 +125690,7 @@ label_384380:
 label_384384:
     // 0x384384: 0xfd  .word       0x000000FD                   # INVALID     $zero, $zero, 0xFD # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384384u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x384384 raw=0x000000FD");
 label_384388:
     // 0x384388: 0xfa  dsrl        $zero, $zero, 3
     ctx->pc = 0x384388u;
@@ -125774,7 +125698,7 @@ label_384388:
 label_38438c:
     // 0x38438c: 0xf7  .word       0x000000F7                   # INVALID     $zero, $zero, 0xF7 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x38438cu;
-    // Unhandled SPECIAL instruction: 0x37
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x37 at 0x38438C raw=0x000000F7");
 label_384390:
     // 0x384390: 0xf4  teq         $zero, $zero, 3
     ctx->pc = 0x384390u;
@@ -125810,11 +125734,11 @@ label_3843ac:
 label_3843b0:
     // 0x3843b0: 0xde  .word       0x000000DE                   # ddiv        $zero, $zero, $zero # 000000C0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3843b0u;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x3843B0 raw=0x000000DE");
 label_3843b4:
     // 0x3843b4: 0xdc  .word       0x000000DC                   # dmult       $zero, $zero # 000000C0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3843b4u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x3843B4 raw=0x000000DC");
 label_3843b8:
     // 0x3843b8: 0xd9  .word       0x000000D9                   # multu       $zero, $zero # 000000C0 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3843b8u;
@@ -125848,30 +125772,26 @@ label_3843d4:
 label_3843d8:
     if (ctx->pc == 0x3843D8u) {
         ctx->pc = 0x3843D8u;
-            // 0x3843d8: 0xc6  .word       0x000000C6                   # srlv        $zero, $zero, $zero # 000000C0 <InstrIdType: CPU_SPECIAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3843D4u;
+        // 0x3843d8: 0xc6  .word       0x000000C6                   # srlv        $zero, $zero, $zero # 000000C0 <InstrIdType: CPU_SPECIAL> (Delay Slot)
         SET_GPR_S32(ctx, 0, (int32_t)SRL32(GPR_U32(ctx, 0), GPR_U32(ctx, 0) & 0x1F));
+        ctx->in_delay_slot = false;
         ctx->pc = 0x3843DCu;
         goto label_3843dc;
     }
     ctx->pc = 0x3843D4u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x3843D8u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x3843D4u;
-            // 0x3843d8: 0xc6  .word       0x000000C6                   # srlv        $zero, $zero, $zero # 000000C0 <InstrIdType: CPU_SPECIAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3843D4u;
+        // 0x3843d8: 0xc6  .word       0x000000C6                   # srlv        $zero, $zero, $zero # 000000C0 <InstrIdType: CPU_SPECIAL> (Delay Slot)
         SET_GPR_S32(ctx, 0, (int32_t)SRL32(GPR_U32(ctx, 0), GPR_U32(ctx, 0) & 0x1F));
         ctx->in_delay_slot = false;
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x3843DCu;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x3843DCu; }
-            if (ctx->pc != 0x3843DCu) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x3843D4u, 0x3843DCu, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x3843DCu;
@@ -125890,7 +125810,7 @@ label_3843e4:
 label_3843e8:
     // 0x3843e8: 0xbd  .word       0x000000BD                   # INVALID     $zero, $zero, 0xBD # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3843e8u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x3843E8 raw=0x000000BD");
 label_3843ec:
     // 0x3843ec: 0xbb  dsra        $zero, $zero, 2
     ctx->pc = 0x3843ecu;
@@ -125898,15 +125818,15 @@ label_3843ec:
 label_3843f0:
     // 0x3843f0: 0xb9  .word       0x000000B9                   # INVALID     $zero, $zero, 0xB9 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3843f0u;
-    // Unhandled SPECIAL instruction: 0x39
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x39 at 0x3843F0 raw=0x000000B9");
 label_3843f4:
     // 0x3843f4: 0xb7  .word       0x000000B7                   # INVALID     $zero, $zero, 0xB7 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3843f4u;
-    // Unhandled SPECIAL instruction: 0x37
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x37 at 0x3843F4 raw=0x000000B7");
 label_3843f8:
     // 0x3843f8: 0xb5  .word       0x000000B5                   # INVALID     $zero, $zero, 0xB5 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3843f8u;
-    // Unhandled SPECIAL instruction: 0x35
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x35 at 0x3843F8 raw=0x000000B5");
 label_3843fc:
     // 0x3843fc: 0xb3  tltu        $zero, $zero, 2
     ctx->pc = 0x3843fcu;
@@ -125950,15 +125870,15 @@ label_384420:
 label_384424:
     // 0x384424: 0x9f  .word       0x0000009F                   # ddivu       $zero, $zero, $zero # 00000080 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384424u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x384424 raw=0x0000009F");
 label_384428:
     // 0x384428: 0x9d  .word       0x0000009D                   # dmultu      $zero, $zero # 00000080 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384428u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x384428 raw=0x0000009D");
 label_38442c:
     // 0x38442c: 0x9c  .word       0x0000009C                   # dmult       $zero, $zero # 00000080 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x38442cu;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x38442C raw=0x0000009C");
 label_384430:
     // 0x384430: 0x9a  .word       0x0000009A                   # div         $zero, $zero, $zero # 00000080 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384430u;
@@ -125974,7 +125894,7 @@ label_384438:
 label_38443c:
     // 0x38443c: 0x95  .word       0x00000095                   # INVALID     $zero, $zero, 0x95 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x38443cu;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x38443C raw=0x00000095");
 label_384440:
     // 0x384440: 0x93  .word       0x00000093                   # mtlo        $zero # 00000080 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384440u;
@@ -125991,7 +125911,7 @@ label_384448:
 label_38444c:
     // 0x38444c: 0x8e  .word       0x0000008E                   # INVALID     $zero, $zero, 0x8E # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x38444cu;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x38444C raw=0x0000008E");
 label_384450:
     // 0x384450: 0x8c  syscall     2
     ctx->pc = 0x384450u;
@@ -126005,30 +125925,26 @@ label_384458:
 label_38445c:
     if (ctx->pc == 0x38445Cu) {
         ctx->pc = 0x38445Cu;
-            // 0x38445c: 0x87  .word       0x00000087                   # srav        $zero, $zero, $zero # 00000080 <InstrIdType: CPU_SPECIAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384458u;
+        // 0x38445c: 0x87  .word       0x00000087                   # srav        $zero, $zero, $zero # 00000080 <InstrIdType: CPU_SPECIAL> (Delay Slot)
         SET_GPR_S32(ctx, 0, SRA32(GPR_S32(ctx, 0), GPR_U32(ctx, 0) & 0x1F));
+        ctx->in_delay_slot = false;
         ctx->pc = 0x384460u;
         goto label_384460;
     }
     ctx->pc = 0x384458u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x38445Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x384458u;
-            // 0x38445c: 0x87  .word       0x00000087                   # srav        $zero, $zero, $zero # 00000080 <InstrIdType: CPU_SPECIAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384458u;
+        // 0x38445c: 0x87  .word       0x00000087                   # srav        $zero, $zero, $zero # 00000080 <InstrIdType: CPU_SPECIAL> (Delay Slot)
         SET_GPR_S32(ctx, 0, SRA32(GPR_S32(ctx, 0), GPR_U32(ctx, 0) & 0x1F));
         ctx->in_delay_slot = false;
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x384460u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x384460u; }
-            if (ctx->pc != 0x384460u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x384458u, 0x384460u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x384460u;
@@ -126047,7 +125963,7 @@ label_384468:
 label_38446c:
     // 0x38446c: 0x81  .word       0x00000081                   # INVALID     $zero, $zero, 0x81 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x38446cu;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x38446C raw=0x00000081");
 label_384470:
     // 0x384470: 0x80  sll         $zero, $zero, 2
     ctx->pc = 0x384470u;
@@ -126059,7 +125975,7 @@ label_384474:
 label_384478:
     // 0x384478: 0x7d  .word       0x0000007D                   # INVALID     $zero, $zero, 0x7D # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384478u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x384478 raw=0x0000007D");
 label_38447c:
     // 0x38447c: 0x7b  dsra        $zero, $zero, 1
     ctx->pc = 0x38447cu;
@@ -126071,11 +125987,11 @@ label_384480:
 label_384484:
     // 0x384484: 0x79  .word       0x00000079                   # INVALID     $zero, $zero, 0x79 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384484u;
-    // Unhandled SPECIAL instruction: 0x39
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x39 at 0x384484 raw=0x00000079");
 label_384488:
     // 0x384488: 0x77  .word       0x00000077                   # INVALID     $zero, $zero, 0x77 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384488u;
-    // Unhandled SPECIAL instruction: 0x37
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x37 at 0x384488 raw=0x00000077");
 label_38448c:
     // 0x38448c: 0x76  tne         $zero, $zero, 1
     ctx->pc = 0x38448cu;
@@ -126083,7 +125999,7 @@ label_38448c:
 label_384490:
     // 0x384490: 0x75  .word       0x00000075                   # INVALID     $zero, $zero, 0x75 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384490u;
-    // Unhandled SPECIAL instruction: 0x35
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x35 at 0x384490 raw=0x00000075");
 label_384494:
     // 0x384494: 0x73  tltu        $zero, $zero, 1
     ctx->pc = 0x384494u;
@@ -126155,15 +126071,15 @@ label_3844d4:
 label_3844d8:
     // 0x3844d8: 0x5f  .word       0x0000005F                   # ddivu       $zero, $zero, $zero # 00000040 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3844d8u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x3844D8 raw=0x0000005F");
 label_3844dc:
     // 0x3844dc: 0x5e  .word       0x0000005E                   # ddiv        $zero, $zero, $zero # 00000040 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3844dcu;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x3844DC raw=0x0000005E");
 label_3844e0:
     // 0x3844e0: 0x5c  .word       0x0000005C                   # dmult       $zero, $zero # 00000040 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3844e0u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x3844E0 raw=0x0000005C");
 label_3844e4:
     // 0x3844e4: 0x5b  .word       0x0000005B                   # divu        $zero, $zero, $zero # 00000040 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3844e4u;
@@ -126191,7 +126107,7 @@ label_3844f8:
 label_3844fc:
     // 0x3844fc: 0x55  .word       0x00000055                   # INVALID     $zero, $zero, 0x55 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3844fcu;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x3844FC raw=0x00000055");
 label_384500:
     // 0x384500: 0x54  .word       0x00000054                   # dsllv       $zero, $zero, $zero # 00000040 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384500u;
@@ -126224,7 +126140,7 @@ label_384518:
 label_38451c:
     // 0x38451c: 0x4e  .word       0x0000004E                   # INVALID     $zero, $zero, 0x4E # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x38451cu;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x38451C raw=0x0000004E");
 label_384520:
     // 0x384520: 0x4d  break       0, 1
     ctx->pc = 0x384520u;
@@ -126246,30 +126162,26 @@ label_384530:
 label_384534:
     if (ctx->pc == 0x384534u) {
         ctx->pc = 0x384534u;
-            // 0x384534: 0x48  .word       0x00000048                   # jr          $zero # 00000040 <InstrIdType: CPU_SPECIAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384530u;
+        // 0x384534: 0x48  .word       0x00000048                   # jr          $zero # 00000040 <InstrIdType: CPU_SPECIAL> (Delay Slot)
         // JR $0 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x384538u;
         goto label_384538;
     }
     ctx->pc = 0x384530u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x384534u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x384530u;
-            // 0x384534: 0x48  .word       0x00000048                   # jr          $zero # 00000040 <InstrIdType: CPU_SPECIAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384530u;
+        // 0x384534: 0x48  .word       0x00000048                   # jr          $zero # 00000040 <InstrIdType: CPU_SPECIAL> (Delay Slot)
         // JR $0 - Handled by branch logic
         ctx->in_delay_slot = false;
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x384538u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x384538u; }
-            if (ctx->pc != 0x384538u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x384530u, 0x384538u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x384538u;
@@ -126278,21 +126190,27 @@ label_384538:
 label_38453c:
     if (ctx->pc == 0x38453Cu) {
         ctx->pc = 0x38453Cu;
-            // 0x38453c: 0x47  .word       0x00000047                   # srav        $zero, $zero, $zero # 00000040 <InstrIdType: CPU_SPECIAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384538u;
+        // 0x38453c: 0x47  .word       0x00000047                   # srav        $zero, $zero, $zero # 00000040 <InstrIdType: CPU_SPECIAL> (Delay Slot)
         SET_GPR_S32(ctx, 0, SRA32(GPR_S32(ctx, 0), GPR_U32(ctx, 0) & 0x1F));
+        ctx->in_delay_slot = false;
         ctx->pc = 0x384540u;
         goto label_384540;
     }
     ctx->pc = 0x384538u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x38453Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x384538u;
-            // 0x38453c: 0x47  .word       0x00000047                   # srav        $zero, $zero, $zero # 00000040 <InstrIdType: CPU_SPECIAL> (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384538u;
+        // 0x38453c: 0x47  .word       0x00000047                   # srav        $zero, $zero, $zero # 00000040 <InstrIdType: CPU_SPECIAL> (Delay Slot)
         SET_GPR_S32(ctx, 0, SRA32(GPR_S32(ctx, 0), GPR_U32(ctx, 0) & 0x1F));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x384538u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x384540u;
 label_384540:
@@ -126302,7 +126220,7 @@ label_384540:
 label_384544:
     // 0x384544: 0x45  .word       0x00000045                   # INVALID     $zero, $zero, 0x45 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384544u;
-    // Unhandled SPECIAL instruction: 0x5
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x5 at 0x384544 raw=0x00000045");
 label_384548:
     // 0x384548: 0x44  .word       0x00000044                   # sllv        $zero, $zero, $zero # 00000040 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384548u;
@@ -126322,11 +126240,11 @@ label_384554:
 label_384558:
     // 0x384558: 0x41  .word       0x00000041                   # INVALID     $zero, $zero, 0x41 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384558u;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x384558 raw=0x00000041");
 label_38455c:
     // 0x38455c: 0x41  .word       0x00000041                   # INVALID     $zero, $zero, 0x41 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x38455cu;
-    // Unhandled SPECIAL instruction: 0x1
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1 at 0x38455C raw=0x00000041");
 label_384560:
     // 0x384560: 0x40  sll         $zero, $zero, 1
     ctx->pc = 0x384560u;
@@ -126346,7 +126264,7 @@ label_38456c:
 label_384570:
     // 0x384570: 0x3d  .word       0x0000003D                   # INVALID     $zero, $zero, 0x3D # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384570u;
-    // Unhandled SPECIAL instruction: 0x3D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x3D at 0x384570 raw=0x0000003D");
 label_384574:
     // 0x384574: 0x3c  dsll32      $zero, $zero, 0
     ctx->pc = 0x384574u;
@@ -126366,11 +126284,11 @@ label_384580:
 label_384584:
     // 0x384584: 0x39  .word       0x00000039                   # INVALID     $zero, $zero, 0x39 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384584u;
-    // Unhandled SPECIAL instruction: 0x39
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x39 at 0x384584 raw=0x00000039");
 label_384588:
     // 0x384588: 0x39  .word       0x00000039                   # INVALID     $zero, $zero, 0x39 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384588u;
-    // Unhandled SPECIAL instruction: 0x39
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x39 at 0x384588 raw=0x00000039");
 label_38458c:
     // 0x38458c: 0x38  dsll        $zero, $zero, 0
     ctx->pc = 0x38458cu;
@@ -126382,7 +126300,7 @@ label_384590:
 label_384594:
     // 0x384594: 0x37  .word       0x00000037                   # INVALID     $zero, $zero, 0x37 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384594u;
-    // Unhandled SPECIAL instruction: 0x37
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x37 at 0x384594 raw=0x00000037");
 label_384598:
     // 0x384598: 0x36  tne         $zero, $zero, 0
     ctx->pc = 0x384598u;
@@ -126394,7 +126312,7 @@ label_38459c:
 label_3845a0:
     // 0x3845a0: 0x35  .word       0x00000035                   # INVALID     $zero, $zero, 0x35 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3845a0u;
-    // Unhandled SPECIAL instruction: 0x35
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x35 at 0x3845A0 raw=0x00000035");
 label_3845a4:
     // 0x3845a4: 0x34  teq         $zero, $zero, 0
     ctx->pc = 0x3845a4u;
@@ -126574,51 +126492,51 @@ label_384650:
 label_384654:
     // 0x384654: 0x1f  ddivu       $zero, $zero, $zero
     ctx->pc = 0x384654u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x384654 raw=0x0000001F");
 label_384658:
     // 0x384658: 0x1f  ddivu       $zero, $zero, $zero
     ctx->pc = 0x384658u;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x384658 raw=0x0000001F");
 label_38465c:
     // 0x38465c: 0x1f  ddivu       $zero, $zero, $zero
     ctx->pc = 0x38465cu;
-    // Unhandled SPECIAL instruction: 0x1F
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1F at 0x38465C raw=0x0000001F");
 label_384660:
     // 0x384660: 0x1e  ddiv        $zero, $zero, $zero
     ctx->pc = 0x384660u;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x384660 raw=0x0000001E");
 label_384664:
     // 0x384664: 0x1e  ddiv        $zero, $zero, $zero
     ctx->pc = 0x384664u;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x384664 raw=0x0000001E");
 label_384668:
     // 0x384668: 0x1e  ddiv        $zero, $zero, $zero
     ctx->pc = 0x384668u;
-    // Unhandled SPECIAL instruction: 0x1E
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1E at 0x384668 raw=0x0000001E");
 label_38466c:
     // 0x38466c: 0x1d  dmultu      $zero, $zero
     ctx->pc = 0x38466cu;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x38466C raw=0x0000001D");
 label_384670:
     // 0x384670: 0x1d  dmultu      $zero, $zero
     ctx->pc = 0x384670u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x384670 raw=0x0000001D");
 label_384674:
     // 0x384674: 0x1d  dmultu      $zero, $zero
     ctx->pc = 0x384674u;
-    // Unhandled SPECIAL instruction: 0x1D
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1D at 0x384674 raw=0x0000001D");
 label_384678:
     // 0x384678: 0x1c  dmult       $zero, $zero
     ctx->pc = 0x384678u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x384678 raw=0x0000001C");
 label_38467c:
     // 0x38467c: 0x1c  dmult       $zero, $zero
     ctx->pc = 0x38467cu;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x38467C raw=0x0000001C");
 label_384680:
     // 0x384680: 0x1c  dmult       $zero, $zero
     ctx->pc = 0x384680u;
-    // Unhandled SPECIAL instruction: 0x1C
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x1C at 0x384680 raw=0x0000001C");
 label_384684:
     // 0x384684: 0x1b  divu        $zero, $zero, $zero
     ctx->pc = 0x384684u;
@@ -126706,19 +126624,19 @@ label_3846d4:
 label_3846d8:
     // 0x3846d8: 0x15  .word       0x00000015                   # INVALID     $zero, $zero, 0x15 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3846d8u;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x3846D8 raw=0x00000015");
 label_3846dc:
     // 0x3846dc: 0x15  .word       0x00000015                   # INVALID     $zero, $zero, 0x15 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3846dcu;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x3846DC raw=0x00000015");
 label_3846e0:
     // 0x3846e0: 0x15  .word       0x00000015                   # INVALID     $zero, $zero, 0x15 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3846e0u;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x3846E0 raw=0x00000015");
 label_3846e4:
     // 0x3846e4: 0x15  .word       0x00000015                   # INVALID     $zero, $zero, 0x15 # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x3846e4u;
-    // Unhandled SPECIAL instruction: 0x15
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0x15 at 0x3846E4 raw=0x00000015");
 label_3846e8:
     // 0x3846e8: 0x14  dsllv       $zero, $zero, $zero
     ctx->pc = 0x3846e8u;
@@ -126844,27 +126762,27 @@ label_384758:
 label_38475c:
     // 0x38475c: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x38475cu;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x38475C raw=0x0000000E");
 label_384760:
     // 0x384760: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384760u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x384760 raw=0x0000000E");
 label_384764:
     // 0x384764: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384764u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x384764 raw=0x0000000E");
 label_384768:
     // 0x384768: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384768u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x384768 raw=0x0000000E");
 label_38476c:
     // 0x38476c: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x38476cu;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x38476C raw=0x0000000E");
 label_384770:
     // 0x384770: 0xe  .word       0x0000000E                   # INVALID     $zero, $zero, 0xE # 00000000 <InstrIdType: CPU_SPECIAL>
     ctx->pc = 0x384770u;
-    // Unhandled SPECIAL instruction: 0xE
+    throw std::runtime_error("Unhandled SPECIAL instruction: 0xE at 0x384770 raw=0x0000000E");
 label_384774:
     // 0x384774: 0xd  break       0
     ctx->pc = 0x384774u;
@@ -126986,30 +126904,26 @@ label_3847e8:
 label_3847ec:
     if (ctx->pc == 0x3847ECu) {
         ctx->pc = 0x3847ECu;
-            // 0x3847ec: 0x9  jalr        $zero, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3847E8u;
+        // 0x3847ec: 0x9  jalr        $zero, $zero (Delay Slot)
         // JALR $0, $0 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x3847F0u;
         goto label_3847f0;
     }
     ctx->pc = 0x3847E8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x3847ECu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x3847E8u;
-            // 0x3847ec: 0x9  jalr        $zero, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3847E8u;
+        // 0x3847ec: 0x9  jalr        $zero, $zero (Delay Slot)
         // JALR $0, $0 - Handled by branch logic
         ctx->in_delay_slot = false;
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x3847F0u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x3847F0u; }
-            if (ctx->pc != 0x3847F0u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x3847E8u, 0x3847F0u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x3847F0u;
@@ -127018,30 +126932,26 @@ label_3847f0:
 label_3847f4:
     if (ctx->pc == 0x3847F4u) {
         ctx->pc = 0x3847F4u;
-            // 0x3847f4: 0x9  jalr        $zero, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3847F0u;
+        // 0x3847f4: 0x9  jalr        $zero, $zero (Delay Slot)
         // JALR $0, $0 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x3847F8u;
         goto label_3847f8;
     }
     ctx->pc = 0x3847F0u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x3847F4u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x3847F0u;
-            // 0x3847f4: 0x9  jalr        $zero, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3847F0u;
+        // 0x3847f4: 0x9  jalr        $zero, $zero (Delay Slot)
         // JALR $0, $0 - Handled by branch logic
         ctx->in_delay_slot = false;
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x3847F8u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x3847F8u; }
-            if (ctx->pc != 0x3847F8u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x3847F0u, 0x3847F8u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x3847F8u;
@@ -127050,30 +126960,26 @@ label_3847f8:
 label_3847fc:
     if (ctx->pc == 0x3847FCu) {
         ctx->pc = 0x3847FCu;
-            // 0x3847fc: 0x9  jalr        $zero, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3847F8u;
+        // 0x3847fc: 0x9  jalr        $zero, $zero (Delay Slot)
         // JALR $0, $0 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x384800u;
         goto label_384800;
     }
     ctx->pc = 0x3847F8u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x3847FCu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x3847F8u;
-            // 0x3847fc: 0x9  jalr        $zero, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x3847F8u;
+        // 0x3847fc: 0x9  jalr        $zero, $zero (Delay Slot)
         // JALR $0, $0 - Handled by branch logic
         ctx->in_delay_slot = false;
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x384800u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x384800u; }
-            if (ctx->pc != 0x384800u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x3847F8u, 0x384800u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x384800u;
@@ -127082,30 +126988,26 @@ label_384800:
 label_384804:
     if (ctx->pc == 0x384804u) {
         ctx->pc = 0x384804u;
-            // 0x384804: 0x9  jalr        $zero, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384800u;
+        // 0x384804: 0x9  jalr        $zero, $zero (Delay Slot)
         // JALR $0, $0 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x384808u;
         goto label_384808;
     }
     ctx->pc = 0x384800u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x384804u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x384800u;
-            // 0x384804: 0x9  jalr        $zero, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384800u;
+        // 0x384804: 0x9  jalr        $zero, $zero (Delay Slot)
         // JALR $0, $0 - Handled by branch logic
         ctx->in_delay_slot = false;
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x384808u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x384808u; }
-            if (ctx->pc != 0x384808u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x384800u, 0x384808u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x384808u;
@@ -127114,30 +127016,26 @@ label_384808:
 label_38480c:
     if (ctx->pc == 0x38480Cu) {
         ctx->pc = 0x38480Cu;
-            // 0x38480c: 0x8  jr          $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384808u;
+        // 0x38480c: 0x8  jr          $zero (Delay Slot)
         // JR $0 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x384810u;
         goto label_384810;
     }
     ctx->pc = 0x384808u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x38480Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x384808u;
-            // 0x38480c: 0x8  jr          $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384808u;
+        // 0x38480c: 0x8  jr          $zero (Delay Slot)
         // JR $0 - Handled by branch logic
         ctx->in_delay_slot = false;
-        if (jumpTarget == 0u) {
-            ctx->pc = 0x384810u;
-        } else {
         ctx->pc = jumpTarget;
-        {
-            auto targetFn = runtime->lookupFunction(jumpTarget);
-            const uint32_t __entryPc = ctx->pc;
-            targetFn(rdram, ctx, runtime);
-            if (ctx->pc == __entryPc) { ctx->pc = 0x384810u; }
-            if (ctx->pc != 0x384810u) { return; }
-        }
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x384808u, 0x384810u, PS2Runtime::GuestBranchKind::IndirectCall, "JALR")) {
+            return;
         }
     }
     ctx->pc = 0x384810u;
@@ -127146,21 +127044,27 @@ label_384810:
 label_384814:
     if (ctx->pc == 0x384814u) {
         ctx->pc = 0x384814u;
-            // 0x384814: 0x8  jr          $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384810u;
+        // 0x384814: 0x8  jr          $zero (Delay Slot)
         // JR $0 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x384818u;
         goto label_384818;
     }
     ctx->pc = 0x384810u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x384814u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x384810u;
-            // 0x384814: 0x8  jr          $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384810u;
+        // 0x384814: 0x8  jr          $zero (Delay Slot)
         // JR $0 - Handled by branch logic
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x384810u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x384818u;
 label_384818:
@@ -127168,23 +127072,28 @@ label_384818:
 label_38481c:
     if (ctx->pc == 0x38481Cu) {
         ctx->pc = 0x38481Cu;
-            // 0x38481c: 0x8  jr          $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384818u;
+        // 0x38481c: 0x8  jr          $zero (Delay Slot)
         // JR $0 - Handled by branch logic
+        ctx->in_delay_slot = false;
         ctx->pc = 0x384820u;
         goto label_fallthrough_0x384818;
     }
     ctx->pc = 0x384818u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 0);
+        const uint32_t jumpTarget = GPR_U32(ctx, 0);
         ctx->pc = 0x38481Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x384818u;
-            // 0x38481c: 0x8  jr          $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x384818u;
+        // 0x38481c: 0x8  jr          $zero (Delay Slot)
         // JR $0 - Handled by branch logic
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x384818u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
 label_fallthrough_0x384818:
-    ctx->pc = 0x384820u;
     ctx->pc = 0x384820u;
 }

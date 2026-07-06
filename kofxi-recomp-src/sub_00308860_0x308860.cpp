@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -50,10 +51,11 @@ label_308870:
         const bool branch_taken_0x308874 = (GPR_U64(ctx, 3) != GPR_U64(ctx, 5));
         if (branch_taken_0x308874) {
             ctx->pc = 0x308878u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x308874u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x308874u;
             // 0x308878: 0x8c420004  lw          $v0, 0x4($v0) (Delay Slot)
-        SET_GPR_S32(ctx, 2, (int32_t)READ32(ADD32(GPR_U32(ctx, 2), 4)));
-        ctx->in_delay_slot = false;
+            SET_GPR_S32(ctx, 2, (int32_t)READ32(ADD32(GPR_U32(ctx, 2), 4)));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x308884u;
             goto label_308884;
         }
@@ -76,10 +78,11 @@ label_308884:
         const bool branch_taken_0x308884 = (GPR_U64(ctx, 2) != GPR_U64(ctx, 0));
         if (branch_taken_0x308884) {
             ctx->pc = 0x308888u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x308884u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x308884u;
             // 0x308888: 0x8c430008  lw          $v1, 0x8($v0) (Delay Slot)
-        SET_GPR_S32(ctx, 3, (int32_t)READ32(ADD32(GPR_U32(ctx, 2), 8)));
-        ctx->in_delay_slot = false;
+            SET_GPR_S32(ctx, 3, (int32_t)READ32(ADD32(GPR_U32(ctx, 2), 8)));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x308870u;
             if (runtime->shouldPreemptGuestExecution()) {
                 return;
@@ -99,13 +102,18 @@ label_308894:
     // 0x308894: 0x3e00008  jr          $ra
     ctx->pc = 0x308894u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x308894u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x30889Cu;
     // 0x30889c: 0x0  nop
     ctx->pc = 0x30889cu;
     // NOP
-    ctx->pc = 0x3088a0u;
 }

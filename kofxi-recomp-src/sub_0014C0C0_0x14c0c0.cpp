@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -100,17 +101,13 @@ label_14c110:
     // 0x14c11c: 0x806e822  j           func_1BA088
     ctx->pc = 0x14C11Cu;
     ctx->pc = 0x14C120u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x14C11Cu;
-            // 0x14c120: 0x8c64e4c0  lw          $a0, -0x1B40($v1) (Delay Slot)
-        SET_GPR_S32(ctx, 4, (int32_t)READ32(ADD32(GPR_U32(ctx, 3), 4294960320)));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x14C11Cu;
+    // 0x14c120: 0x8c64e4c0  lw          $a0, -0x1B40($v1) (Delay Slot)
+    SET_GPR_S32(ctx, 4, (int32_t)READ32(ADD32(GPR_U32(ctx, 3), 4294960320)));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x1BA088u;
-    if (runtime->hasFunction(0x1BA088u)) {
-        auto targetFn = runtime->lookupFunction(0x1BA088u);
-        targetFn(rdram, ctx, runtime); return;
-    } else {
-        sub_001BA088_0x1ba088(rdram, ctx, runtime); return;
-    }
+    sub_001BA088_0x1ba088(rdram, ctx, runtime); return;
     ctx->pc = 0x14C124u;
     // 0x14c124: 0x0  nop
     ctx->pc = 0x14c124u;
@@ -121,5 +118,4 @@ label_14c110:
     // 0x14c12c: 0x0  nop
     ctx->pc = 0x14c12cu;
     // NOP
-    ctx->pc = 0x14c130u;
 }

@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -72,7 +73,7 @@ void sub_00339FF0_0x339ff0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x33a028: 0x600008  jr          $v1
     ctx->pc = 0x33A028u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 3);
+        const uint32_t jumpTarget = GPR_U32(ctx, 3);
         ctx->pc = jumpTarget;
         switch (jumpTarget) {
             case 0x33A030u: goto label_33a030;
@@ -83,7 +84,9 @@ void sub_00339FF0_0x339ff0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
             case 0x33A20Cu: goto label_33a20c;
             default: break;
         }
-        return;
+        if (!runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x33A028u, 0x0u, PS2Runtime::GuestBranchKind::IndirectJump, "JR")) {
+            return;
+        }
     }
     ctx->pc = 0x33A030u;
 label_33a030:
@@ -125,8 +128,9 @@ label_33a04c:
     {
         const bool branch_taken_0x33a050 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x33A054u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x33A050u;
-            // 0x33a054: 0xa060b242  sb          $zero, -0x4DBE($v1) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x33A050u;
+        // 0x33a054: 0xa060b242  sb          $zero, -0x4DBE($v1) (Delay Slot)
         WRITE8(ADD32(GPR_U32(ctx, 3), 4294947394), (uint8_t)GPR_U32(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x33a050) {
@@ -276,8 +280,9 @@ label_33a0d4:
     {
         const bool branch_taken_0x33a0d8 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x33A0DCu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x33A0D8u;
-            // 0x33a0dc: 0xa060b244  sb          $zero, -0x4DBC($v1) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x33A0D8u;
+        // 0x33a0dc: 0xa060b244  sb          $zero, -0x4DBC($v1) (Delay Slot)
         WRITE8(ADD32(GPR_U32(ctx, 3), 4294947396), (uint8_t)GPR_U32(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x33a0d8) {
@@ -351,8 +356,9 @@ label_33a114:
     {
         const bool branch_taken_0x33a118 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x33A11Cu;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x33A118u;
-            // 0x33a11c: 0xa060b242  sb          $zero, -0x4DBE($v1) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x33A118u;
+        // 0x33a11c: 0xa060b242  sb          $zero, -0x4DBE($v1) (Delay Slot)
         WRITE8(ADD32(GPR_U32(ctx, 3), 4294947394), (uint8_t)GPR_U32(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x33a118) {
@@ -457,8 +463,9 @@ label_33a170:
     {
         const bool branch_taken_0x33a174 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x33A178u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x33A174u;
-            // 0x33a178: 0xa060b242  sb          $zero, -0x4DBE($v1) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x33A174u;
+        // 0x33a178: 0xa060b242  sb          $zero, -0x4DBE($v1) (Delay Slot)
         WRITE8(ADD32(GPR_U32(ctx, 3), 4294947394), (uint8_t)GPR_U32(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x33a174) {
@@ -623,9 +630,15 @@ label_33a20c:
     // 0x33a20c: 0x3e00008  jr          $ra
     ctx->pc = 0x33A20Cu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x33A20Cu, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x33A214u;
     // 0x33a214: 0x0  nop
@@ -637,5 +650,4 @@ label_33a20c:
     // 0x33a21c: 0x0  nop
     ctx->pc = 0x33a21cu;
     // NOP
-    ctx->pc = 0x33a220u;
 }

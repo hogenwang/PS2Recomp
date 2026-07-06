@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -57,8 +58,9 @@ void sub_0020DEE0_0x20dee0(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x20df04 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x20DF08u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x20DF04u;
-            // 0x20df08: 0xe0802d  daddu       $s0, $a3, $zero (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x20DF04u;
+        // 0x20df08: 0xe0802d  daddu       $s0, $a3, $zero (Delay Slot)
         SET_GPR_U64(ctx, 16, (uint64_t)GPR_U64(ctx, 7) + (uint64_t)GPR_U64(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x20df04) {
@@ -94,22 +96,14 @@ label_20df0c:
     ctx->pc = 0x20DF24u;
     SET_GPR_U32(ctx, 31, 0x20DF2Cu);
     ctx->pc = 0x20DF28u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x20DF24u;
-            // 0x20df28: 0xc0402d  daddu       $t0, $a2, $zero (Delay Slot)
-        SET_GPR_U64(ctx, 8, (uint64_t)GPR_U64(ctx, 6) + (uint64_t)GPR_U64(ctx, 0));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x20DF24u;
+    // 0x20df28: 0xc0402d  daddu       $t0, $a2, $zero (Delay Slot)
+    SET_GPR_U64(ctx, 8, (uint64_t)GPR_U64(ctx, 6) + (uint64_t)GPR_U64(ctx, 0));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x20DCF0u;
-    if (runtime->hasFunction(0x20DCF0u)) {
-        auto targetFn = runtime->lookupFunction(0x20DCF0u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x20DF2Cu; }
-        if (ctx->pc != 0x20DF2Cu) { return; }
-    } else {
-        const uint32_t __entryPc = ctx->pc;
-        sub_0020DCF0_0x20dcf0(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x20DF2Cu; }
-        if (ctx->pc != 0x20DF2Cu) { return; }
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x20DCF0u, 0x20DF24u, 0x20DF2Cu, PS2Runtime::GuestBranchKind::DirectCall, "JAL")) {
+        return;
     }
     ctx->pc = 0x20DF2Cu;
 label_20df2c:
@@ -152,10 +146,11 @@ label_20df40:
         const bool branch_taken_0x20df50 = (GPR_S32(ctx, 16) > 0);
         if (branch_taken_0x20df50) {
             ctx->pc = 0x20DF54u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x20DF50u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x20DF50u;
             // 0x20df54: 0x3403fffe  ori         $v1, $zero, 0xFFFE (Delay Slot)
-        SET_GPR_U64(ctx, 3, GPR_U64(ctx, 0) | (uint64_t)(uint16_t)65534);
-        ctx->in_delay_slot = false;
+            SET_GPR_U64(ctx, 3, GPR_U64(ctx, 0) | (uint64_t)(uint16_t)65534);
+            ctx->in_delay_slot = false;
             ctx->pc = 0x20DF0Cu;
             if (runtime->shouldPreemptGuestExecution()) {
                 return;
@@ -183,14 +178,21 @@ label_20df58:
     // 0x20df6c: 0x3e00008  jr          $ra
     ctx->pc = 0x20DF6Cu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
         ctx->pc = 0x20DF70u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x20DF6Cu;
-            // 0x20df70: 0x27bd0050  addiu       $sp, $sp, 0x50 (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x20DF6Cu;
+        // 0x20df70: 0x27bd0050  addiu       $sp, $sp, 0x50 (Delay Slot)
         SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 80));
         ctx->in_delay_slot = false;
         ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x20DF6Cu, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
         return;
+        #else
+        ctx->pc = jumpTarget;
+        return;
+        #endif
     }
     ctx->pc = 0x20DF74u;
     // 0x20df74: 0x0  nop
@@ -202,5 +204,4 @@ label_20df58:
     // 0x20df7c: 0x0  nop
     ctx->pc = 0x20df7cu;
     // NOP
-    ctx->pc = 0x20df80u;
 }

@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -36,8 +37,9 @@ void sub_00350D10_0x350d10(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x350d20 = (GPR_U64(ctx, 3) != GPR_U64(ctx, 5));
         ctx->pc = 0x350D24u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x350D20u;
-            // 0x350d24: 0xa085d9b0  sb          $a1, -0x2650($a0) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x350D20u;
+        // 0x350d24: 0xa085d9b0  sb          $a1, -0x2650($a0) (Delay Slot)
         WRITE8(ADD32(GPR_U32(ctx, 4), 4294957488), (uint8_t)GPR_U32(ctx, 5));
         ctx->in_delay_slot = false;
         if (branch_taken_0x350d20) {
@@ -72,8 +74,9 @@ void sub_00350D10_0x350d10(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     {
         const bool branch_taken_0x350d44 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x350D48u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x350D44u;
-            // 0x350d48: 0xa064f340  sb          $a0, -0xCC0($v1) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x350D44u;
+        // 0x350d48: 0xa064f340  sb          $a0, -0xCC0($v1) (Delay Slot)
         WRITE8(ADD32(GPR_U32(ctx, 3), 4294964032), (uint8_t)GPR_U32(ctx, 4));
         ctx->in_delay_slot = false;
         if (branch_taken_0x350d44) {
@@ -111,9 +114,15 @@ label_350d6c:
     // 0x350d6c: 0x3e00008  jr          $ra
     ctx->pc = 0x350D6Cu;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x350D6Cu, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x350D74u;
     // 0x350d74: 0x0  nop
@@ -125,5 +134,4 @@ label_350d6c:
     // 0x350d7c: 0x0  nop
     ctx->pc = 0x350d7cu;
     // NOP
-    ctx->pc = 0x350d80u;
 }

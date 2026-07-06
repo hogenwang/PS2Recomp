@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -22,9 +23,15 @@ void sub_001A0900_0x1a0900(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1a0900: 0x3e00008  jr          $ra
     ctx->pc = 0x1A0900u;
     {
-        uint32_t jumpTarget = GPR_U32(ctx, 31);
+        const uint32_t jumpTarget = GPR_U32(ctx, 31);
+        ctx->pc = jumpTarget;
+        #if defined(PS2X_STRICT_RETURN_DIAGNOSTICS) && PS2X_STRICT_RETURN_DIAGNOSTICS
+        (void)runtime->dispatchGuestBranch(rdram, ctx, jumpTarget, 0x1A0900u, 0u, PS2Runtime::GuestBranchKind::Return, "JR $ra");
+        return;
+        #else
         ctx->pc = jumpTarget;
         return;
+        #endif
     }
     ctx->pc = 0x1A0908u;
     // 0x1a0908: 0x0  nop
@@ -33,5 +40,4 @@ void sub_001A0900_0x1a0900(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     // 0x1a090c: 0x0  nop
     ctx->pc = 0x1a090cu;
     // NOP
-    ctx->pc = 0x1a0910u;
 }

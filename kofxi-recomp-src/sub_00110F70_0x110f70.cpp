@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "ps2_runtime_macros.h"
 #include "ps2_runtime.h"
 #include "ps2_recompiled_functions.h"
@@ -44,22 +45,14 @@ void sub_00110F70_0x110f70(uint8_t* rdram, R5900Context* ctx, PS2Runtime *runtim
     ctx->pc = 0x110F84u;
     SET_GPR_U32(ctx, 31, 0x110F8Cu);
     ctx->pc = 0x110F88u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x110F84u;
-            // 0x110f88: 0xa0802d  daddu       $s0, $a1, $zero (Delay Slot)
-        SET_GPR_U64(ctx, 16, (uint64_t)GPR_U64(ctx, 5) + (uint64_t)GPR_U64(ctx, 0));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x110F84u;
+    // 0x110f88: 0xa0802d  daddu       $s0, $a1, $zero (Delay Slot)
+    SET_GPR_U64(ctx, 16, (uint64_t)GPR_U64(ctx, 5) + (uint64_t)GPR_U64(ctx, 0));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x116EA0u;
-    if (runtime->hasFunction(0x116EA0u)) {
-        auto targetFn = runtime->lookupFunction(0x116EA0u);
-        const uint32_t __entryPc = ctx->pc;
-        targetFn(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x110F8Cu; }
-        if (ctx->pc != 0x110F8Cu) { return; }
-    } else {
-        const uint32_t __entryPc = ctx->pc;
-        kofxiDisableInterruptsAndReturnState_0x116ea0(rdram, ctx, runtime);
-        if (ctx->pc == __entryPc) { ctx->pc = 0x110F8Cu; }
-        if (ctx->pc != 0x110F8Cu) { return; }
+    if (!runtime->dispatchGuestBranch(rdram, ctx, 0x116EA0u, 0x110F84u, 0x110F8Cu, PS2Runtime::GuestBranchKind::DirectCall, "JAL")) {
+        return;
     }
     ctx->pc = 0x110F8Cu;
 label_110f8c:
@@ -92,8 +85,9 @@ label_110f8c:
     {
         const bool branch_taken_0x110fac = (GPR_U64(ctx, 2) != GPR_U64(ctx, 0));
         ctx->pc = 0x110FB0u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x110FACu;
-            // 0x110fb0: 0xae200014  sw          $zero, 0x14($s1) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x110FACu;
+        // 0x110fb0: 0xae200014  sw          $zero, 0x14($s1) (Delay Slot)
         WRITE32(ADD32(GPR_U32(ctx, 17), 20), GPR_U32(ctx, 0));
         ctx->in_delay_slot = false;
         if (branch_taken_0x110fac) {
@@ -107,8 +101,9 @@ label_110f8c:
     {
         const bool branch_taken_0x110fb4 = (GPR_U64(ctx, 0) == GPR_U64(ctx, 0));
         ctx->pc = 0x110FB8u;
-        ctx->in_delay_slot = true; ctx->branch_pc = 0x110FB4u;
-            // 0x110fb8: 0xac710028  sw          $s1, 0x28($v1) (Delay Slot)
+        ctx->in_delay_slot = true;
+        ctx->branch_pc = 0x110FB4u;
+        // 0x110fb8: 0xac710028  sw          $s1, 0x28($v1) (Delay Slot)
         WRITE32(ADD32(GPR_U32(ctx, 3), 40), GPR_U32(ctx, 17));
         ctx->in_delay_slot = false;
         if (branch_taken_0x110fb4) {
@@ -130,10 +125,11 @@ label_110fbc:
         const bool branch_taken_0x110fc4 = (GPR_U64(ctx, 3) == GPR_U64(ctx, 0));
         if (branch_taken_0x110fc4) {
             ctx->pc = 0x110FC8u;
-            ctx->in_delay_slot = true; ctx->branch_pc = 0x110FC4u;
+            ctx->in_delay_slot = true;
+            ctx->branch_pc = 0x110FC4u;
             // 0x110fc8: 0xac910014  sw          $s1, 0x14($a0) (Delay Slot)
-        WRITE32(ADD32(GPR_U32(ctx, 4), 20), GPR_U32(ctx, 17));
-        ctx->in_delay_slot = false;
+            WRITE32(ADD32(GPR_U32(ctx, 4), 20), GPR_U32(ctx, 17));
+            ctx->in_delay_slot = false;
             ctx->pc = 0x110FF0u;
             goto label_110ff0;
         }
@@ -187,20 +183,15 @@ label_110ff0:
     // 0x110ffc: 0x8045bbc  j           func_116EF0
     ctx->pc = 0x110FFCu;
     ctx->pc = 0x111000u;
-    ctx->in_delay_slot = true; ctx->branch_pc = 0x110FFCu;
-            // 0x111000: 0x27bd0030  addiu       $sp, $sp, 0x30 (Delay Slot)
-        SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 48));
-        ctx->in_delay_slot = false;
+    ctx->in_delay_slot = true;
+    ctx->branch_pc = 0x110FFCu;
+    // 0x111000: 0x27bd0030  addiu       $sp, $sp, 0x30 (Delay Slot)
+    SET_GPR_S32(ctx, 29, (int32_t)ADD32(GPR_U32(ctx, 29), 48));
+    ctx->in_delay_slot = false;
     ctx->pc = 0x116EF0u;
-    if (runtime->hasFunction(0x116EF0u)) {
-        auto targetFn = runtime->lookupFunction(0x116EF0u);
-        targetFn(rdram, ctx, runtime); return;
-    } else {
-        kofxiEnableInterruptsAndReturnState_0x116ef0(rdram, ctx, runtime); return;
-    }
+    kofxiEnableInterruptsAndReturnState_0x116ef0(rdram, ctx, runtime); return;
     ctx->pc = 0x111004u;
     // 0x111004: 0x0  nop
     ctx->pc = 0x111004u;
     // NOP
-    ctx->pc = 0x111008u;
 }
